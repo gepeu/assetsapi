@@ -38,6 +38,12 @@ Reports go to `.local/reports/`, and `npm run coverage` writes the coverage tabl
 
 Set `AGENT_BACKEND=claude` in `backend/.env` to answer chat from documents. That uses your own Claude Code login, for your own use only. Set `ANTHROPIC_API_KEY` before anyone else uses the chat or it's deployed.
 
+## Deployment
+
+The root `Dockerfile` builds one service: the backend serves both the API and the built frontend, so the session cookie stays same-origin. `NODE_ENV=production` makes it listen on all interfaces, mark the cookie `Secure`, and take the client address from the proxy's `X-Real-IP` header.
+
+Run a single replica. Sessions and failed sign-in counts are held in memory, so a restart signs everyone out and clears the counts. After 100 failed sign-ins in 15 minutes, new sign-ins are blocked for everyone until the window ends, whichever addresses they came from.
+
 ## Boundaries
 
 - **Data Model and AssetModel:** the Data Model answers "who said what?", and sources can disagree there. The AssetModel answers "what do we believe about this asset?" and gives one answer that can be traced back to its source.

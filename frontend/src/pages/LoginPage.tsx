@@ -15,12 +15,17 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
     setPending(true);
     setError(null);
     try {
-      if (await login(username, password)) {
+      const result = await login(username, password);
+      if (result === "signed-in") {
         onSignedIn();
         return;
       }
       setPassword("");
-      setError("Wrong username or password.");
+      setError(
+        result === "too-many-attempts"
+          ? "Too many failed sign-ins. Try again in 15 minutes."
+          : "Wrong username or password.",
+      );
     } catch {
       setError("Couldn't reach the server. Try again.");
     }

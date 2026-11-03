@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { join } from "node:path";
 import type pg from "pg";
 import { mockAgent, type AgentContext, type AgentService, type ChatMessage } from "./agent.ts";
 import { createDocumentAgent } from "./agent/documentAgent.ts";
@@ -7,13 +8,20 @@ import { checkCredentials, createSession, destroySession, hasSession } from "./a
 import { createPool } from "./db/pool.ts";
 import { latestStoredFile } from "./documents/documentStore.ts";
 import { LOCAL_DOWNLOAD_PATH, LocalBucketStorage } from "./localBucketStorage.ts";
+import { LoginLimiter } from "./loginLimiter.ts";
+import { sendFrontendFile } from "./staticFiles.ts";
 import { createBucketStorage } from "./storage.ts";
 import { VIEWS } from "./views/index.ts";
 
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const PORT = Number(process.env.PORT ?? 3001);
+// In production the platform's proxy provides TLS and must be able to reach this port.
+const HOST = IS_PRODUCTION ? "0.0.0.0" : "127.0.0.1";
 const MAX_BODY_BYTES = 1_000_000;
+const FRONTEND_DIR = join(import.meta.dirname, "../../frontend/dist");
 
 const storage = createBucketStorage();
+const loginLimiter = new LoginLimiter();
 
 let pool: pg.Pool | undefined;
 /** Opened on first use, so the backend can start without a database when using the mock agent. */
@@ -76,6 +84,12 @@ function parseLoginRequest(body: unknown): { username: string; password: string 
   return { username, password };
 }
 
+/** Behind Railway's proxy the socket address is the proxy's, so its X-Real-IP header identifies the client. */
+function clientAddress(req: IncomingMessage): string {
+  const realIp = IS_PRODUCTION ? req.headers["x-real-ip"] : undefined;
+  return (typeof realIp === "string" && realIp) || req.socket.remoteAddress || "unknown";
+}
+
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
   res.end(JSON.stringify(body));
@@ -118,6 +132,13 @@ const server = createServer(async (req, res) => {
   try {
     const { pathname, searchParams } = new URL(req.url ?? "/", "http://localhost");
 
+    // The frontend is public, since it holds the login page. Its data all comes from the API below.
+    if (pathname !== "/api" && !pathname.startsWith("/api/")) {
+      requireMethod(req, "GET");
+      if (!(await sendFrontendFile(res, FRONTEND_DIR, pathname))) throw new HttpError(404, "Not found");
+      return;
+    }
+
     // Signed links work without a session, like the bucket's. Access is checked before issuing them.
     if (pathname === LOCAL_DOWNLOAD_PATH) {
       requireMethod(req, "GET");
@@ -132,9 +153,18 @@ const server = createServer(async (req, res) => {
     if (pathname === "/api/auth/login") {
       requireMethod(req, "POST");
       const { username, password } = parseLoginRequest(await readJson(req));
+      const client = clientAddress(req);
+      // Checked even for the right password, so a blocked attempt can't reveal whether it was right.
+      const retryAfter = loginLimiter.retryAfterSeconds(client);
+      if (retryAfter > 0) {
+        res.setHeader("Retry-After", String(retryAfter));
+        throw new HttpError(429, "Too many failed sign-ins. Try again later.");
+      }
       if (!checkCredentials(username, password)) {
+        loginLimiter.recordFailure(client);
         throw new HttpError(401, "Invalid username or password");
       }
+      loginLimiter.recordSuccess(client);
       res.setHeader("Set-Cookie", createSession());
       sendJson(res, 200, { authenticated: true });
       return;
@@ -182,7 +212,6 @@ const server = createServer(async (req, res) => {
   }
 });
 
-// Loopback only: there's no TLS or login rate limiting yet.
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`Backend listening on http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Backend listening on http://${HOST}:${PORT}`);
 });

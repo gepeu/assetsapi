@@ -21,16 +21,19 @@ export async function getSession(): Promise<boolean> {
   return authenticated;
 }
 
-/** Resolves to false when the credentials are wrong; throws on any other failure. */
-export async function login(username: string, password: string): Promise<boolean> {
+export type LoginResult = "signed-in" | "wrong-credentials" | "too-many-attempts";
+
+/** Throws on any failure other than wrong credentials or too many attempts. */
+export async function login(username: string, password: string): Promise<LoginResult> {
   const response = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
-  if (response.status === 401) return false;
+  if (response.status === 401) return "wrong-credentials";
+  if (response.status === 429) return "too-many-attempts";
   if (!response.ok) throw new Error(`Login request failed: ${response.status}`);
-  return true;
+  return "signed-in";
 }
 
 export async function logout(): Promise<void> {
