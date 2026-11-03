@@ -8,13 +8,29 @@ export interface AgentContext {
   assetSlug: string | null;
 }
 
+export interface Citation {
+  /** Matches the [n] marker in the reply's text. */
+  number: number;
+  kind: "document" | "data";
+  title: string;
+  documentId: number | null;
+  url: string | null;
+  isOfficial: boolean | null;
+  page: number | null;
+}
+
+export interface AgentReply {
+  text: string;
+  citations: Citation[];
+}
+
 export interface AgentService {
-  reply(messages: ChatMessage[], context: AgentContext): Promise<string>;
+  reply(messages: ChatMessage[], context: AgentContext): Promise<AgentReply>;
 }
 
 /** Stands in for the real agent; replace this and the HTTP API stays the same. */
 export const mockAgent: AgentService = {
   async reply() {
-    return "hello";
+    return { text: "hello", citations: [] };
   },
 };

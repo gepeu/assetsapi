@@ -20,6 +20,21 @@ Layers 5, 6 and 7 all build on layer 4, so the UI, reports and chat show the sam
 - **AI-found values:** no person approves them at first. They must pass a check that the cited text really appears in the source, and they're labelled as AI-extracted. A wrong value can be withdrawn.
 - **Updates:** the first version acquires data on demand. Scheduled updates come later.
 - **LLM account:** local development uses the developer's current Claude account, with file and shell tools turned off. Deployment will use a separate account.
+- **Facts:** `fact` is a database view over claims, so a Fact can't disagree with them, and withdrawing a claim takes effect immediately.
+- **Chat answers:** they use stored documents and Facts only, with a citation for each statement.
+
+## Running locally
+
+From the repo root, run `docker compose up -d`. Then, from `backend/`:
+
+1. `npm run db:setup`: applies migrations and seeds the field catalog and assets.
+2. `npm run documents:load`: fetches official documents. `--refresh` fetches them again.
+3. `npm run rwa:load`: loads RWA.xyz claims, using `RWA_XYZ_API_KEY` from the repo-root `.env`.
+4. `npm run documents:index`: extracts searchable text.
+
+Reports go to `.local/reports/`, and `npm run coverage` writes the coverage table. `npm test` runs the tests against throwaway databases. `npm run agent:check` runs the chat checks against the real model, which uses your model usage.
+
+Set `AGENT_BACKEND=claude` in `backend/.env` to answer chat from documents. That uses your own Claude Code login, for your own use only. Set `ANTHROPIC_API_KEY` before anyone else uses the chat or it's deployed.
 
 ## Boundaries
 

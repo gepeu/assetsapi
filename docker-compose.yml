@@ -1,0 +1,23 @@
+# This repo's own local Postgres. Other projects' containers on this machine are separate.
+name: rwa-agent
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: rwa
+      POSTGRES_PASSWORD: ${RWA_POSTGRES_PASSWORD:-rwa_local}
+      POSTGRES_DB: rwa
+    ports:
+      - "127.0.0.1:54331:5432"
+    volumes:
+      # Postgres 18 images keep data in a versioned folder under this path.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rwa -d rwa"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:

@@ -9,14 +9,26 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env --watch src/server.ts",
     "start": "node --env-file-if-exists=.env src/server.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "db:setup": "node --env-file-if-exists=.env scripts/dbSetup.ts",
+    "documents:load": "node --env-file-if-exists=.env scripts/documentsLoad.ts",
+    "documents:index": "node --env-file-if-exists=.env scripts/documentsIndex.ts",
+    "coverage": "node --env-file-if-exists=.env scripts/coverageReport.ts",
+    "agent:check": "node --env-file-if-exists=.env scripts/agentCheck.ts",
+    "rwa:mapping": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzMappingDoc.ts",
+    "rwa:load": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzLoad.ts",
+    "test": "node --env-file-if-exists=.env --test test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.317",
     "@aws-sdk/client-s3": "^3.1161.0",
-    "@aws-sdk/s3-request-presigner": "^3.1161.0"
+    "@aws-sdk/s3-request-presigner": "^3.1161.0",
+    "pdfjs-dist": "^6.5.438",
+    "pg": "^8.23.1"
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useMatch } from "react-router-dom";
-import { sendMessage, type ChatMessage } from "../api/agent";
+import { documentDownloadUrl, sendMessage, type ChatMessage, type Citation } from "../api/agent";
 import { getAsset, type AssetDetail } from "../api/assets";
 import { useAsync } from "./useAsync";
 
@@ -55,8 +55,10 @@ export function AgentChat({ open, onClose }: { open: boolean; onClose: () => voi
     setFailed(false);
     setPending(true);
     try {
-      const reply = await sendMessage(conversation, { assetSlug: asset?.slug ?? null });
-      setMessages([...conversation, { role: "agent", text: reply }]);
+      const { text: reply, citations } = await sendMessage(conversation, {
+        assetSlug: asset?.slug ?? null,
+      });
+      setMessages([...conversation, { role: "agent", text: reply, citations }]);
     } catch {
       // Put the text back so the user can resend it without retyping.
       setMessages(messages);
@@ -175,5 +177,36 @@ function Message({ message }: { message: ChatMessage }) {
     message.role === "user"
       ? "max-w-[85%] self-end rounded-xl bg-canvas px-3 py-2"
       : "self-start";
-  return <p className={`whitespace-pre-wrap break-words text-sm leading-[22px] ${look}`}>{message.text}</p>;
+  return (
+    <div className={look}>
+      <p className="whitespace-pre-wrap break-words text-sm leading-[22px]">{message.text}</p>
+      {message.citations && message.citations.length > 0 && (
+        <ol aria-label="Sources" className="mt-2 flex flex-col gap-1 border-t border-border pt-2">
+          {message.citations.map((citation) => (
+            <CitationItem key={citation.number} citation={citation} />
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function CitationItem({ citation }: { citation: Citation }) {
+  const label = `[${citation.number}] ${citation.title}${citation.page ? `, p. ${citation.page}` : ""}`;
+  return (
+    <li className="break-words text-xs leading-[18px] text-muted-foreground">
+      {citation.documentId === null ? (
+        label
+      ) : (
+        <a
+          href={documentDownloadUrl(citation.documentId)}
+          title={citation.url ? `Download our saved copy of ${citation.url}` : "Download our saved copy"}
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          {label}
+        </a>
+      )}
+      {citation.isOfficial === false && <span className="ml-1 text-warning">Not official</span>}
+    </li>
+  );
 }
