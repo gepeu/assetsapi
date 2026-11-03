@@ -1,4 +1,5 @@
 // The frontend's only connection to the chat agent.
+import { notifySignedOut } from "./auth";
 
 export interface ChatMessage {
   role: "user" | "agent";
@@ -19,6 +20,7 @@ export async function sendMessage(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, context }),
   });
+  if (response.status === 401) notifySignedOut();
   if (!response.ok) throw new Error(`Agent request failed: ${response.status}`);
 
   const { reply } = (await response.json()) as { reply: string };

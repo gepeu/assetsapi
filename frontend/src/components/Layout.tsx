@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
+import { logout } from "../api/auth";
 import { AgentChat } from "./AgentChat";
 
 export function Layout() {
   const [chatOpen, setChatOpen] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const chatToggleRef = useRef<HTMLButtonElement>(null);
 
   function closeChat() {
@@ -51,6 +53,16 @@ export function Layout() {
                 <path d="M21 12a8 8 0 0 1-8 8H4l1.8-3.2A8 8 0 1 1 21 12Z" />
               </svg>
               Ask agent
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSignOutFailed(false);
+                logout().catch(() => setSignOutFailed(true));
+              }}
+              className="inline-flex h-8 cursor-pointer items-center whitespace-nowrap rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-canvas-hover hover:text-foreground"
+            >
+              {signOutFailed ? "Sign out failed, retry" : "Sign out"}
             </button>
           </header>
           <main className="w-full px-4 pb-20 pt-8 md:px-20 md:pb-44">

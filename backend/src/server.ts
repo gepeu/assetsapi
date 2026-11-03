@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mockAgent, type AgentContext, type AgentService, type ChatMessage } from "./agent.ts";
+import { checkCredentials, createSession, destroySession, hasSession } from "./auth.ts";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const MAX_BODY_BYTES = 1_000_000;
@@ -51,16 +52,54 @@ function parseChatRequest(body: unknown): { messages: ChatMessage[]; context: Ag
   return { messages, context: { assetSlug } };
 }
 
+function parseLoginRequest(body: unknown): { username: string; password: string } {
+  const { username, password } = (body ?? {}) as Record<string, unknown>;
+  if (typeof username !== "string" || typeof password !== "string") {
+    throw new HttpError(400, "username and password must be strings");
+  }
+  return { username, password };
+}
+
 function sendJson(res: ServerResponse, status: number, body: unknown) {
-  res.writeHead(status, { "Content-Type": "application/json" });
+  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
   res.end(JSON.stringify(body));
+}
+
+function requireMethod(req: IncomingMessage, method: string) {
+  if (req.method !== method) throw new HttpError(405, "Method not allowed");
 }
 
 const server = createServer(async (req, res) => {
   try {
     const { pathname } = new URL(req.url ?? "/", "http://localhost");
+
+    if (pathname === "/api/auth/session") {
+      requireMethod(req, "GET");
+      sendJson(res, 200, { authenticated: hasSession(req) });
+      return;
+    }
+    if (pathname === "/api/auth/login") {
+      requireMethod(req, "POST");
+      const { username, password } = parseLoginRequest(await readJson(req));
+      if (!checkCredentials(username, password)) {
+        throw new HttpError(401, "Invalid username or password");
+      }
+      res.setHeader("Set-Cookie", createSession());
+      sendJson(res, 200, { authenticated: true });
+      return;
+    }
+    if (pathname === "/api/auth/logout") {
+      requireMethod(req, "POST");
+      res.setHeader("Set-Cookie", destroySession(req));
+      sendJson(res, 200, { authenticated: false });
+      return;
+    }
+
+    // Everything below this line requires a signed-in session.
+    if (!hasSession(req)) throw new HttpError(401, "Not signed in");
+
     if (pathname !== "/api/agent/messages") throw new HttpError(404, "Not found");
-    if (req.method !== "POST") throw new HttpError(405, "Method not allowed");
+    requireMethod(req, "POST");
 
     const { messages, context } = parseChatRequest(await readJson(req));
     sendJson(res, 200, { reply: await agent.reply(messages, context) });
@@ -74,7 +113,7 @@ const server = createServer(async (req, res) => {
   }
 });
 
-// Loopback only: there's no authentication yet.
+// Loopback only: there's no TLS or login rate limiting yet.
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`Backend listening on http://127.0.0.1:${PORT}`);
 });
