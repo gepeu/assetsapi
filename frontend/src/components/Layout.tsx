@@ -1,6 +1,16 @@
+import { useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
+import { AgentChat } from "./AgentChat";
 
 export function Layout() {
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatToggleRef = useRef<HTMLButtonElement>(null);
+
+  function closeChat() {
+    setChatOpen(false);
+    chatToggleRef.current?.focus();
+  }
+
   return (
     <div className="flex min-h-screen w-full bg-canvas">
       <aside className="sticky top-0 hidden h-screen w-[92px] shrink-0 flex-col items-center self-start md:flex">
@@ -29,12 +39,26 @@ export function Layout() {
               <path d="m9 5 7 7-7 7" />
             </svg>
             <span>Explore Assets</span>
+            <button
+              ref={chatToggleRef}
+              type="button"
+              aria-expanded={chatOpen}
+              aria-controls="agent-chat"
+              onClick={() => (chatOpen ? closeChat() : setChatOpen(true))}
+              className="ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg bg-foreground px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M21 12a8 8 0 0 1-8 8H4l1.8-3.2A8 8 0 1 1 21 12Z" />
+              </svg>
+              Ask agent
+            </button>
           </header>
           <main className="w-full px-4 pb-20 pt-8 md:px-20 md:pb-44">
             <Outlet />
           </main>
         </div>
       </div>
+      <AgentChat open={chatOpen} onClose={closeChat} />
     </div>
   );
 }
