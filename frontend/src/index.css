@@ -18,6 +18,7 @@
   --color-secondary: #5381c4;
   --color-success: #059669;
   --color-warning: #ea6f17;
+  --color-warning-foreground: #b4530a;
   --color-sidebar-foreground: #52525b;
   --color-sidebar-accent-foreground: #171717;
 }
@@ -29,4 +30,64 @@ body {
 :focus-visible {
   outline: 2px solid rgba(163, 163, 163, 0.5);
   outline-offset: 1px;
+}
+
+/* Tailwind resets these elements, and agent replies come as markdown we don't write classes for. */
+.agent-markdown {
+  @apply break-words text-sm leading-[22px];
+
+  & > * + * {
+    @apply mt-2;
+  }
+  & > * + :is(h1, h2, h3, h4, h5, h6) {
+    @apply mt-4;
+  }
+  & :is(h1, h2, h3, h4, h5, h6) {
+    @apply font-semibold;
+  }
+  & strong {
+    @apply font-semibold;
+  }
+  & :is(ul, ol) {
+    @apply pl-5;
+  }
+  & ul {
+    @apply list-disc;
+  }
+  & ol {
+    @apply list-decimal;
+  }
+  & li + li,
+  & li > :is(ul, ol),
+  & li > p + p {
+    @apply mt-1;
+  }
+  & a {
+    @apply underline underline-offset-2 hover:text-secondary;
+  }
+  & code {
+    @apply rounded bg-canvas px-1 py-0.5 font-mono text-xs;
+  }
+  & pre {
+    @apply overflow-x-auto rounded-lg bg-canvas p-3 text-xs;
+  }
+  & pre code {
+    @apply bg-transparent p-0;
+  }
+  & blockquote {
+    @apply border-l-2 border-border pl-3 text-muted-foreground;
+  }
+  & hr {
+    @apply border-border;
+  }
+  /* Block display lets a wide table scroll inside the narrow panel. */
+  & table {
+    @apply block overflow-x-auto text-xs;
+  }
+  & :is(th, td) {
+    @apply border border-border px-2 py-1 align-top;
+  }
+  & th {
+    @apply bg-canvas text-left font-semibold;
+  }
 }

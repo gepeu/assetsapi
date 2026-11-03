@@ -12,7 +12,9 @@ The high-level structure of the project. `project.md` describes what we're build
 6. **Report model:** templates and saved reports, built from the same AssetModelViews.
 7. **Chat agent:** the chat where users create templates, generate reports and ask questions, using the same views and reports.
 
-Layers 5, 6 and 7 all build on layer 4, so the UI, reports and chat show the same data in the same way. The API that connects the backend to the frontend is a thin layer between 4 and 5.
+Layers 5, 6 and 7 all build on layer 4, so the UI, reports and chat show the same data in the same way. The API that connects the backend to the frontend is a thin layer between 4 and 5: `GET /api/views/<name>` serves any view registered in `backend/src/views/index.ts`.
+
+The first two views are `asset_list` and `asset_detail`. `asset_detail` is built from the field catalog rather than per category: single-value fields become a `fields` block and token, network or repeating fields become a `records` block. A catalog change therefore reaches the UI with no view or frontend change.
 
 ## Decisions so far
 

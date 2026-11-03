@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ASSET_CLASSES, listAssets, type AssetClass, type AssetListItem } from "../api/assets";
+import { listAssets, type AssetListItem } from "../api/assets";
 import { useAsync } from "../components/useAsync";
 
 const COLUMNS = {
@@ -23,7 +23,9 @@ function Status({ children }: { children: string }) {
 
 function Catalog({ assets }: { assets: AssetListItem[] }) {
   const [query, setQuery] = useState("");
-  const [assetClass, setAssetClass] = useState<AssetClass | null>(null);
+  const [assetClass, setAssetClass] = useState<string | null>(null);
+
+  const assetClasses = useMemo(() => [...new Set(assets.map((a) => a.assetClass))].sort(), [assets]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -31,7 +33,7 @@ function Catalog({ assets }: { assets: AssetListItem[] }) {
       .filter(
         (a) =>
           (!assetClass || a.assetClass === assetClass) &&
-          (!q || [a.ticker, a.name, a.issuer].some((s) => s.toLowerCase().includes(q))),
+          (!q || [a.ticker, a.name, a.issuer ?? ""].some((s) => s.toLowerCase().includes(q))),
       )
       .sort((a, b) => a.ticker.localeCompare(b.ticker, undefined, { sensitivity: "base" }));
   }, [assets, query, assetClass]);
@@ -68,7 +70,7 @@ function Catalog({ assets }: { assets: AssetListItem[] }) {
             <FilterChip active={assetClass === null} onClick={() => setAssetClass(null)}>
               All
             </FilterChip>
-            {ASSET_CLASSES.map((c) => (
+            {assetClasses.map((c) => (
               <FilterChip key={c} active={assetClass === c} onClick={() => setAssetClass(c)}>
                 {c}
               </FilterChip>

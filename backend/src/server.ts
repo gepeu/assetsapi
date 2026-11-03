@@ -8,6 +8,7 @@ import { createPool } from "./db/pool.ts";
 import { latestStoredFile } from "./documents/documentStore.ts";
 import { LOCAL_DOWNLOAD_PATH, LocalBucketStorage } from "./localBucketStorage.ts";
 import { createBucketStorage } from "./storage.ts";
+import { VIEWS } from "./views/index.ts";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const MAX_BODY_BYTES = 1_000_000;
@@ -152,6 +153,16 @@ const server = createServer(async (req, res) => {
     if (documentId) {
       requireMethod(req, "GET");
       await redirectToDocument(res, Number(documentId));
+      return;
+    }
+
+    const viewName = /^\/api\/views\/([a-z_]+)$/.exec(pathname)?.[1];
+    if (viewName) {
+      requireMethod(req, "GET");
+      const view = Object.hasOwn(VIEWS, viewName) ? VIEWS[viewName] : undefined;
+      const data = await view?.load(getPool(), searchParams);
+      if (data === undefined || data === null) throw new HttpError(404, "Not found");
+      sendJson(res, 200, data);
       return;
     }
 
