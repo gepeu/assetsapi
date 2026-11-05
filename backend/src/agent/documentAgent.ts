@@ -10,8 +10,6 @@ import {
   type ScopedAsset,
 } from "./retrieval.ts";
 
-export const NOT_FOUND_REPLY = "I couldn't find that in our documents.";
-
 const NOT_FOUND_MARKER = "NOT_FOUND";
 const HISTORY_TURNS = 6;
 
@@ -88,12 +86,14 @@ function buildPrompt(messages: readonly ChatMessage[], scope: readonly ScopedAss
   return `SOURCES:\n${blocks.join("\n\n")}\n\n${history}${about}QUESTION: ${messages[messages.length - 1].text}`;
 }
 
-const fixedReply = (text: string): AgentReply => ({ text, citations: [] });
+type FinishedAnswer = Omit<AgentReply, "question">;
 
-/** Turns the model's text into a reply. An answer with no valid citation doesn't count. */
-export function finishReply(modelText: string, sources: readonly Source[]): AgentReply {
+const notFound = (): FinishedAnswer => ({ answer: null, citations: [] });
+
+/** Turns the model's text into an answer. An answer with no valid citation doesn't count. */
+export function finishAnswer(modelText: string, sources: readonly Source[]): FinishedAnswer {
   const text = modelText.trim();
-  if (text.startsWith(NOT_FOUND_MARKER)) return fixedReply(NOT_FOUND_REPLY);
+  if (text.startsWith(NOT_FOUND_MARKER)) return notFound();
 
   const byNumber = new Map(sources.map((source) => [source.citation.number, source.citation]));
   const cited = new Set<number>();
@@ -103,15 +103,28 @@ export function finishReply(modelText: string, sources: readonly Source[]): Agen
     cited.add(number);
     return marker;
   });
-  if (cited.size === 0) return fixedReply(NOT_FOUND_REPLY);
+  if (cited.size === 0) return notFound();
 
   return {
-    text: withoutInvalid,
+    answer: withoutInvalid,
     citations: [...cited].sort((a, b) => a - b).map((number) => byNumber.get(number) as Citation),
   };
 }
 
-/** Answers from stored documents and Facts only. It never writes anything back. */
+/** A response that can't be saved is still returned, so the user doesn't lose a finished answer. */
+async function saveResponse(pool: pg.Pool, { question, answer, citations }: AgentReply): Promise<void> {
+  try {
+    await pool.query(`INSERT INTO agent_response (question, answer, citations) VALUES ($1, $2, $3)`, [
+      question,
+      answer,
+      JSON.stringify(citations),
+    ]);
+  } catch (error) {
+    console.error("Could not save the agent response", error);
+  }
+}
+
+/** Answers from stored documents and Facts only. The only thing it writes is its own response. */
 export function createDocumentAgent(pool: pg.Pool, complete: Complete): AgentService {
   return {
     async reply(messages: ChatMessage[], context: AgentContext): Promise<AgentReply> {
@@ -119,10 +132,14 @@ export function createDocumentAgent(pool: pg.Pool, complete: Complete): AgentSer
       const questions = messages.filter((message) => message.role === "user").map((message) => message.text);
       const scope = resolveScope(questions, context.assetSlug, await listAssets(pool));
       const sources = await gatherSources(pool, question, scope);
-      if (sources.length === 0) return fixedReply(NOT_FOUND_REPLY);
+      const finished =
+        sources.length === 0
+          ? notFound()
+          : finishAnswer(await complete({ system: SYSTEM_PROMPT, prompt: buildPrompt(messages, scope, sources) }), sources);
 
-      const modelText = await complete({ system: SYSTEM_PROMPT, prompt: buildPrompt(messages, scope, sources) });
-      return finishReply(modelText, sources);
+      const reply = { question, ...finished };
+      await saveResponse(pool, reply);
+      return reply;
     },
   };
 }

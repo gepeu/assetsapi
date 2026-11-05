@@ -23,7 +23,7 @@ The first two views are `asset_list` and `asset_detail`. `asset_detail` is built
 - **Updates:** the first version acquires data on demand. Scheduled updates come later.
 - **LLM account:** local development uses the developer's current Claude account, with file and shell tools turned off. Deployment will use a separate account.
 - **Facts:** `fact` is a database view over claims, so a Fact can't disagree with them, and withdrawing a claim takes effect immediately.
-- **Chat answers:** they use stored documents and Facts only, with a citation for each statement.
+- **Chat answers:** they use stored documents and Facts only, with a citation for each statement. `POST /api/agent/messages` takes `{ messages, context }` and returns `{ question, answer, citations }`. `answer` is markdown with `[n]` markers, or `null` when our sources don't answer the question. The model only writes the answer's text; the backend builds the JSON around it. Each response from the document agent is saved in `agent_response`; the mock agent saves nothing, so it still runs without a database.
 
 ## Running locally
 

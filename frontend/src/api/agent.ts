@@ -2,7 +2,7 @@
 import { notifySignedOut } from "./auth";
 
 export interface Citation {
-  /** Matches the [n] marker in the reply's text. */
+  /** Matches the [n] marker in the answer. */
   number: number;
   kind: "document" | "data";
   title: string;
@@ -23,10 +23,14 @@ export interface AgentContext {
   assetSlug: string | null;
 }
 
-export async function sendMessage(
-  messages: ChatMessage[],
-  context: AgentContext,
-): Promise<{ text: string; citations: Citation[] }> {
+export interface AgentReply {
+  question: string;
+  /** Markdown with [n] markers. Null when our sources don't answer the question. */
+  answer: string | null;
+  citations: Citation[];
+}
+
+export async function sendMessage(messages: ChatMessage[], context: AgentContext): Promise<AgentReply> {
   const response = await fetch("/api/agent/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,8 +42,7 @@ export async function sendMessage(
   if (response.status === 401) notifySignedOut();
   if (!response.ok) throw new Error(`Agent request failed: ${response.status}`);
 
-  const { reply, citations } = (await response.json()) as { reply: string; citations: Citation[] };
-  return { text: reply, citations };
+  return (await response.json()) as AgentReply;
 }
 
 /** Requires a session. The backend then redirects to a link that always downloads. */

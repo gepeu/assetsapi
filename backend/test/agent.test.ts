@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import type pg from "pg";
 import type { ChatMessage } from "../src/agent.ts";
-import { createDocumentAgent, finishReply, NOT_FOUND_REPLY } from "../src/agent/documentAgent.ts";
+import { createDocumentAgent, finishAnswer } from "../src/agent/documentAgent.ts";
 import type { CompletionRequest } from "../src/agent/llm.ts";
 import { findMentionedAssets, resolveScope, searchPassages, type ScopedAsset } from "../src/agent/retrieval.ts";
 import { migrate } from "../src/db/migrate.ts";
@@ -67,30 +67,30 @@ describe("asset scope", () => {
   });
 });
 
-describe("finishing a reply", () => {
+describe("finishing an answer", () => {
   const sources = [
     { citation: { number: 1, kind: "document" as const, title: "A", documentId: 5, url: "https://a", isOfficial: true, page: 2 }, text: "" },
     { citation: { number: 2, kind: "data" as const, title: "B", documentId: null, url: null, isOfficial: null, page: null }, text: "" },
   ];
 
   it("keeps only the citations used, in order", () => {
-    const reply = finishReply("The custodian is X [2]. It is in Y [1].", sources);
-    assert.deepEqual(reply.citations.map((c) => c.number), [1, 2]);
+    const finished = finishAnswer("The custodian is X [2]. It is in Y [1].", sources);
+    assert.deepEqual(finished.citations.map((c) => c.number), [1, 2]);
   });
 
   it("removes citations to sources that don't exist", () => {
-    const reply = finishReply("True [1]. Made up [7].", sources);
-    assert.equal(reply.text, "True [1]. Made up .");
-    assert.deepEqual(reply.citations.map((c) => c.number), [1]);
+    const finished = finishAnswer("True [1]. Made up [7].", sources);
+    assert.equal(finished.answer, "True [1]. Made up .");
+    assert.deepEqual(finished.citations.map((c) => c.number), [1]);
   });
 
   it("doesn't accept an answer with no valid citation", () => {
-    assert.deepEqual(finishReply("The custodian is Bank X.", sources), { text: NOT_FOUND_REPLY, citations: [] });
-    assert.deepEqual(finishReply("The custodian is Bank X [9].", sources), { text: NOT_FOUND_REPLY, citations: [] });
+    assert.deepEqual(finishAnswer("The custodian is Bank X.", sources), { answer: null, citations: [] });
+    assert.deepEqual(finishAnswer("The custodian is Bank X [9].", sources), { answer: null, citations: [] });
   });
 
-  it("maps the model's marker to the fixed reply", () => {
-    assert.equal(finishReply("NOT_FOUND", sources).text, NOT_FOUND_REPLY);
+  it("maps the model's marker to a null answer", () => {
+    assert.deepEqual(finishAnswer("NOT_FOUND", sources), { answer: null, citations: [] });
   });
 });
 
@@ -175,9 +175,43 @@ describe("the agent, with a stand-in for the model", () => {
 
   it("cites the document it answers from", async () => {
     const reply = await ask("Who is the custodian?");
+    assert.equal(reply.question, "Who is the custodian?");
+    assert.equal(reply.answer, "An answer [1].");
     assert.equal(reply.citations[0].documentId, onycDocument);
     assert.equal(reply.citations[0].isOfficial, true);
     assert.equal(reply.citations[0].kind, "document");
+  });
+
+  const latestSaved = async () =>
+    (
+      await pool.query<{ question: string; answer: string | null; citations: unknown }>(
+        `SELECT question, answer, citations FROM agent_response ORDER BY id DESC LIMIT 1`,
+      )
+    ).rows[0];
+
+  it("saves the response it returns", async () => {
+    const reply = await ask("Who holds the reserves as custodian?");
+    assert.deepEqual(await latestSaved(), reply);
+  });
+
+  it("saves a response with no answer too", async () => {
+    const reply = await ask("Who is the custodian of tGBP?", null, "NOT_FOUND");
+    assert.equal(reply.answer, null);
+    assert.deepEqual(await latestSaved(), reply);
+  });
+
+  it("still returns the answer when saving fails", async (t) => {
+    t.mock.method(console, "error", () => {});
+    const failing = Object.create(pool) as pg.Pool;
+    failing.query = ((sql: unknown, ...rest: unknown[]) =>
+      String(sql).includes("INSERT INTO agent_response")
+        ? Promise.reject(new Error("save failed"))
+        : (pool.query as (...args: unknown[]) => unknown)(sql, ...rest)) as pg.Pool["query"];
+    answer = "An answer [1].";
+    const reply = await createDocumentAgent(failing, complete).reply(question("Who is the custodian?"), {
+      assetSlug: "onyc",
+    });
+    assert.equal(reply.answer, "An answer [1].");
   });
 
   it("keeps empty shells and failed fetches out of the model's sources", async () => {
@@ -199,7 +233,7 @@ describe("the agent, with a stand-in for the model", () => {
 
   it("gives no invented answer for an asset with no material, and doesn't call the model", async () => {
     const reply = await ask("Who is the custodian of tGBP?", null, "Bank X [1].");
-    assert.deepEqual(reply, { text: NOT_FOUND_REPLY, citations: [] });
+    assert.deepEqual(reply, { question: "Who is the custodian of tGBP?", answer: null, citations: [] });
     assert.equal(requests.length, 0);
   });
 

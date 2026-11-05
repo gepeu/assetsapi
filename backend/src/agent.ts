@@ -9,7 +9,7 @@ export interface AgentContext {
 }
 
 export interface Citation {
-  /** Matches the [n] marker in the reply's text. */
+  /** Matches the [n] marker in the answer. */
   number: number;
   kind: "document" | "data";
   title: string;
@@ -19,8 +19,11 @@ export interface Citation {
   page: number | null;
 }
 
+/** The chat API's response body. */
 export interface AgentReply {
-  text: string;
+  question: string;
+  /** Markdown with [n] markers. Null when our sources don't answer the question. */
+  answer: string | null;
   citations: Citation[];
 }
 
@@ -30,7 +33,7 @@ export interface AgentService {
 
 /** Stands in for the real agent; replace this and the HTTP API stays the same. */
 export const mockAgent: AgentService = {
-  async reply() {
-    return { text: "hello", citations: [] };
+  async reply(messages) {
+    return { question: messages[messages.length - 1].text, answer: "hello", citations: [] };
   },
 };

@@ -200,8 +200,7 @@ const server = createServer(async (req, res) => {
     requireMethod(req, "POST");
 
     const { messages, context } = parseChatRequest(await readJson(req));
-    const { text, citations } = await agent.reply(messages, context);
-    sendJson(res, 200, { reply: text, citations });
+    sendJson(res, 200, await agent.reply(messages, context));
   } catch (error) {
     if (error instanceof HttpError) {
       sendJson(res, error.status, { error: error.message });

@@ -6,6 +6,8 @@ import { documentDownloadUrl, sendMessage, type ChatMessage, type Citation } fro
 import { listAssets, type AssetListItem } from "../api/assets";
 import { useAsync } from "./useAsync";
 
+const NOT_FOUND_TEXT = "I couldn't find that in our documents.";
+
 const GENERAL_SUGGESTIONS = [
   "Which assets are tokenized treasuries?",
   "Which issuers have the most assets?",
@@ -159,11 +161,11 @@ export function AgentChat({ open, onClose }: { open: boolean; onClose: () => voi
       updatedAt: Date.now(),
     });
     try {
-      const { text: reply, citations } = await sendMessage(conversation, {
+      const { answer, citations } = await sendMessage(conversation, {
         assetSlug: (asset ?? pageAsset)?.slug ?? null,
       });
       updateSession(id, {
-        messages: [...conversation, { role: "agent", text: reply, citations }],
+        messages: [...conversation, { role: "agent", text: answer ?? NOT_FOUND_TEXT, citations }],
         pending: false,
         updatedAt: Date.now(),
       });
