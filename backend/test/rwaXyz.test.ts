@@ -161,10 +161,10 @@ describe("loading a response", () => {
     );
 
   it("loads, and an asset with no listing is reported rather than invented", async () => {
-    const summary = await loadRwaXyz(pool, client, await newRun(), { onlySlugs: ["onyc", "aave"] });
+    const summary = await loadRwaXyz(pool, client, await newRun(), { onlySlugs: ["onyc", "near"] });
     assert.deepEqual(summary.failed, []);
     assert.deepEqual(summary.matched.map((m) => m.ticker), ["ONyc"]);
-    assert.deepEqual(summary.notFound.map((m) => m.ticker), ["AAVE"]);
+    assert.deepEqual(summary.notFound.map((m) => m.ticker), ["NEAR"]);
     assert.equal(summary.matched[0].tokens, 2);
     assert.equal(summary.tokensSkipped.length, 2);
   });

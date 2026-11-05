@@ -98,7 +98,7 @@ describe("asset views", () => {
   it("list every asset", async () => {
     const list = await loadAssetList(pool);
     const buidl = list.find((asset) => asset.slug === "buidl");
-    assert.equal(list.length, 30);
+    assert.equal(list.length, 49);
     assert.equal(buidl?.assetClass, "Treasuries");
     assert.ok(buidl?.issuer);
   });
@@ -228,7 +228,7 @@ describe("asset views", () => {
   });
 
   it("lists the asset's documents, official ones first, and only that asset's", async () => {
-    const id = await assetId("jup");
+    const id = await assetId("near");
     const { rows } = await pool.query<{ id: number }>(
       `INSERT INTO document (url, title, category) VALUES
          ('https://example.com/third-party', 'A third-party page', 'website'),
@@ -239,10 +239,10 @@ describe("asset views", () => {
     await pool.query(
       `INSERT INTO asset_document (asset_id, document_id, is_official, provenance)
        VALUES ($1, $2, false, 'test'), ($1, $3, true, 'test'), ($4, $5, true, 'test')`,
-      [id, rows[0].id, rows[1].id, await assetId("kmno"), rows[2].id],
+      [id, rows[0].id, rows[1].id, await assetId("usdc"), rows[2].id],
     );
 
-    const { documents } = (await loadAssetDetail(pool, "jup"))!;
+    const { documents } = (await loadAssetDetail(pool, "near"))!;
     assert.deepEqual(
       documents.map((document) => [document.title, document.isOfficial, document.hasSavedCopy]),
       [

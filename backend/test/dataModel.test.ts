@@ -121,9 +121,9 @@ describe("catalog", () => {
     assert.equal(total.n, 144);
   });
 
-  it("has the 30 assets, with aliases that resolve", async () => {
+  it("has the 49 assets, with aliases that resolve", async () => {
     const total = await one<{ n: number }>(`SELECT count(*)::int AS n FROM asset`);
-    assert.equal(total.n, 30);
+    assert.equal(total.n, 49);
     const alias = await one<{ ticker: string }>(
       `SELECT a.ticker FROM asset_alias x JOIN asset a ON a.id = x.asset_id WHERE x.value = 'maple-usdc'`,
     );
@@ -455,7 +455,7 @@ describe("rules", () => {
   });
 
   it("marketing words stay attributed Claims and never become Facts", async () => {
-    const id = await idOf("asset", "slug", "aave");
+    const id = await idOf("asset", "slug", "usdc");
     const subject = { column: "asset_id", id } as const;
     for (const value of ["A fully audited protocol", "Decentralized lending", "Highly SECURE"]) {
       await addClaim({ fieldKey: "identity.description", subject, sourceKey: "rwa_xyz", value });
@@ -490,7 +490,7 @@ describe("rules", () => {
 
 describe("coverage", () => {
   it("computes per asset from the catalog, statuses and applicability", async () => {
-    const id = await idOf("asset", "slug", "zec");
+    const id = await idOf("asset", "slug", "near");
     const subject = { column: "asset_id", id } as const;
     const applicable = await one<{ n: number }>(
       `SELECT count(*)::int AS n FROM field WHERE 'native_crypto' = ANY (applicable_asset_types)`,

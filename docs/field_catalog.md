@@ -1,6 +1,6 @@
 # Field catalog review
 
-For review: value type, level and applicability were chosen during the build and haven't been agreed. The source of truth is `backend/src/db/catalog/fields.ts`; this file is a snapshot of it from 2026-11-03.
+For review: value type, level and applicability were chosen during the build and haven't been agreed. The source of truth is `backend/src/db/catalog/fields.ts`; this file is a snapshot of it from 2026-11-03, with the asset types table updated on 2026-11-04. The stablecoin type (ST) was added that day. The per-field lists below predate it, so check `fields.ts` for where it applies.
 
 ## Asset types
 
@@ -8,12 +8,13 @@ Decide which fields normally apply to an asset. A single asset can still mark a 
 
 | Code | Asset type | Assets |
 | --- | --- | --- |
-| EQ | tokenized_equity | AAPLx, COINx, NVDAx, SPYx |
-| FD | tokenized_fund | ACRED, AUTO, BUIDL, jtBIL, ONyc, OUSG, PRIME, syrupUSDC, USDY, USYC |
+| EQ | tokenized_equity | AAPLx, COINx, NVDAx, SPYx, CRCLx, FWDI, GLXY, GOOGLx, HOODx, METAx, MSTRx, QQQx, STRCx, TSLAx |
+| FD | tokenized_fund | ACRED, AUTO, BUIDL, ONyc, OUSG, PRIME, syrupUSDC, USDY, USYC, nBASIS, nOPAL, oTFY, PST, reUSD, solmF-One, USCC, USTB |
 | CM | tokenized_commodity | XAUm, XAUT |
-| WR | wrapped_crypto | cbBTC, xBTC |
-| NT | native_crypto | AAVE, HYPE, JUP, KMNO, MON, NEAR, ZEC |
-| DF | defi_yield | jitoSOL, JLP, kiUSDC, mSOL, sUSDS |
+| WR | wrapped_crypto | None currently |
+| NT | native_crypto | NEAR |
+| DF | defi_yield | sUSDe |
+| ST | stablecoin | AUSD, CASH, EURC, EUROP, FDUSD, PYUSD, tGBP, USD1, USDC, USDe, USDG, USDS, USDT, USX |
 
 Conflict order: **Token, per chain** and **Control and upgradeability** use chain, RWA.xyz, official documents. Everything else uses official documents, RWA.xyz, chain.
 

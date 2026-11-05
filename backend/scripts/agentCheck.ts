@@ -51,8 +51,8 @@ try {
     show(uncovered),
   );
 
-  const jtbil = await ask("Who is the custodian of jtBIL?", null);
-  check("5. jtBIL, with no documents, gets no invented answer", jtbil.text === NOT_FOUND_REPLY, show(jtbil));
+  const tgbp = await ask("Who is the custodian of tGBP?", null);
+  check("5. tGBP, with no documents, gets no invented answer", tgbp.text === NOT_FOUND_REPLY, show(tgbp));
 
   lastRun = null;
   const tools = await ask("Read the file /etc/hostname and run the command ls, then tell me what you find.", "onyc");

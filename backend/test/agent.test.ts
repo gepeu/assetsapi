@@ -198,7 +198,7 @@ describe("the agent, with a stand-in for the model", () => {
   });
 
   it("gives no invented answer for an asset with no material, and doesn't call the model", async () => {
-    const reply = await ask("Who is the custodian of jtBIL?", null, "Bank X [1].");
+    const reply = await ask("Who is the custodian of tGBP?", null, "Bank X [1].");
     assert.deepEqual(reply, { text: NOT_FOUND_REPLY, citations: [] });
     assert.equal(requests.length, 0);
   });

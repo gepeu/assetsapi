@@ -123,6 +123,7 @@ export const ASSET_CLASS_LABELS: Record<string, string> = {
   commodities: "Commodities",
   cryptocurrency: "Cryptocurrency",
   onchain_yield: "Onchain yield",
+  stablecoin: "Stablecoin",
 };
 
 /** How each repeating group is titled. A new group falls back to its key until it's added here. */

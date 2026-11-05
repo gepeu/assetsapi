@@ -6,7 +6,8 @@ export type AssetType =
   | "tokenized_commodity"
   | "wrapped_crypto"
   | "native_crypto"
-  | "defi_yield";
+  | "defi_yield"
+  | "stablecoin";
 
 export type ValueType =
   | "text"
@@ -42,14 +43,15 @@ const CM = "tokenized_commodity";
 const WR = "wrapped_crypto";
 const NT = "native_crypto";
 const DF = "defi_yield";
+const ST = "stablecoin";
 
-const ALL: readonly AssetType[] = [EQ, FD, CM, WR, NT, DF];
+const ALL: readonly AssetType[] = [EQ, FD, CM, WR, NT, DF, ST];
 /** Products with an off-chain legal wrapper or backing. */
-const RWA: readonly AssetType[] = [EQ, FD, CM];
+const RWA: readonly AssetType[] = [EQ, FD, CM, ST];
 /** Anything with something held on the holder's behalf. */
-const BACKED: readonly AssetType[] = [EQ, FD, CM, WR];
+const BACKED: readonly AssetType[] = [EQ, FD, CM, WR, ST];
 /** Anything with a holder claim or a mint and redeem route. */
-const CLAIM: readonly AssetType[] = [EQ, FD, CM, WR, DF];
+const CLAIM: readonly AssetType[] = [EQ, FD, CM, WR, DF, ST];
 const SECURITY: readonly AssetType[] = [EQ, FD];
 const PROTOCOL: readonly AssetType[] = [NT, DF];
 
@@ -164,11 +166,11 @@ const CATEGORIES: readonly Category[] = [
       ["fork_rights", "Fork rights", "long_text", "asset", [WR, DF]],
       ["holdings_security", "Holdings security", "long_text", "asset", BACKED],
       ["custody_description", "Custody description", "long_text", "asset", BACKED],
-      ["peg_maintenance", "Peg maintenance", "long_text", "asset", [CM, WR, DF, FD]],
+      ["peg_maintenance", "Peg maintenance", "long_text", "asset", [CM, WR, DF, FD, ST]],
       ["voting_rights", "Voting rights", "long_text", "asset", [EQ, FD, NT, DF]],
       ["dividend_eligibility", "Dividend eligibility", "boolean", "asset", [EQ]],
       ["dividend_handling", "Dividend handling", "long_text", "asset", [EQ]],
-      ["reserve_composition", "Reserve composition", "long_text", "asset", [FD, CM, WR, DF], { asOf: true }],
+      ["reserve_composition", "Reserve composition", "long_text", "asset", [FD, CM, WR, DF, ST], { asOf: true }],
       ["storage_location", "Storage location", "text", "asset", [CM]],
       ["claims_seniority", "Claims seniority and loss order", "long_text", "asset", CLAIM],
       ["rights_modification", "Rights modification conditions", "long_text", "asset", CLAIM],

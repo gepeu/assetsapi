@@ -6,10 +6,11 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
+import { ASSETS } from "../src/db/catalog/assets.ts";
 import { htmlToText, isEmptyShell } from "../src/documents/extractText.ts";
 import { fetchDocument, HostRateLimiter, isPublicAddress } from "../src/documents/fetchDocument.ts";
 import { parseKaminoBundle } from "../src/documents/kaminoBundle.ts";
-import { classifyLink, isHostOfficialForAny } from "../src/documents/officialSources.ts";
+import { CANDIDATE_DOCUMENTS, classifyLink, isHostOfficialForAny } from "../src/documents/officialSources.ts";
 import { storageKeyFor } from "../src/documents/documentStore.ts";
 import { LocalBucketStorage } from "../src/localBucketStorage.ts";
 
@@ -255,5 +256,15 @@ describe("HTML text and empty shells", () => {
     assert.equal(isEmptyShell(`<html><body><div id="root"></div><script src="/a.js"></script></body></html>`), true);
     assert.equal(isEmptyShell(`<body>Just a moment... ${"x ".repeat(300)}</body>`), true);
     assert.equal(isEmptyShell(`<body><p>${"Real document text. ".repeat(50)}</p></body>`), false);
+  });
+});
+
+describe("candidate documents", () => {
+  it("name a catalog asset and sit on that asset's allowlist", () => {
+    const slugs = new Set(ASSETS.map((asset) => asset.slug));
+    for (const candidate of CANDIDATE_DOCUMENTS) {
+      assert.ok(slugs.has(candidate.assetSlug), candidate.assetSlug);
+      assert.equal(classifyLink(candidate.assetSlug, candidate.url).kind, "official", candidate.url);
+    }
   });
 });
