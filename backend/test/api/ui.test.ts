@@ -123,9 +123,10 @@ describe("frontend behind the login", () => {
     assert.equal((await get("/tokenized_assets", signedIn)).statusCode, 200);
   });
 
-  test("the health check and the API docs stay open", async () => {
+  test("the health check stays open, and the API docs take the same login", async () => {
     assert.equal((await get("/readyz")).statusCode, 200);
-    assert.equal((await get("/docs/json")).statusCode, 200);
+    assert.equal((await get("/docs/json")).statusCode, 401);
+    assert.equal((await get("/docs/json", signedIn)).statusCode, 200);
   });
 });
 

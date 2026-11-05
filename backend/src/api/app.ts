@@ -105,21 +105,25 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     },
   });
 
-  // After the rate limit, so it covers these pages too. They hold the contract and no data, so they need no key.
-  await app.register(swaggerUi, {
-    routePrefix: "/docs",
-    uiConfig: {
-      deepLinking: true,
-      docExpansion: "list",
-      // Without the stock top bar, which is only a logo and a box for loading some other contract.
-      layout: "BaseLayout",
-      persistAuthorization: true,
-      validatorUrl: null,
-    },
-  });
-
-  // One hook for both scopes, so they share the failure counts and the key cache.
+  // One hook for every scope, so they share the failure counts and the key cache.
   const auth = createAuthHook({ db, login: options.login, maxFailures: options.failedAuthMax, now: options.now });
+
+  // After the rate limit, so it covers these pages too. Behind the same check as the data, so only
+  // the team sees the contract; the browser asks for the login when one is set.
+  await app.register(async (scope) => {
+    if (!options.authDisabled) scope.addHook("onRequest", auth);
+    await scope.register(swaggerUi, {
+      routePrefix: "/docs",
+      uiConfig: {
+        deepLinking: true,
+        docExpansion: "list",
+        // Without the stock top bar, which is only a logo and a box for loading some other contract.
+        layout: "BaseLayout",
+        persistAuthorization: true,
+        validatorUrl: null,
+      },
+    });
+  });
 
   registerHealthRoutes(app, db);
   const { uiDir } = options;
