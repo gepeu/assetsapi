@@ -1,9 +1,8 @@
 /** Tests for token service. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
 import { listAssetTokens } from "../../src/services/tokens.ts";
-import { createFakeProvider, type FakeAsset, makeAsset, TODAY, universeDeps } from "../helpers/fakeProvider.ts";
+import { type FakeAsset, makeAsset, seedAssets, TODAY } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
 describe("token service", () => {
@@ -13,7 +12,7 @@ describe("token service", () => {
   before(async () => {
     db = await createTestDb();
     asset = makeAsset({ ref: "1" });
-    await runUniverseJob(universeDeps(db, createFakeProvider([asset])));
+    await seedAssets(db, [asset]);
   });
   after(() => db.close());
 

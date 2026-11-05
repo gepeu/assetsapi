@@ -30,7 +30,7 @@ const SORT_VALUES = [
   "-holding_addresses_count",
 ] as const;
 
-export const assetListQuery = {
+const assetListQuery = {
   type: "object",
   additionalProperties: false,
   properties: {
@@ -45,7 +45,7 @@ export const assetListQuery = {
 } as const;
 export type AssetListQuery = FromSchema<typeof assetListQuery>;
 
-export const assetListResponse = {
+const assetListResponse = {
   type: "object",
   additionalProperties: false,
   required: ["data", "meta"],
@@ -92,7 +92,7 @@ export const assetListResponse = {
 } as const;
 export type AssetListResponse = FromSchema<typeof assetListResponse>;
 
-export const assetDetailResponse = {
+const assetDetailResponse = {
   type: "object",
   additionalProperties: false,
   required: ["data"],
@@ -150,7 +150,7 @@ export const assetListRoute = {
   response: { 200: assetListResponse, ...errorResponses },
 } as const;
 
-export const assetDetailQuery = { type: "object", additionalProperties: false, properties: {} } as const;
+const assetDetailQuery = { type: "object", additionalProperties: false, properties: {} } as const;
 
 export const assetDetailRoute = {
   summary: "Identity, issuer, organizations, networks and key figures",

@@ -1,9 +1,8 @@
 /** Tests for history service. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
 import { getAssetHistory } from "../../src/services/history.ts";
-import { createFakeProvider, makeAsset, universeDeps } from "../helpers/fakeProvider.ts";
+import { makeAsset, seedAssets } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
 describe("history service", () => {
@@ -11,7 +10,7 @@ describe("history service", () => {
 
   before(async () => {
     db = await createTestDb();
-    await runUniverseJob(universeDeps(db, createFakeProvider([makeAsset({ ref: "1" })])));
+    await seedAssets(db, [makeAsset({ ref: "1" })]);
   });
   after(() => db.close());
 

@@ -55,7 +55,7 @@ async function applyMigration(client: pg.Client, file: string): Promise<void> {
   }
 }
 
-export interface MigrateOptions {
+interface MigrateOptions {
   lockTimeoutMs?: number;
   lockPollMs?: number;
 }

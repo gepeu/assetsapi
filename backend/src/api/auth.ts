@@ -14,11 +14,12 @@ const FAILURE_WINDOW_MS = 60_000;
 /** Enough for a misconfigured client to be seen as one, not enough to guess a key. */
 const DEFAULT_MAX_FAILURES = 20;
 const MAX_TRACKED_IPS = 10_000;
-const KEY_PATTERN = /^rwa_[A-Za-z0-9_-]{43}$/;
+/** The auth scheme's name is case-insensitive under HTTP's rules, and the key isn't. */
+const BEARER_KEY_PATTERN = /^bearer (rwa_[A-Za-z0-9_-]{43})$/i;
 
 export const hashApiKey = (key: string): string => createHash("sha256").update(key).digest("hex");
 
-export interface ApiClient {
+interface ApiClient {
   id: number;
   name: string;
 }
@@ -35,7 +36,7 @@ export function getClientIp(request: FastifyRequest): string {
   return typeof header === "string" && header !== "" ? header : request.ip;
 }
 
-export interface AuthOptions {
+interface AuthOptions {
   db: Queryable;
   maxFailures?: number;
   now?: () => number;
@@ -89,10 +90,8 @@ export function createAuthHook({
   };
 
   return async (request) => {
-    const header = request.headers.authorization;
-    const presented = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
-
-    const key = presented !== null && KEY_PATTERN.test(presented) ? await lookUp(hashApiKey(presented), request) : null;
+    const presented = BEARER_KEY_PATTERN.exec(request.headers.authorization ?? "")?.[1];
+    const key = presented ? await lookUp(hashApiKey(presented), request) : null;
     if (key) {
       request.apiClient = { id: key.id, name: key.clientName };
       return;

@@ -1,6 +1,6 @@
 /** Tests for universe job. */
 import assert from "node:assert/strict";
-import { after, afterEach, beforeEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, test } from "node:test";
 import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
 import { AuthOrQuotaError, TransientError } from "../../src/providers/errors.ts";
 import { createFakeProvider, type FakeProvider, makeAsset, universeDeps } from "../helpers/fakeProvider.ts";
@@ -16,7 +16,6 @@ describe("universe job", () => {
     fake = createFakeProvider(Array.from({ length: ASSET_COUNT }, (_, index) => makeAsset({ ref: String(index + 1) })));
   });
   afterEach(() => db.close());
-  after(() => undefined);
 
   const run = () => runUniverseJob(universeDeps(db, fake));
   const seed = async () => {

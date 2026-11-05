@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { tryAcquireLock } from "../../src/db/lock.ts";
-import { type JobDeps, type JobOutcome, runTrackedJob, toExitCode } from "../../src/jobs/runTracking.ts";
+import { type JobDeps, type JobOutcome, runTrackedJob, toExitCode, toMonitorBody } from "../../src/jobs/runTracking.ts";
 import { createTestDb, silentLogger, type TestDb } from "../helpers/testDb.ts";
 
 describe("runTrackedJob", () => {
@@ -103,6 +103,36 @@ describe("runTrackedJob", () => {
     await lock.release();
   });
 
+  test("the server dropping the lock's connection is noticed, and frees the lock", async () => {
+    const lock = await tryAcquireLock(db.url);
+    assert.ok(lock);
+    const { rows } = await lock.client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+    const ended = new Promise((resolve) => lock.client.once("end", resolve));
+    await db.pool.query("SELECT pg_terminate_backend($1)", [rows[0]?.pid]);
+    await ended;
+    assert.equal(lock.isHeld(), false);
+
+    const next = await tryAcquireLock(db.url);
+    assert.ok(next);
+    await next.release();
+  });
+
+  test("the lock's connection has the server watch for a client that vanishes", async () => {
+    const lock = await tryAcquireLock(db.url);
+    assert.ok(lock);
+    const show = async (setting: string) => {
+      const { rows } = await lock.client.query<Record<string, string>>(`SHOW ${setting}`);
+      return rows[0]?.[setting];
+    };
+    try {
+      assert.equal(await show("tcp_keepalives_idle"), "60");
+      assert.equal(await show("tcp_keepalives_interval"), "10");
+      assert.equal(await show("tcp_keepalives_count"), "3");
+    } finally {
+      await lock.release();
+    }
+  });
+
   test("a job exits if the schema is older than it needs", async () => {
     await db.pool.query("DELETE FROM schema_migration WHERE filename = '002_catalog_seed.sql'");
     try {
@@ -171,6 +201,16 @@ describe("runTrackedJob", () => {
       succeed,
     );
     assert.equal(outcome.kind, "finished");
+  });
+
+  test("a very long summary is cut but stays valid JSON, and a short one is untouched", () => {
+    assert.equal(toMonitorBody({ a: 1 }), '{"a":1}');
+    const quotes = Array.from({ length: 50_000 }, () => '"');
+    const body = toMonitorBody({ quotes });
+    assert.ok(body.length <= 100_000);
+    const parsed = JSON.parse(body);
+    assert.equal(parsed.truncated, true);
+    assert.ok(parsed.start.startsWith('{"quotes"'));
   });
 
   test("exit codes: only failures and a schema mismatch are non-zero", () => {

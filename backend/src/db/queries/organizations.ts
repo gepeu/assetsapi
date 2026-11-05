@@ -9,14 +9,20 @@ export interface OrganizationIdentity {
 
 /** Reads before writing, so an unchanged organization writes nothing. */
 export async function ensureOrganization(db: Queryable, organization: OrganizationIdentity): Promise<number> {
-  const { rows } = await db.query<{ id: number; legal_name: string | null }>(
-    "SELECT id, legal_name FROM organization WHERE slug = $1",
+  const { rows } = await db.query<{ id: number; brand_name: string; legal_name: string | null }>(
+    "SELECT id, brand_name, legal_name FROM organization WHERE slug = $1",
     [organization.slug],
   );
   const existing = rows[0];
   if (existing) {
-    if (existing.legal_name === null && organization.legalName !== null) {
-      await db.query("UPDATE organization SET legal_name = $2 WHERE id = $1", [existing.id, organization.legalName]);
+    // Some records name an organization without its legal name, which says nothing about whether it changed.
+    const legalName = organization.legalName ?? existing.legal_name;
+    if (existing.brand_name !== organization.name || existing.legal_name !== legalName) {
+      await db.query("UPDATE organization SET brand_name = $2, legal_name = $3 WHERE id = $1", [
+        existing.id,
+        organization.name,
+        legalName,
+      ]);
     }
     return existing.id;
   }
@@ -29,7 +35,7 @@ export async function ensureOrganization(db: Queryable, organization: Organizati
   return id;
 }
 
-export interface AssetRole {
+interface AssetRole {
   organizationId: number;
   role: string;
 }
@@ -59,7 +65,7 @@ export async function syncAssetOrganizations(
   );
 }
 
-export interface AssetOrganizationRow {
+interface AssetOrganizationRow {
   slug: string;
   name: string;
   role: string;

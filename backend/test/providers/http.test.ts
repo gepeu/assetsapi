@@ -34,6 +34,12 @@ function makeClient(steps: readonly Step[], options: Partial<HttpClientOptions> 
   return { client, sleeps, calls, setTime: (next: number) => (time = next), getTime: () => time };
 }
 
+describe("network guard", () => {
+  test("the real fetch is blocked in every test, so none can reach a provider", () => {
+    assert.equal(globalThis.fetch.name, "blockedFetch", "Run the tests with: npm test");
+  });
+});
+
 describe("HttpClient", () => {
   test("returns parsed JSON and sends its headers", async () => {
     const { client, calls } = makeClient([{ body: '{"ok":true}' }], { headers: { Authorization: "Bearer secret" } });
@@ -72,6 +78,15 @@ describe("HttpClient", () => {
       assert.ok(error.message.includes("/a"));
       return true;
     });
+  });
+
+  test("a network failure says why, by its name and system code only", async () => {
+    const refused = new TypeError("fetch failed for Bearer secret-key", { cause: { code: "ECONNREFUSED" } });
+    const timedOut = new DOMException("Bearer secret-key", "TimeoutError");
+    const { client } = makeClient([refused], { maxRetries: 0 });
+    await assert.rejects(client.getJson("/a"), /request failed for \/a \(ECONNREFUSED\)$/);
+    const second = makeClient([timedOut], { maxRetries: 0 });
+    await assert.rejects(second.client.getJson("/a"), /request failed for \/a \(timed out\)$/);
   });
 
   test("a 404 is NotFound, with no retry", async () => {

@@ -3,6 +3,7 @@
  * measure names and numbers.
  */
 import { ContractBrokenError } from "../errors.ts";
+import { isDay } from "../types.ts";
 import { type ApiRecord, isRecord } from "./client.ts";
 
 const FINANCIAL_FIELD =
@@ -34,7 +35,7 @@ export function toStandardUnit(measure: string, unit: string | null): string | n
 }
 
 /** Whether a top-level field on an asset or token record is financial data. */
-export function isFinancialField(name: string): boolean {
+function isFinancialField(name: string): boolean {
   return FINANCIAL_FIELD.test(name);
 }
 
@@ -48,7 +49,7 @@ function hasNoValue(raw: unknown): boolean {
   return false;
 }
 
-export interface ConvertedMetric {
+interface ConvertedMetric {
   metric: string;
   value: number | null;
   value7d: number | null;
@@ -90,7 +91,7 @@ export function toDailyPoints(points: readonly unknown[], today: string): [strin
     const [rawDay, rawValue] = point as unknown[];
     if (typeof rawDay !== "string") throw new ContractBrokenError("RWA.xyz series has a point without a day");
     const day = rawDay.slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new ContractBrokenError("RWA.xyz series has a malformed day");
+    if (!isDay(day)) throw new ContractBrokenError("RWA.xyz series has a malformed day");
     const value = numberOrNull(rawValue);
     if (value !== null && day < today) byDay.set(day, value);
   }

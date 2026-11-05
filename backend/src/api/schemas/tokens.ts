@@ -10,14 +10,14 @@ import {
   slugParams,
 } from "./shared.ts";
 
-export const tokensQuery = {
+const tokensQuery = {
   type: "object",
   additionalProperties: false,
   properties: { network: { type: "string", pattern: SLUG_PATTERN } },
 } as const;
 export type TokensQuery = FromSchema<typeof tokensQuery>;
 
-export const tokensResponse = {
+const tokensResponse = {
   type: "object",
   additionalProperties: false,
   required: ["data"],

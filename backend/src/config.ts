@@ -3,7 +3,7 @@
  * process states exactly what it needs and a missing value stops it before it does anything.
  */
 
-export interface ApiConfig {
+interface ApiConfig {
   databaseUrl: string;
   port: number;
   host: string;
@@ -14,7 +14,6 @@ export interface JobConfig {
   rwaXyzApiKey: string;
   /** Empty means no monitor, as in local runs. */
   monitorUrl: string | null;
-  fullHistory: boolean;
 }
 
 export interface RolePasswords {
@@ -48,7 +47,6 @@ export function loadJobConfig(): JobConfig {
     databaseUrl: requireEnv("DATABASE_URL"),
     rwaXyzApiKey: requireEnv("RWA_XYZ_API_KEY"),
     monitorUrl: process.env.JOB_MONITOR_URL || null,
-    fullHistory: process.env.UPDATE_FULL_HISTORY === "true",
   };
 }
 

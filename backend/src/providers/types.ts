@@ -6,6 +6,16 @@
 
 export type ProviderRef = string;
 
+/** The chain the universe is defined on. */
+export const SOLANA_NETWORK = "solana";
+
+export const MAX_SLUG_LENGTH = 64;
+
+/** Whether text is a calendar day in the form every date here uses. */
+export const isDay = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+export const utcToday = (): string => new Date().toISOString().slice(0, 10);
+
 export type AssetType =
   | "tokenized_equity"
   | "tokenized_fund"
@@ -47,7 +57,7 @@ export interface TokenRef {
   address: string;
 }
 
-export interface TokenInput extends TokenRef {
+interface TokenInput extends TokenRef {
   issuanceType: IssuanceType;
   fields: FieldInput[];
 }
@@ -116,6 +126,6 @@ export interface ReferenceProvider {
 
 export interface FinancialProvider {
   getCurrent(ref: ProviderRef): Promise<CurrentData>;
-  /** A null `since` means the full series. */
-  getHistory(ref: ProviderRef, since: string | null): Promise<HistoryData>;
+  /** The whole series, because providers restate old days. */
+  getHistory(ref: ProviderRef): Promise<HistoryData>;
 }

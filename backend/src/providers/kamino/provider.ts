@@ -4,13 +4,14 @@
  */
 import { ContractBrokenError } from "../errors.ts";
 import { HttpClient, type HttpClientOptions } from "../http.ts";
-import type { UniverseProvider, VerifiedToken } from "../types.ts";
+import { SOLANA_NETWORK, type UniverseProvider, type VerifiedToken } from "../types.ts";
 
-export const KAMINO_BASE_URL = "https://api.kamino.finance";
+const KAMINO_BASE_URL = "https://api.kamino.finance";
 // Without a limit the list returns only 20 tokens.
-const TOKENS_PATH = "/tokens-api/tokens/?verified=true&limit=1000";
+const TOKEN_LIMIT = 1000;
+const TOKENS_PATH = `/tokens-api/tokens/?verified=true&limit=${TOKEN_LIMIT}`;
 
-export type KaminoOptions = Partial<Omit<HttpClientOptions, "provider">>;
+type KaminoOptions = Partial<Omit<HttpClientOptions, "provider">>;
 
 export function createKaminoProvider(options: KaminoOptions = {}): UniverseProvider {
   const http = new HttpClient({ baseUrl: KAMINO_BASE_URL, ...options, provider: "Kamino" });
@@ -19,6 +20,10 @@ export function createKaminoProvider(options: KaminoOptions = {}): UniverseProvi
     async listTokens(): Promise<VerifiedToken[]> {
       const body = await http.getJson(TOKENS_PATH);
       if (!Array.isArray(body)) throw new ContractBrokenError("Kamino's token list isn't an array");
+      // A full page may be cut off, and treating a cut list as complete could deactivate assets.
+      if (body.length >= TOKEN_LIMIT) {
+        throw new ContractBrokenError(`Kamino's token list reached its limit of ${TOKEN_LIMIT}, so raise the limit`);
+      }
 
       const tokens: VerifiedToken[] = [];
       for (const entry of body as unknown[]) {
@@ -26,7 +31,7 @@ export function createKaminoProvider(options: KaminoOptions = {}): UniverseProvi
         if (typeof token?.mint !== "string" || token.mint === "") {
           throw new ContractBrokenError("Kamino's token list has an entry without a mint");
         }
-        if (token.verified === true) tokens.push({ network: "solana", address: token.mint });
+        if (token.verified === true) tokens.push({ network: SOLANA_NETWORK, address: token.mint });
       }
       return tokens;
     },

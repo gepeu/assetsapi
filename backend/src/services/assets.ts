@@ -6,6 +6,7 @@ import {
   type AssetListRow,
   countAssets,
   findActiveAssetBySlug,
+  type KeyFigure,
   listAssetRows,
   listFilterOptions,
   type SortColumn,
@@ -14,13 +15,14 @@ import { findAssetFieldValue } from "../db/queries/fieldValues.ts";
 import { listServedAssetValues } from "../db/queries/financials.ts";
 import { listAssetOrganizations } from "../db/queries/organizations.ts";
 import { listAssetNetworks } from "../db/queries/tokens.ts";
+import { findLatestAsOf } from "./financials.ts";
 
-const toFigures = (row: Figures): Figures => ({
-  price_dollar: row.price_dollar,
-  net_asset_value_dollar: row.net_asset_value_dollar,
-  total_asset_value_dollar: row.total_asset_value_dollar,
-  apy_30_day: row.apy_30_day,
-  holding_addresses_count: row.holding_addresses_count,
+const toFigures = (readFigure: (figure: KeyFigure) => number | null): Figures => ({
+  price_dollar: readFigure("price_dollar"),
+  net_asset_value_dollar: readFigure("net_asset_value_dollar"),
+  total_asset_value_dollar: readFigure("total_asset_value_dollar"),
+  apy_30_day: readFigure("apy_30_day"),
+  holding_addresses_count: readFigure("holding_addresses_count"),
 });
 
 const toListItem = (row: AssetListRow): AssetListResponse["data"][number] => ({
@@ -31,7 +33,7 @@ const toListItem = (row: AssetListRow): AssetListResponse["data"][number] => ({
   assetType: row.asset_type,
   issuer: row.issuer,
   asOf: row.as_of,
-  figures: toFigures(row),
+  figures: toFigures((figure) => row[figure]),
 });
 
 export async function listAssets(db: Queryable, query: Partial<AssetListQuery>): Promise<AssetListResponse> {
@@ -72,12 +74,6 @@ export async function getAsset(db: Queryable, slug: string): Promise<AssetDetail
     listServedAssetValues(db, asset.id),
   ]);
 
-  const figureOf = (metric: string): number | null => values.find((row) => row.metric === metric)?.value ?? null;
-  const asOf = values.reduce<string | null>(
-    (latest, row) => (latest === null || row.as_of > latest ? row.as_of : latest),
-    null,
-  );
-
   return {
     data: {
       slug: asset.slug,
@@ -94,14 +90,8 @@ export async function getAsset(db: Queryable, slug: string): Promise<AssetDetail
         legalName: organization.legal_name,
       })),
       networks: networks.map((network) => ({ key: network.key, name: network.name })),
-      asOf,
-      figures: {
-        price_dollar: figureOf("price_dollar"),
-        net_asset_value_dollar: figureOf("net_asset_value_dollar"),
-        total_asset_value_dollar: figureOf("total_asset_value_dollar"),
-        apy_30_day: figureOf("apy_30_day"),
-        holding_addresses_count: figureOf("holding_addresses_count"),
-      },
+      asOf: findLatestAsOf(values),
+      figures: toFigures((figure) => values.find((row) => row.metric === figure)?.value ?? null),
     },
   };
 }

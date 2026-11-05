@@ -21,7 +21,7 @@ export async function touchKey(db: Queryable, id: number): Promise<void> {
   await db.query("UPDATE api_key SET last_used_at = now() WHERE id = $1", [id]);
 }
 
-export interface NewKey {
+interface NewKey {
   clientName: string;
   keyHash: string;
   keyPrefix: string;

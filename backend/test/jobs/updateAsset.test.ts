@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, test } from "node:test";
 import { findSourceId, startRun } from "../../src/db/queries/runs.ts";
-import { type AssetContext, createNewAsset, loadWriteCatalog, updateAsset } from "../../src/jobs/updateAsset.ts";
+import { type AssetContext, createAssetContext, createNewAsset, updateAsset } from "../../src/jobs/updateAsset.ts";
 import { ContractBrokenError } from "../../src/providers/errors.ts";
 import type { ReferenceData } from "../../src/providers/types.ts";
 import { createFakeProvider, type FakeProvider, makeAsset, TODAY, toProviders } from "../helpers/fakeProvider.ts";
@@ -22,17 +22,8 @@ describe("updateAsset and createNewAsset", () => {
   beforeEach(async () => {
     fake = createFakeProvider([]);
     const sourceId = await findSourceId(db.pool, "rwa_xyz");
-    const { reference, financial } = toProviders(fake);
-    context = {
-      pool: db.pool,
-      runId: await startRun(db.pool, sourceId, "update"),
-      sourceId,
-      catalog: await loadWriteCatalog(db.pool),
-      reference,
-      financial,
-      today: () => TODAY,
-      fullHistory: false,
-    };
+    const providers = { pool: db.pool, ...toProviders(fake), today: () => TODAY };
+    context = await createAssetContext(providers, await startRun(db.pool, sourceId, "update"));
   });
 
   /** Creates a fresh asset so each test starts from its own data. */
@@ -278,6 +269,50 @@ describe("updateAsset and createNewAsset", () => {
     assert.equal(rows[0]?.asset_id, first.id);
   });
 
+  test("a renamed asset and organization update in place, and the slug and type don't", async () => {
+    const { id, target, asset } = await createAsset();
+    const { rows: before } = await db.pool.query<{ slug: string; asset_type: string }>(
+      "SELECT slug, asset_type FROM asset WHERE id = $1",
+      [id],
+    );
+    asset.reference.name = "Renamed asset";
+    asset.reference.ticker = "RENAMED";
+    asset.reference.assetClass = "New Class";
+    asset.reference.assetType = "tokenized_fund";
+    const manager = asset.reference.organizations.find((item) => item.slug.startsWith("manager-"));
+    assert.ok(manager);
+    manager.name = "Renamed Manager";
+    manager.legalName = "Renamed Manager Ltd";
+    await updateAsset(context, target);
+
+    const { rows } = await db.pool.query(
+      "SELECT slug, ticker, name, asset_class, asset_type FROM asset WHERE id = $1",
+      [id],
+    );
+    assert.deepEqual(rows[0], {
+      slug: before[0]?.slug,
+      ticker: "RENAMED",
+      name: "Renamed asset",
+      asset_class: "New Class",
+      asset_type: before[0]?.asset_type,
+    });
+    const organization = await db.pool.query("SELECT brand_name, legal_name FROM organization WHERE slug = $1", [
+      manager.slug,
+    ]);
+    assert.deepEqual(organization.rows[0], { brand_name: "Renamed Manager", legal_name: "Renamed Manager Ltd" });
+  });
+
+  test("a record without a legal name doesn't erase the one we have", async () => {
+    const { target, asset } = await createAsset();
+    const issuer = asset.reference.organizations.find((item) => item.slug === "shared-issuer");
+    assert.ok(issuer);
+    issuer.legalName = null;
+    await updateAsset(context, target);
+    const { rows } = await db.pool.query("SELECT legal_name FROM organization WHERE slug = 'shared-issuer'");
+    assert.equal(rows[0]?.legal_name, "Shared Issuer Ltd");
+    issuer.legalName = "Shared Issuer Ltd";
+  });
+
   test("a new measure name is kept but unserved, and reported", async () => {
     const { id, target, asset } = await createAsset();
     asset.current.values.push({
@@ -322,7 +357,7 @@ describe("updateAsset and createNewAsset", () => {
     assert.equal(stored.rows[0]?.value, row.value);
   });
 
-  test("a restated day overwrites only that day", async () => {
+  test("a restated day overwrites only that day, however old", async () => {
     const { id, target, asset } = await createAsset();
     const [series] = asset.history.series;
     assert.ok(series);
@@ -339,38 +374,6 @@ describe("updateAsset and createNewAsset", () => {
     assert.equal(rows[0]?.value, series.points[0]?.[1]);
   });
 
-  test("an asset with full history asks only for a recent window", async () => {
-    const { target } = await createAsset();
-    fake.historyCalls.length = 0;
-    await updateAsset(context, target);
-    assert.equal(fake.historyCalls[0]?.since, "2026-10-01");
-  });
-
-  test("full history can be forced", async () => {
-    const { target } = await createAsset();
-    fake.historyCalls.length = 0;
-    await updateAsset({ ...context, fullHistory: true }, target);
-    assert.equal(fake.historyCalls[0]?.since, null);
-  });
-
-  test("a Solana token first seen in this load gets its full series", async () => {
-    const { id, target, asset } = await createAsset();
-    await updateAsset(context, target);
-    asset.reference.tokens.push({
-      network: "solana",
-      address: "NewMintAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      issuanceType: "native",
-      fields: [],
-    });
-    fake.historyCalls.length = 0;
-    await updateAsset(context, target);
-    assert.equal(fake.historyCalls[0]?.since, null);
-    const { rowCount } = await db.pool.query("SELECT 1 FROM token WHERE asset_id = $1 AND address LIKE 'NewMint%'", [
-      id,
-    ]);
-    assert.equal(rowCount, 1);
-  });
-
   test("an empty token list fails the asset and leaves its tokens active", async () => {
     const { id, target, asset } = await createAsset();
     asset.reference.tokens = [];
@@ -382,14 +385,6 @@ describe("updateAsset and createNewAsset", () => {
     assert.equal(rows[0]?.n, 2);
   });
 
-  test("an asset without history asks for all of it", async () => {
-    const { id, target } = await createAsset();
-    await db.pool.query("DELETE FROM financial_timeseries WHERE asset_id = $1", [id]);
-    fake.historyCalls.length = 0;
-    await updateAsset(context, target);
-    assert.equal(fake.historyCalls[0]?.since, null);
-  });
-
   test("a write error rolls back everything for that asset", async () => {
     const { id, target, asset } = await createAsset();
     const before = await fingerprintWrites(db.pool);
@@ -398,7 +393,9 @@ describe("updateAsset and createNewAsset", () => {
     description.value = "Should roll back";
     description.raw = "Should roll back";
     // Passes validation, then fails on the foreign key inside the transaction.
-    asset.current.values[0] = { ...(asset.current.values[0] ?? (undefined as never)), metric: "x".repeat(10) };
+    const [firstValue] = asset.current.values;
+    assert.ok(firstValue);
+    firstValue.metric = "x".repeat(10);
     await db.pool.query(`ALTER TABLE financial_current ADD CONSTRAINT test_no_x CHECK (metric <> 'xxxxxxxxxx')`);
     try {
       await assert.rejects(updateAsset(context, target));

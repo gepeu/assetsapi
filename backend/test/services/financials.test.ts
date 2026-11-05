@@ -1,9 +1,8 @@
 /** Tests for financials service. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
 import { getAssetFinancials } from "../../src/services/financials.ts";
-import { createFakeProvider, makeAsset, TODAY, universeDeps } from "../helpers/fakeProvider.ts";
+import { makeAsset, seedAssets, TODAY } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
 describe("financials service", () => {
@@ -11,7 +10,7 @@ describe("financials service", () => {
 
   before(async () => {
     db = await createTestDb();
-    await runUniverseJob(universeDeps(db, createFakeProvider([makeAsset({ ref: "1" })])));
+    await seedAssets(db, [makeAsset({ ref: "1" })]);
   });
   after(() => db.close());
 

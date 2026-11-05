@@ -1,7 +1,7 @@
 /** Networks and tokens. */
 import type { Queryable } from "../pool.ts";
 
-export interface NetworkIdentity {
+interface NetworkIdentity {
   key: string;
   name: string;
   addressCaseSensitive: boolean;
@@ -33,7 +33,7 @@ export async function ensureNetwork(db: Queryable, network: NetworkIdentity): Pr
   return id;
 }
 
-export interface TokenWrite {
+interface TokenWrite {
   assetId: number;
   networkId: number;
   address: string;
@@ -92,7 +92,7 @@ export async function listAllTokenIds(db: Queryable, assetId: number): Promise<n
   return rows.map((row) => row.id);
 }
 
-export interface AssetTokenRow {
+interface AssetTokenRow {
   id: number;
   address: string;
   issuance_type: "native" | "bridged" | "wrapper" | "unknown";

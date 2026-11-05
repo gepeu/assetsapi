@@ -5,7 +5,7 @@
 import { ContractBrokenError } from "../errors.ts";
 import { HttpClient, type HttpClientOptions } from "../http.ts";
 
-export const RWA_XYZ_BASE_URL = "https://api.rwa.xyz/v4";
+const RWA_XYZ_BASE_URL = "https://api.rwa.xyz/v4";
 const PER_PAGE = 100;
 
 export type ApiRecord = Record<string, unknown>;
@@ -101,14 +101,8 @@ export class RwaXyzClient {
   async timeseries(
     scope: "assets" | "tokens",
     filters: readonly { field: string; value: string | number }[],
-    since: string | null,
   ): Promise<TimeseriesSeries[]> {
-    const conditions: { operator: string; field: string; value: string }[] = filters.map(({ field, value }) => ({
-      operator: "equals",
-      field,
-      value: String(value),
-    }));
-    if (since) conditions.push({ operator: "gte", field: "date", value: since });
+    const conditions = filters.map(({ field, value }) => ({ operator: "equals", field, value: String(value) }));
 
     const series: TimeseriesSeries[] = [];
     for (let page = 1; ; page++) {

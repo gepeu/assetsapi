@@ -20,7 +20,7 @@ const readySchema = {
 } as const;
 
 export function registerHealthRoutes(app: FastifyInstance, db: Queryable): void {
-  app.get("/readyz", { schema: readySchema, config: { rateLimit: false } }, async (request) => {
+  app.get("/readyz", { schema: readySchema, config: { rateLimit: false }, exposeHeadRoute: true }, async (request) => {
     let pending: string[];
     try {
       pending = await findPendingMigrations(db);

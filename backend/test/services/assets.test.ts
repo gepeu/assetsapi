@@ -1,9 +1,8 @@
 /** Tests for asset services. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
 import { getAsset, listAssets } from "../../src/services/assets.ts";
-import { createFakeProvider, makeAsset, universeDeps } from "../helpers/fakeProvider.ts";
+import { makeAsset, seedAssets } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
 describe("asset services", () => {
@@ -32,7 +31,7 @@ describe("asset services", () => {
     coin.current.values = coin.current.values.filter((row) => row.token?.network !== "ethereum");
     const twin = makeAsset({ ref: "4", slug: "twin", ticker: "AAA" });
     const gone = makeAsset({ ref: "5", slug: "gone", ticker: "ZZZ", assetClass: "Gone Class" });
-    await runUniverseJob(universeDeps(db, createFakeProvider([stock, fund, coin, twin, gone])));
+    await seedAssets(db, [stock, fund, coin, twin, gone]);
     await db.pool.query("UPDATE asset SET deactivated_at = now() WHERE slug = 'gone'");
   });
   after(() => db.close());
@@ -140,5 +139,30 @@ describe("asset services", () => {
     } finally {
       await db.pool.query("UPDATE financial_measure SET served = true WHERE slug = 'price_dollar'");
     }
+  });
+});
+
+describe("asset list order", () => {
+  let db: TestDb;
+
+  before(async () => {
+    db = await createTestDb();
+    const tickers = ["USDC", "sUSDe", "AAPLx", "tGBP", "reUSD", "BRK.Bx"];
+    const assets = tickers.map((ticker, index) =>
+      makeAsset({ ref: String(index + 1), slug: ticker.toLowerCase().replace(".", "-"), ticker }),
+    );
+    await seedAssets(db, assets);
+  });
+  after(() => db.close());
+
+  const tickers = async (sort: "ticker" | "-ticker") =>
+    (await listAssets(db.pool, { sort })).data.map((row) => row.ticker);
+
+  test("tickers sort the same whatever the database's locale, ignoring case", async () => {
+    assert.deepEqual(await tickers("ticker"), ["AAPLx", "BRK.Bx", "reUSD", "sUSDe", "tGBP", "USDC"]);
+  });
+
+  test("descending is the exact reverse", async () => {
+    assert.deepEqual(await tickers("-ticker"), ["USDC", "tGBP", "sUSDe", "reUSD", "BRK.Bx", "AAPLx"]);
   });
 });

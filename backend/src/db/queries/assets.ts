@@ -3,7 +3,7 @@ import type { Queryable } from "../pool.ts";
 
 const PROVIDER_NAMESPACE = "rwa_xyz_id";
 
-export interface ActiveAsset {
+interface ActiveAsset {
   id: number;
   slug: string;
   ref: string;
@@ -50,7 +50,7 @@ export async function isSlugTaken(db: Queryable, slug: string): Promise<boolean>
   return rows[0]?.taken ?? false;
 }
 
-export interface NewAsset {
+interface NewAsset {
   slug: string;
   ticker: string;
   name: string;
@@ -74,11 +74,19 @@ export async function insertAsset(db: Queryable, asset: NewAsset): Promise<numbe
   return id;
 }
 
-export async function setAssetClass(db: Queryable, assetId: number, assetClass: string): Promise<void> {
-  await db.query("UPDATE asset SET asset_class = $2 WHERE id = $1 AND asset_class IS DISTINCT FROM $2", [
-    assetId,
-    assetClass,
-  ]);
+interface AssetIdentity {
+  ticker: string;
+  name: string;
+  assetClass: string;
+}
+
+/** Keeps the list in step with the provider. The slug and type stay as they are, by design. */
+export async function refreshAssetIdentity(db: Queryable, assetId: number, identity: AssetIdentity): Promise<void> {
+  await db.query(
+    `UPDATE asset SET ticker = $2, name = $3, asset_class = $4
+     WHERE id = $1 AND (ticker, name, asset_class) IS DISTINCT FROM ($2, $3, $4)`,
+    [assetId, identity.ticker, identity.name, identity.assetClass],
+  );
 }
 
 export async function deactivateAssets(db: Queryable, ids: readonly number[]): Promise<void> {
@@ -91,7 +99,7 @@ export async function reactivateAssets(db: Queryable, ids: readonly number[]): P
   ]);
 }
 
-export interface ActiveAssetRow {
+interface ActiveAssetRow {
   id: number;
   slug: string;
   ticker: string;
@@ -110,7 +118,8 @@ export async function findActiveAssetBySlug(db: Queryable, slug: string): Promis
   return rows[0] ?? null;
 }
 
-export const SORTABLE_FIGURES = [
+/** The figures shown for every asset, which are also what the list can sort by. */
+const KEY_FIGURES = [
   "price_dollar",
   "net_asset_value_dollar",
   "total_asset_value_dollar",
@@ -118,23 +127,25 @@ export const SORTABLE_FIGURES = [
   "holding_addresses_count",
 ] as const;
 
-export type SortColumn = "ticker" | (typeof SORTABLE_FIGURES)[number];
+export type KeyFigure = (typeof KEY_FIGURES)[number];
 
-export interface AssetListFilters {
+export type SortColumn = "ticker" | KeyFigure;
+
+interface AssetListFilters {
   assetClass: string | null;
   assetType: string | null;
   network: string | null;
   q: string | null;
 }
 
-export interface AssetListOptions extends AssetListFilters {
+interface AssetListOptions extends AssetListFilters {
   sort: SortColumn;
   descending: boolean;
   limit: number;
   offset: number;
 }
 
-export interface AssetListRow {
+export interface AssetListRow extends Record<KeyFigure, number | null> {
   slug: string;
   ticker: string;
   name: string;
@@ -142,22 +153,17 @@ export interface AssetListRow {
   asset_type: string;
   issuer: string | null;
   as_of: string | null;
-  price_dollar: number | null;
-  net_asset_value_dollar: number | null;
-  total_asset_value_dollar: number | null;
-  apy_30_day: number | null;
-  holding_addresses_count: number | null;
 }
 
-// Column names come only from this map, never from the request.
-const SORT_COLUMNS: Readonly<Record<SortColumn, string>> = {
-  ticker: "a.ticker",
-  price_dollar: "f.price_dollar",
-  net_asset_value_dollar: "f.net_asset_value_dollar",
-  total_asset_value_dollar: "f.total_asset_value_dollar",
-  apy_30_day: "f.apy_30_day",
-  holding_addresses_count: "f.holding_addresses_count",
-};
+// Text sorts with a fixed collation, because the database's own locale differs by host and would
+// reorder most of the list. Columns come only from this function's fixed names, never from the request.
+const toSortExpression = (sort: SortColumn): string =>
+  sort === "ticker" ? `lower(a.ticker) COLLATE "C"` : `f.${sort}`;
+
+const KEY_FIGURE_COLUMNS = KEY_FIGURES.map((figure) => `f.${figure}`).join(", ");
+const KEY_FIGURE_PIVOT = KEY_FIGURES.map(
+  (figure) => `max(c.value) FILTER (WHERE c.metric = '${figure}') AS ${figure}`,
+).join(",\n              ");
 
 const ISSUER_JOIN = `
   LEFT JOIN LATERAL (
@@ -187,25 +193,20 @@ export async function listAssetRows(db: Queryable, options: AssetListOptions): P
   const direction = options.descending ? "DESC" : "ASC";
   const { rows } = await db.query<AssetListRow>(
     `SELECT a.slug, a.ticker, a.name, a.asset_class, a.asset_type, i.brand_name AS issuer,
-            f.as_of, f.price_dollar, f.net_asset_value_dollar, f.total_asset_value_dollar,
-            f.apy_30_day, f.holding_addresses_count
+            f.as_of, ${KEY_FIGURE_COLUMNS}
      FROM asset a
      ${ISSUER_JOIN}
      LEFT JOIN (
        SELECT c.asset_id,
               max(c.as_of)::text AS as_of,
-              max(c.value) FILTER (WHERE c.metric = 'price_dollar') AS price_dollar,
-              max(c.value) FILTER (WHERE c.metric = 'net_asset_value_dollar') AS net_asset_value_dollar,
-              max(c.value) FILTER (WHERE c.metric = 'total_asset_value_dollar') AS total_asset_value_dollar,
-              max(c.value) FILTER (WHERE c.metric = 'apy_30_day') AS apy_30_day,
-              max(c.value) FILTER (WHERE c.metric = 'holding_addresses_count') AS holding_addresses_count
+              ${KEY_FIGURE_PIVOT}
        FROM financial_current c
        JOIN financial_measure m ON m.slug = c.metric AND m.served
        WHERE c.token_id IS NULL
        GROUP BY c.asset_id
      ) f ON f.asset_id = a.id
      WHERE ${FILTERS}
-     ORDER BY ${SORT_COLUMNS[options.sort]} ${direction} NULLS LAST, a.slug
+     ORDER BY ${toSortExpression(options.sort)} ${direction} NULLS LAST, a.slug COLLATE "C"
      LIMIT $5 OFFSET $6`,
     [options.assetClass, options.assetType, options.network, toSearchPattern(options.q), options.limit, options.offset],
   );
@@ -220,7 +221,7 @@ export async function countAssets(db: Queryable, filters: AssetListFilters): Pro
   return rows[0]?.total ?? 0;
 }
 
-export interface FilterOptions {
+interface FilterOptions {
   assetClasses: string[];
   assetTypes: string[];
   networks: string[];

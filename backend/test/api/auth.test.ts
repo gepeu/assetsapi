@@ -29,6 +29,14 @@ describe("API key auth", () => {
   const get = (headers: Record<string, string> = {}, url = "/assets") => app.inject({ method: "GET", url, headers });
   const bearer = (key: string) => ({ authorization: `Bearer ${key}` });
 
+  test("the scheme's name is case-insensitive, and the key isn't", async () => {
+    const key = await createTestKey(db.pool);
+    assert.equal((await get({ authorization: `bearer ${key}` })).statusCode, 200);
+    assert.equal((await get({ authorization: `BEARER ${key}` })).statusCode, 200);
+    const flipped = key.replace(/[a-z]/, (letter) => letter.toUpperCase());
+    assert.equal((await get({ authorization: `Bearer ${flipped}` })).statusCode, 401);
+  });
+
   test("a valid key gets in", async () => {
     assert.equal((await get(bearer(await createTestKey(db.pool)))).statusCode, 200);
   });
@@ -85,13 +93,11 @@ describe("API key auth", () => {
   });
 
   test("a cached key that passes its expiry stops at once", async () => {
+    // The test's clock is years ahead of the database's, so only the cached check can reject this.
     const key = await createTestKey(db.pool, { expiresAt: new Date(time + 10_000) });
-    // Far in the future by the database's clock, so only the cached check can reject it.
-    await db.pool.query("UPDATE api_key SET expires_at = $2 WHERE key_hash = $1", [
-      hashApiKey(key),
-      new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-    ]);
     assert.equal((await get(bearer(key))).statusCode, 200);
+    time += 11_000;
+    assert.equal((await get(bearer(key))).statusCode, 401);
   });
 
   test("two active keys can be used while a client switches", async () => {

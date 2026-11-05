@@ -2,8 +2,10 @@
  * A programmable provider behind the real interfaces, so job tests exercise everything except the
  * network. Each asset's data is plain objects a test can change between runs.
  */
+import type { FastifyInstance, LightMyRequestResponse } from "fastify";
+import { buildApp } from "../../src/api/app.ts";
 import type { UpdateJobDeps } from "../../src/jobs/updateData.ts";
-import type { UniverseJobDeps } from "../../src/jobs/updateUniverse.ts";
+import { runUniverseJob, type UniverseJobDeps } from "../../src/jobs/updateUniverse.ts";
 import type {
   CurrentData,
   HistoryData,
@@ -12,7 +14,7 @@ import type {
   TokenRef,
   VerifiedToken,
 } from "../../src/providers/types.ts";
-import { silentLogger, type TestDb } from "./testDb.ts";
+import { createTestDb, createTestKey, silentLogger, type TestDb } from "./testDb.ts";
 
 export const TODAY = "2026-11-05";
 export const YESTERDAY = "2026-11-04";
@@ -229,8 +231,8 @@ export interface FakeProvider {
   delisted: Set<string>;
   /** Overrides: a mint that now resolves to another ID. */
   movedTo: Map<string, ProviderRef>;
-  /** The `since` value of each getHistory call. */
-  historyCalls: { ref: ProviderRef; since: string | null }[];
+  /** Each getHistory call. */
+  historyCalls: { ref: ProviderRef }[];
   extraTokens: VerifiedToken[];
 }
 
@@ -280,8 +282,8 @@ export function toProviders(fake: FakeProvider) {
     reference: { getReference: async (ref: ProviderRef) => clone(requireAsset(fake, ref).reference) },
     financial: {
       getCurrent: async (ref: ProviderRef) => clone(requireAsset(fake, ref).current),
-      getHistory: async (ref: ProviderRef, since: string | null) => {
-        fake.historyCalls.push({ ref, since });
+      getHistory: async (ref: ProviderRef) => {
+        fake.historyCalls.push({ ref });
         return clone(requireAsset(fake, ref).history);
       },
     },
@@ -311,4 +313,34 @@ export function universeDeps(
   overrides: Partial<UniverseJobDeps> = {},
 ): UniverseJobDeps {
   return { ...jobDeps(db, overrides), ...toProviders(fake), ...overrides };
+}
+
+/** Fills a database through the real universe job. */
+export async function seedAssets(db: TestDb, assets: readonly FakeAsset[]): Promise<void> {
+  await runUniverseJob(universeDeps(db, createFakeProvider(assets)));
+}
+
+export interface ApiHarness {
+  db: TestDb;
+  app: FastifyInstance;
+  /** A GET with a valid key. */
+  get(url: string): Promise<LightMyRequestResponse>;
+  close(): Promise<void>;
+}
+
+/** A seeded database, the real app and a valid key. */
+export async function createApiHarness(assets: readonly FakeAsset[]): Promise<ApiHarness> {
+  const db = await createTestDb();
+  await seedAssets(db, assets);
+  const app = await buildApp({ db: db.pool, logger: silentLogger });
+  const headers = { authorization: `Bearer ${await createTestKey(db.pool)}` };
+  return {
+    db,
+    app,
+    get: (url) => app.inject({ method: "GET", url, headers }),
+    close: async () => {
+      await app.close();
+      await db.close();
+    },
+  };
 }

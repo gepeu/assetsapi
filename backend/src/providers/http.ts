@@ -26,6 +26,17 @@ export interface HttpClientOptions {
   now?: () => number;
 }
 
+/**
+ * Why a request failed, in terms that can't leak anything: an error's message can quote the request,
+ * so only its name and system code are used.
+ */
+function toFailureReason(error: unknown): string {
+  if (!(error instanceof Error)) return "unknown";
+  if (error.name === "TimeoutError") return "timed out";
+  const code = (error.cause as { code?: unknown } | undefined)?.code;
+  return typeof code === "string" ? code : error.name;
+}
+
 export class HttpClient {
   private readonly provider: string;
   private readonly baseUrl: string;
@@ -66,9 +77,8 @@ export class HttpClient {
           signal: AbortSignal.timeout(this.timeoutMs),
         });
         body = await response.text();
-      } catch {
-        // The cause can quote the request, so only the path goes in the message.
-        lastError = new TransientError(`${this.provider}: request failed for ${path}`);
+      } catch (error) {
+        lastError = new TransientError(`${this.provider}: request failed for ${path} (${toFailureReason(error)})`);
         continue;
       }
 

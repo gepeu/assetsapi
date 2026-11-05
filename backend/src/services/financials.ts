@@ -7,18 +7,13 @@ import type { FieldValue } from "../api/schemas/shared.ts";
 import type { Queryable } from "../db/pool.ts";
 import { findActiveAssetBySlug } from "../db/queries/assets.ts";
 import {
-  listAvailableSeries,
   listServedAssetValues,
   listServedSolanaValues,
   listValueByNetwork,
   type ServedValueRow,
 } from "../db/queries/financials.ts";
-
-export const HOLDER_SHARE_MEASURES: readonly string[] = [
-  "top_holder_concentration",
-  "top_5_holder_concentration",
-  "top_10_holder_concentration",
-];
+import { listAvailableSeries } from "../db/queries/history.ts";
+import { chooseSeriesScope, HOLDER_SHARE_MEASURES } from "./history.ts";
 
 const OTHER_GROUP = "Other";
 
@@ -60,6 +55,14 @@ function toTerm(row: ServedValueRow): FieldValue | null {
   return null;
 }
 
+/** The latest date across a set of values, whichever measure it's on. */
+export function findLatestAsOf(rows: readonly { as_of: string }[]): string | null {
+  return rows.reduce<string | null>(
+    (latest, row) => (latest === null || row.as_of > latest ? row.as_of : latest),
+    null,
+  );
+}
+
 /** Null when the asset is unknown or deactivated. */
 export async function getAssetFinancials(db: Queryable, slug: string): Promise<FinancialsResponse | null> {
   const asset = await findActiveAssetBySlug(db, slug);
@@ -90,21 +93,16 @@ export async function getAssetFinancials(db: Queryable, slug: string): Promise<F
   });
 
   const networkTotal = networkRows.reduce((sum, row) => sum + row.value, 0);
-  const asOf = assetRows.reduce<string | null>(
-    (latest, row) => (latest === null || row.as_of > latest ? row.as_of : latest),
-    null,
-  );
 
   const history = seriesRows.flatMap((row) => {
-    const isShare = HOLDER_SHARE_MEASURES.includes(row.slug);
-    if (isShare && !row.has_solana_series) return [];
-    const scope: Figure["scope"] = !isShare && row.has_asset_series ? "asset" : "solana";
+    if (HOLDER_SHARE_MEASURES.includes(row.slug) && !row.hasSolanaSeries) return [];
+    const scope = chooseSeriesScope(row.slug, row);
     return [{ measure: row.slug, label: row.label, group: row.group ?? OTHER_GROUP, unit: row.unit, scope }];
   });
 
   return {
     data: {
-      asOf,
+      asOf: findLatestAsOf(assetRows),
       figures,
       terms,
       networks: networkRows.map((row) => ({

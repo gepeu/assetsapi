@@ -3,9 +3,9 @@
  * a failure here fails that one asset, which keeps its last good data.
  */
 import { ContractBrokenError } from "../providers/errors.ts";
-import type { CurrentData, FieldInput, HistoryData, ReferenceData } from "../providers/types.ts";
+import { type CurrentData, type FieldInput, type HistoryData, isDay, type ReferenceData } from "../providers/types.ts";
 
-export interface CatalogEntry {
+interface CatalogEntry {
   valueType: string;
   level: string;
   recordGroup: string | null;
@@ -19,7 +19,6 @@ export interface AssetData {
   history: HistoryData;
 }
 
-const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MEASURE_PATTERN = /^[a-z0-9_]{1,64}$/;
 
 function fail(slug: string, message: string): never {
@@ -27,7 +26,7 @@ function fail(slug: string, message: string): never {
 }
 
 function checkDay(slug: string, day: string, today: string, what: string): void {
-  if (!DAY_PATTERN.test(day)) fail(slug, `${what} has a malformed date`);
+  if (!isDay(day)) fail(slug, `${what} has a malformed date`);
   if (day > today) fail(slug, `${what} has a date in the future`);
 }
 
@@ -52,7 +51,7 @@ function checkValueType(slug: string, input: FieldInput, valueType: string): voi
       fits = Array.isArray(value) && value.every((item) => typeof item === "string");
       break;
     case "date":
-      fits = typeof value === "string" && DAY_PATTERN.test(value);
+      fits = typeof value === "string" && isDay(value);
       break;
     default:
       fits = typeof value === "string";
@@ -144,19 +143,14 @@ export interface LargeSwing {
   to: number;
 }
 
-const SWING_METRICS = ["price_dollar", "net_asset_value_dollar", "total_asset_value_dollar"] as const;
+export const SWING_METRICS: readonly string[] = ["price_dollar", "net_asset_value_dollar", "total_asset_value_dollar"];
 const SWING_THRESHOLD = 0.5;
-
-export function listSwingMetrics(): readonly string[] {
-  return SWING_METRICS;
-}
 
 /** Real values can jump, so a swing is noted in the run summary and still written. */
 export function findLargeSwings(previous: ReadonlyMap<string, number>, current: CurrentData): LargeSwing[] {
   const swings: LargeSwing[] = [];
   for (const row of current.values) {
-    if (row.token !== null || row.value === null || !(SWING_METRICS as readonly string[]).includes(row.metric))
-      continue;
+    if (row.token !== null || row.value === null || !SWING_METRICS.includes(row.metric)) continue;
     const from = previous.get(row.metric);
     if (from === undefined || from === 0) continue;
     if (Math.abs(row.value - from) / Math.abs(from) >= SWING_THRESHOLD) {

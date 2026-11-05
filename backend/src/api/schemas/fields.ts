@@ -2,9 +2,9 @@
 import type { FromSchema } from "json-schema-to-ts";
 import { coverageSchema, errorResponses, fieldValueSchema, slugParams } from "./shared.ts";
 
-export const fieldsQuery = { type: "object", additionalProperties: false, properties: {} } as const;
+const fieldsQuery = { type: "object", additionalProperties: false, properties: {} } as const;
 
-export const fieldsResponse = {
+const fieldsResponse = {
   type: "object",
   additionalProperties: false,
   required: ["data"],

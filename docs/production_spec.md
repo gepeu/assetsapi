@@ -117,6 +117,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
     │   │       ├── assets.ts
     │   │       ├── fieldValues.ts
     │   │       ├── financials.ts
+    │   │       ├── history.ts
     │   │       ├── organizations.ts
     │   │       ├── runs.ts
     │   │       └── tokens.ts
@@ -215,7 +216,7 @@ Each adapter implements only the interfaces it supplies, and works with the prov
 | `AddressResolver` | `resolve(network, address)` | The provider's ID, or nothing | No | Yes |
 | `ReferenceProvider` | `getReference(ref)` | Field values for the asset and its tokens | No | Yes |
 | `FinancialProvider` | `getCurrent(ref)` | Current values, marked asset or token level | No | Yes |
-| | `getHistory(ref, since)` | Daily series for each measure | No | Yes |
+| | `getHistory(ref)` | Full daily series for each measure | No | Yes |
 
 | Error | Example | What the job does |
 |---|---|---|
@@ -423,7 +424,7 @@ Both jobs run on cron, do one run and exit.
 - **Lock:** they share one Postgres advisory lock, held on a dedicated connection. If it's taken, a job exits straight away, so the two are scheduled apart. If that connection drops, the lock is gone, so the job stops.
 - **Schema check:** each job first checks that the schema is at the version its code needs, and exits if it isn't. Cron services deploy separately from the migration step, so new job code could otherwise run on the old schema.
 
-**Schedule (default):** both once a day, universe first and update 30 minutes later, after RWA.xyz's daily refresh. Frequency is a cron setting, not code. More runs don't give finer charts, because history is stored per day.
+**Schedule (default):** both once a day, universe first and update 30 minutes later. RWA.xyz refreshes more than once a day (05:35 and 15:54 UTC on the day checked), so a later refresh waits for the next run. Frequency is a cron setting, not code. More runs don't give finer charts, because history is stored per day.
 
 ### Universe job
 
@@ -883,7 +884,7 @@ The new service replaces the old one in the same Railway project, using a new Po
 - What time RWA.xyz's daily refresh happens, which sets the job schedule.
 - Whether same-day history points are incomplete. In the last load, 250 series ended on the run's own day and 3,115 on the day before. If confirmed, history stops at the last complete UTC day.
 - The units of `yield_to_maturity`. Values of 0.037 to 0.0535 are labelled percent, and are probably fractions.
-- Whether RWA.xyz's history endpoint can filter by date. If it can't, the job fetches the full series and writes only changes.
+- ~~Whether RWA.xyz's history endpoint can filter by date.~~ It can, but the job still fetches the full series and writes only changes, because RWA.xyz restates old days: one refresh changed 76,000 rows on 50 assets, back to June 2025.
 - Railway's connection limit, private networking and deploy settings.
 - That Railway's Postgres version can restore a Postgres 18 dump.
 - That the chosen job monitor includes the run summary in its failure emails.

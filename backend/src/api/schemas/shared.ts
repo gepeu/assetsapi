@@ -20,7 +20,6 @@ export const ASSET_TYPES = [
 export const nullableNumber = { type: ["number", "null"] } as const;
 export const nullableString = { type: ["string", "null"] } as const;
 export const dayOrNull = { type: ["string", "null"], pattern: DAY_PATTERN } as const;
-export const day = { type: "string", pattern: DAY_PATTERN } as const;
 
 export const scopeSchema = { type: "string", enum: ["asset", "solana"] } as const;
 

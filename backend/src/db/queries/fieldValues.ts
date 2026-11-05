@@ -2,9 +2,9 @@
 import type { Queryable } from "../pool.ts";
 
 /** How long a value stays after the provider stops reporting it. */
-const MISSING_GRACE = "7 days";
+export const MISSING_GRACE = "7 days";
 
-export interface CatalogField {
+interface CatalogField {
   id: number;
   key: string;
   category: string;
@@ -81,7 +81,7 @@ export async function upsertFieldValues(
   return rowCount ?? 0;
 }
 
-export interface SeenValue {
+interface SeenValue {
   fieldId: number;
   subjectRef: string;
 }

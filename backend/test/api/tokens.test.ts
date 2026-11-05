@@ -1,29 +1,17 @@
 /** Tests for GET /assets/{slug}/tokens. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import type { FastifyInstance } from "fastify";
-import { buildApp } from "../../src/api/app.ts";
-import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
-import { createFakeProvider, makeAsset, universeDeps } from "../helpers/fakeProvider.ts";
-import { createTestDb, createTestKey, silentLogger, type TestDb } from "../helpers/testDb.ts";
+import { type ApiHarness, createApiHarness, makeAsset } from "../helpers/fakeProvider.ts";
 
 describe("GET /assets/{slug}/tokens", () => {
-  let db: TestDb;
-  let app: FastifyInstance;
-  let headers: { authorization: string };
+  let harness: ApiHarness;
 
   before(async () => {
-    db = await createTestDb();
-    await runUniverseJob(universeDeps(db, createFakeProvider([makeAsset({ ref: "1" })])));
-    app = await buildApp({ db: db.pool, logger: silentLogger });
-    headers = { authorization: `Bearer ${await createTestKey(db.pool)}` };
+    harness = await createApiHarness([makeAsset({ ref: "1" })]);
   });
-  after(async () => {
-    await app.close();
-    await db.close();
-  });
+  after(() => harness.close());
 
-  const get = (url: string) => app.inject({ method: "GET", url, headers });
+  const get = (url: string) => harness.get(url);
 
   test("returns one row per chain in the documented shape", async () => {
     const response = await get("/assets/asset-1/tokens");

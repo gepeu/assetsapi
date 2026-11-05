@@ -1,9 +1,8 @@
 /** Tests for field service. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
 import { getAssetFields } from "../../src/services/fields.ts";
-import { createFakeProvider, makeAsset, TODAY, universeDeps } from "../helpers/fakeProvider.ts";
+import { makeAsset, seedAssets, TODAY } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
 describe("field service", () => {
@@ -12,7 +11,7 @@ describe("field service", () => {
 
   before(async () => {
     db = await createTestDb();
-    await runUniverseJob(universeDeps(db, createFakeProvider([makeAsset({ ref: "1" })])));
+    await seedAssets(db, [makeAsset({ ref: "1" })]);
     const { rows } = await db.pool.query<{ id: number }>("SELECT id FROM asset WHERE slug = 'asset-1'");
     assetId = rows[0]?.id ?? 0;
   });

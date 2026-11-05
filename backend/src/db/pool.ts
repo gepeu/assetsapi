@@ -8,7 +8,7 @@ import type { Logger } from "../logger.ts";
 /** Anything queries can run on: the pool, or one client inside a transaction. */
 export type Queryable = pg.Pool | pg.PoolClient | pg.Client;
 
-export interface PoolOptions {
+interface PoolOptions {
   connectionString: string;
   max: number;
   /** How long to wait for a free connection. */
@@ -20,9 +20,15 @@ export interface PoolOptions {
 pg.types.setTypeParser(pg.types.builtins.INT8, (value) => Number(value));
 
 export function createPool({ connectionString, max, connectionTimeoutMs, logger }: PoolOptions): pg.Pool {
-  const pool = new pg.Pool({ connectionString, max, connectionTimeoutMillis: connectionTimeoutMs });
+  // Keepalive, so a query on a silently dropped connection fails rather than hanging a job's run.
+  const pool = new pg.Pool({ connectionString, max, connectionTimeoutMillis: connectionTimeoutMs, keepAlive: true });
   pool.on("error", (error) => logger?.warn({ err: error }, "idle database connection failed"));
   return pool;
+}
+
+/** Fails if the database can't be reached. */
+export async function checkConnection(db: Queryable): Promise<void> {
+  await db.query("SELECT 1");
 }
 
 /** Runs the callback in one transaction, rolling back if it throws. */

@@ -1,8 +1,6 @@
-/** Financial measures, current values and daily history. */
+/** Financial measures and current values. */
 import type { Queryable } from "../pool.ts";
-
-const MISSING_GRACE = "7 days";
-const HISTORY_BATCH_SIZE = 5000;
+import { MISSING_GRACE } from "./fieldValues.ts";
 
 export interface NewMeasure {
   slug: string;
@@ -126,55 +124,6 @@ export async function readAssetValues(
   return new Map(rows.map((row) => [row.metric, row.value]));
 }
 
-export interface HistoryWrite {
-  tokenId: number | null;
-  measure: string;
-  points: readonly (readonly [string, number])[];
-}
-
-/** Writes only new or changed days, which stops each run rewriting the whole table. Returns days written. */
-export async function upsertHistory(
-  db: Queryable,
-  assetId: number,
-  runId: number,
-  series: readonly HistoryWrite[],
-): Promise<number> {
-  let written = 0;
-  for (const { tokenId, measure, points } of series) {
-    for (let start = 0; start < points.length; start += HISTORY_BATCH_SIZE) {
-      const batch = points.slice(start, start + HISTORY_BATCH_SIZE);
-      const { rowCount } = await db.query(
-        `INSERT INTO financial_timeseries (asset_id, token_id, measure, day, value, ingestion_run_id)
-         SELECT $1, $2, $3, p.day, p.value, $4 FROM unnest($5::date[], $6::float8[]) AS p(day, value)
-         ON CONFLICT (asset_id, token_id, measure, day) DO UPDATE
-           SET value = EXCLUDED.value, ingestion_run_id = EXCLUDED.ingestion_run_id
-           WHERE financial_timeseries.value IS DISTINCT FROM EXCLUDED.value`,
-        [assetId, tokenId, measure, runId, batch.map(([day]) => day), batch.map(([, value]) => value)],
-      );
-      written += rowCount ?? 0;
-    }
-  }
-  return written;
-}
-
-/** Whether the asset and each of these Solana mints already have history, so a recent window is enough. */
-export async function hasFullHistory(db: Queryable, assetId: number, mints: readonly string[]): Promise<boolean> {
-  const { rows } = await db.query<{ complete: boolean }>(
-    `SELECT EXISTS (SELECT 1 FROM financial_timeseries WHERE asset_id = $1 AND token_id IS NULL)
-        AND NOT EXISTS (
-          SELECT 1 FROM unnest($2::text[]) AS m(address)
-          WHERE NOT EXISTS (
-            SELECT 1 FROM financial_timeseries s
-            JOIN token t ON t.id = s.token_id AND t.address = m.address
-            JOIN network n ON n.id = t.network_id AND n.key = 'solana'
-            WHERE s.asset_id = $1
-          )
-        ) AS complete`,
-    [assetId, mints],
-  );
-  return rows[0]?.complete ?? false;
-}
-
 export interface ServedValueRow {
   metric: string;
   label: string;
@@ -257,7 +206,7 @@ export async function listTokenAsOf(db: Queryable, tokenIds: readonly number[]):
   return new Map(rows.map((row) => [row.token_id, row.as_of]));
 }
 
-export interface NetworkValueRow {
+interface NetworkValueRow {
   key: string;
   name: string;
   value: number;
@@ -278,15 +227,6 @@ export async function listValueByNetwork(db: Queryable, assetId: number): Promis
   return rows;
 }
 
-/** The one token that Solana-scoped reads use, so every endpoint agrees on it. Expects the asset ID as $1. */
-const SERVED_SOLANA_TOKEN = `(
-  SELECT t.id FROM token t JOIN network n ON n.id = t.network_id AND n.key = 'solana'
-  WHERE t.asset_id = $1 AND t.deactivated_at IS NULL ORDER BY t.id LIMIT 1
-)`;
-
-// A holder share above 100% can't be true, though the source has some. These are stored but not served.
-const SERVABLE_POINT = `NOT (s.measure LIKE 'top%concentration' AND s.value > 100)`;
-
 export interface MeasureInfo {
   slug: string;
   label: string;
@@ -300,68 +240,4 @@ export async function findServedMeasure(db: Queryable, slug: string): Promise<Me
     [slug],
   );
   return rows[0] ?? null;
-}
-
-export interface AvailableSeriesRow extends MeasureInfo {
-  has_asset_series: boolean;
-  has_solana_series: boolean;
-}
-
-export async function listAvailableSeries(db: Queryable, assetId: number): Promise<AvailableSeriesRow[]> {
-  const { rows } = await db.query<AvailableSeriesRow>(
-    `SELECT m.slug, m.label, m.unit, m.measure_group AS "group",
-            bool_or(a.token_id IS NULL) AS has_asset_series,
-            bool_or(a.token_id IS NOT NULL) AS has_solana_series
-     FROM (
-       SELECT DISTINCT s.measure, s.token_id
-       FROM financial_timeseries s
-       WHERE s.asset_id = $1 AND ${SERVABLE_POINT}
-         AND (s.token_id IS NULL OR s.token_id = ${SERVED_SOLANA_TOKEN})
-     ) a
-     JOIN financial_measure m ON m.slug = a.measure AND m.served AND m.kind = 'figure'
-     GROUP BY m.slug, m.label, m.unit, m.measure_group, m.sort_order
-     ORDER BY m.sort_order, m.slug`,
-    [assetId],
-  );
-  return rows;
-}
-
-export interface SeriesScope {
-  hasAssetSeries: boolean;
-}
-
-export async function findSeriesScope(db: Queryable, assetId: number, measure: string): Promise<SeriesScope> {
-  const { rows } = await db.query<{ exists: boolean }>(
-    `SELECT EXISTS (
-       SELECT 1 FROM financial_timeseries s
-       WHERE s.asset_id = $1 AND s.token_id IS NULL AND s.measure = $2 AND ${SERVABLE_POINT}
-     ) AS exists`,
-    [assetId, measure],
-  );
-  return { hasAssetSeries: rows[0]?.exists ?? false };
-}
-
-/**
- * One series, oldest first. Ranges count back from the series' own last point, so a series that has
- * stopped still shows its final stretch.
- */
-export async function listHistoryPoints(
-  db: Queryable,
-  assetId: number,
-  measure: string,
-  scope: "asset" | "solana",
-  rangeDays: number | null,
-): Promise<{ day: string; value: number }[]> {
-  const scopeFilter = scope === "asset" ? "s.token_id IS NULL" : `s.token_id = ${SERVED_SOLANA_TOKEN}`;
-  const { rows } = await db.query<{ day: string; value: number }>(
-    `WITH series AS (
-       SELECT s.day, s.value FROM financial_timeseries s
-       WHERE s.asset_id = $1 AND s.measure = $2 AND ${scopeFilter} AND ${SERVABLE_POINT}
-     )
-     SELECT day::text AS day, value FROM series
-     WHERE $3::int IS NULL OR day > (SELECT max(day) FROM series) - $3::int
-     ORDER BY series.day`,
-    [assetId, measure, rangeDays],
-  );
-  return rows;
 }

@@ -20,6 +20,14 @@ describe("GET /readyz", () => {
     assert.deepEqual(response.json(), { status: "ready" });
   });
 
+  test("HEAD works too, because some uptime monitors default to it", async () => {
+    const app = await buildApp({ db: db.pool, logger: silentLogger });
+    const response = await app.inject({ method: "HEAD", url: "/readyz" });
+    await app.close();
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body, "");
+  });
+
   test("a 503 when the schema is behind", async () => {
     await db.pool.query("DELETE FROM schema_migration WHERE filename = '002_catalog_seed.sql'");
     const app = await buildApp({ db: db.pool, logger: silentLogger });

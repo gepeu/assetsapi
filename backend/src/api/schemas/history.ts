@@ -2,9 +2,9 @@
 import type { FromSchema } from "json-schema-to-ts";
 import { errorResponses, nullableString, scopeSchema, slugParams } from "./shared.ts";
 
-export const HISTORY_RANGES = ["7d", "30d", "3m", "1y", "all"] as const;
+const HISTORY_RANGES = ["7d", "30d", "3m", "1y", "all"] as const;
 
-export const historyQuery = {
+const historyQuery = {
   type: "object",
   additionalProperties: false,
   required: ["measure"],
@@ -15,7 +15,7 @@ export const historyQuery = {
 } as const;
 export type HistoryQuery = FromSchema<typeof historyQuery>;
 
-export const historyResponse = {
+const historyResponse = {
   type: "object",
   additionalProperties: false,
   required: ["data"],

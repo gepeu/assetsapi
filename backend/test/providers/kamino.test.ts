@@ -47,6 +47,13 @@ describe("Kamino provider", () => {
     assert.deepEqual(await provider.listTokens(), [{ network: "solana", address: "a" }]);
   });
 
+  test("a list that reaches the limit may be cut off, so it's ContractBroken", async () => {
+    const full = Array.from({ length: 1000 }, (_, index) => ({ mint: `m${index}`, verified: true }));
+    await assert.rejects(providerReturning(JSON.stringify(full)).provider.listTokens(), /reached its limit/);
+    const fits = full.slice(1);
+    assert.equal((await providerReturning(JSON.stringify(fits)).provider.listTokens()).length, 999);
+  });
+
   test("a response that isn't a list is ContractBroken", async () => {
     const { provider } = providerReturning('{"tokens":[]}');
     await assert.rejects(provider.listTokens(), ContractBrokenError);

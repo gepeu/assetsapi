@@ -3,18 +3,22 @@
  * summary and the monitor ping. Both jobs run through `runTrackedJob`, so they fail the same way.
  */
 import type pg from "pg";
+import { type JobConfig, loadJobConfig } from "../config.ts";
 import { type JobLock, tryAcquireLock } from "../db/lock.ts";
 import { findPendingMigrations } from "../db/migrate.ts";
+import { createPool } from "../db/pool.ts";
 import { findSourceId, finishRun, type JobName, markStaleRuns, type RunStatus, startRun } from "../db/queries/runs.ts";
-import type { Logger } from "../logger.ts";
+import { createLogger, type Logger } from "../logger.ts";
 
+// One connection for each asset's transaction and one for run records. The lock has its own on top.
+const JOB_POOL_SIZE = 2;
 const MONITOR_TIMEOUT_MS = 10_000;
-/** Healthchecks.io keeps the first 100 kB of a ping body. Leave room rather than get cut mid-JSON. */
+/** Healthchecks.io keeps the first 100 kB of a ping body. */
 const MONITOR_BODY_LIMIT = 90_000;
 
-export type Severity = "none" | "normal" | "urgent";
+type Severity = "none" | "normal" | "urgent";
 
-export interface StopSignal {
+interface StopSignal {
   isStopping(): boolean;
 }
 
@@ -27,7 +31,7 @@ export interface JobDeps {
   fetchImpl?: typeof fetch;
 }
 
-export interface RunContext {
+interface RunContext {
   runId: number;
   isLockHeld(): boolean;
 }
@@ -45,7 +49,7 @@ export type JobOutcome =
   | { kind: "schema_behind"; pending: string[] };
 
 /** A signal handler that lets the current asset finish. */
-export function listenForStop(logger: Logger): StopSignal {
+function listenForStop(logger: Logger): StopSignal {
   let stopping = false;
   const onSignal = (signal: NodeJS.Signals) => {
     logger.info({ signal }, "stop signal received, finishing the current asset");
@@ -54,6 +58,14 @@ export function listenForStop(logger: Logger): StopSignal {
   process.once("SIGTERM", onSignal);
   process.once("SIGINT", onSignal);
   return { isStopping: () => stopping };
+}
+
+/** A very long run summary is cut, but the body stays valid JSON and says so. */
+export function toMonitorBody(body: unknown): string {
+  const text = JSON.stringify(body);
+  if (text.length <= MONITOR_BODY_LIMIT) return text;
+  // Half, because escaping the quotes in the cut text can up to double its length.
+  return JSON.stringify({ truncated: true, start: text.slice(0, MONITOR_BODY_LIMIT / 2) });
 }
 
 /** A monitor problem is logged and never fails the job, because the data work is already done. */
@@ -65,7 +77,7 @@ async function pingMonitor(deps: JobDeps, failed: boolean, body: unknown): Promi
     const response = await fetchImpl(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body).slice(0, MONITOR_BODY_LIMIT),
+      body: toMonitorBody(body),
       signal: AbortSignal.timeout(MONITOR_TIMEOUT_MS),
     });
     if (!response.ok) deps.logger.warn({ status: response.status }, "job monitor rejected the ping");
@@ -74,9 +86,9 @@ async function pingMonitor(deps: JobDeps, failed: boolean, body: unknown): Promi
   }
 }
 
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-}
+export const LOCK_LOST_MESSAGE = "The job lock's connection dropped";
+
+export const toErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /** Runs one job: schema check, lock, stale runs, run record, work, summary, monitor ping. */
 export async function runTrackedJob(
@@ -135,4 +147,29 @@ export function toExitCode(outcome: JobOutcome): number {
   if (outcome.kind === "schema_behind") return 1;
   if (outcome.kind === "finished" && outcome.status === "failed") return 1;
   return 0;
+}
+
+/** A job's command: reads the config, runs the job, and sets the exit code. */
+export async function runJobCommand(
+  name: string,
+  run: (deps: JobDeps, config: JobConfig) => Promise<JobOutcome>,
+): Promise<void> {
+  const logger = createLogger();
+  const config = loadJobConfig();
+  const pool = createPool({ connectionString: config.databaseUrl, max: JOB_POOL_SIZE, logger });
+  try {
+    const deps: JobDeps = {
+      connectionString: config.databaseUrl,
+      pool,
+      logger,
+      monitorUrl: config.monitorUrl,
+      stop: listenForStop(logger),
+    };
+    process.exitCode = toExitCode(await run(deps, config));
+  } catch (error) {
+    logger.error({ err: error }, `${name} job failed`);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+  }
 }

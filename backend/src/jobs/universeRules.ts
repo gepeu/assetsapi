@@ -22,13 +22,13 @@ export interface NewAssetMatch {
   mints: string[];
 }
 
-export interface MovedMint {
+interface MovedMint {
   mint: string;
   slug: string;
   ref: string;
 }
 
-export interface UniversePlan {
+interface UniversePlan {
   newAssets: NewAssetMatch[];
   deactivate: number[];
   reactivate: number[];

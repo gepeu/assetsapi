@@ -14,10 +14,26 @@ One image, built from `backend/`, runs as three services. Each holds only the va
 | **Update job** | `node src/jobs/updateData.ts` | `0 7 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
 
 - **API settings:** pre-deploy command `node src/db/migrate.ts`, and health check path `/readyz`.
+- **Stopping cleanly:** set `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` to `30` on the API and `60` on both jobs. It defaults to 0, and without it Railway kills the process straight after the stop signal, so the API's 20-second drain and the jobs' "finish the current asset" never get the time. A job killed anyway is safe: its asset rolls back, and the next run marks the stale record.
 - **The owner password on the API service:** the pre-deploy step runs in the API service's environment, so it has to hold `MIGRATION_DATABASE_URL`. The running API uses only `DATABASE_URL`.
 - **Staging:** run the jobs less often, to save RWA.xyz quota.
 
-**Why these times:** RWA.xyz stamped every record 05:35 UTC on the day this was checked, and its API caches responses for up to an hour, so the jobs start after 06:35. Only one day was checked, so look at `_updated_at` again after a week. More runs don't give finer charts, because history is stored per day.
+**Why these times:** RWA.xyz refreshes more than once a day. On the day this was checked, records were stamped 05:35 and then 15:54 UTC, and its API caches responses for up to an hour. The 07:00 run picks up the morning refresh, and a later refresh waits for the next day's run. Check the times again after a week, using `_updated_at`. More runs give fresher current values, but not finer charts, because history is stored per day.
+
+## Check on staging
+
+These depend on Railway's behaviour, which the tests can't reach.
+
+**Clean shutdown:** redeploy the API while requesting it. The logs should show `shutting down`, then the last requests, with no failed responses. Redeploy a job mid-run, and its run record should end as `interrupted`.
+
+**The client IP can't be faked:** the failed-key limit reads `X-Real-IP`, and Railway's docs don't say whether a value sent by the client gets overwritten. Send 25 requests with a bad key and a different `X-Real-IP` each time. The last ones must be `429`. If they stay `401`, the limit isn't working, and the client IP has to come from somewhere else.
+
+```sh
+for i in $(seq 1 25); do
+  curl -s -o /dev/null -w '%{http_code}\n' -H "X-Real-IP: 198.51.100.$i" \
+    -H "Authorization: Bearer rwa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "$API_URL/assets"
+done
+```
 
 ## Set up an environment
 
@@ -95,10 +111,6 @@ Do the same in a migration, so every environment gets it. The same applies to `y
 ## Asset type mapping
 
 A new asset whose RWA.xyz class has no mapping is held back and reported, and nothing is written for it. Add the class to `ASSET_TYPE_BY_CLASS` in `src/providers/rwaXyz/mapping.ts`. The next universe run picks it up.
-
-## Reload history
-
-The update job asks for the last 35 days, which picks up restated days. An asset or Solana token with no history gets its full series automatically. To reload everything, such as after a restatement older than that or when a measure is added to existing assets, set `UPDATE_FULL_HISTORY=true` on the update job for one run. Only changed days are written.
 
 ## Move a mint by hand
 

@@ -1,7 +1,6 @@
 /** `GET /assets/{slug}/financials`. */
 import type { FromSchema } from "json-schema-to-ts";
 import {
-  day,
   dayOrNull,
   errorResponses,
   fieldValueSchema,
@@ -11,9 +10,9 @@ import {
   slugParams,
 } from "./shared.ts";
 
-export const financialsQuery = { type: "object", additionalProperties: false, properties: {} } as const;
+const financialsQuery = { type: "object", additionalProperties: false, properties: {} } as const;
 
-export const financialsResponse = {
+const financialsResponse = {
   type: "object",
   additionalProperties: false,
   required: ["data"],
@@ -51,7 +50,7 @@ export const financialsResponse = {
               value7d: nullableNumber,
               value30d: nullableNumber,
               value90d: nullableNumber,
-              asOf: day,
+              asOf: dayOrNull,
             },
           },
         },

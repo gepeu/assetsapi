@@ -3,7 +3,7 @@
  * A crash logs the exception and exits, so Railway restarts the replica.
  */
 import { loadApiConfig } from "../config.ts";
-import { createPool } from "../db/pool.ts";
+import { checkConnection, createPool } from "../db/pool.ts";
 import { createLogger } from "../logger.ts";
 import { buildApp } from "./app.ts";
 
@@ -29,7 +29,7 @@ const pool = createPool({
   connectionTimeoutMs: POOL_WAIT_MS,
   logger,
 });
-await pool.query("SELECT 1");
+await checkConnection(pool);
 
 const app = await buildApp({ db: pool, logger });
 

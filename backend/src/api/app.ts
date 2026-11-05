@@ -16,7 +16,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const RATE_LIMIT_WINDOW = "1 minute";
 const DEFAULT_RATE_LIMIT = 600;
 
-export interface AppOptions {
+interface AppOptions {
   db: Queryable;
   logger: FastifyBaseLogger;
   rateLimitMax?: number;

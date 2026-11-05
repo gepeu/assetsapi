@@ -229,35 +229,24 @@ describe("RWA.xyz getCurrent", () => {
 describe("RWA.xyz getHistory", () => {
   test("reads asset and Solana token series", async () => {
     const { provider } = makeProvider();
-    const { series } = await provider.getHistory("60", null);
+    const { series } = await provider.getHistory("60");
     assert.ok(series.some((row) => row.token === null && row.measure === "price_dollar"));
     assert.ok(series.some((row) => row.token?.address === MINT));
   });
 
-  test("a since date becomes a filter on both series requests", async () => {
+  test("asks for the whole series, because old days get restated", async () => {
     const { provider, paths } = makeProvider();
-    await provider.getHistory("60", "2026-10-01");
-    const queries = paths
-      .filter((path) => path.includes("aggregates/timeseries"))
-      .map((path) => decodeURIComponent(path));
+    await provider.getHistory("60");
+    const queries = paths.filter((path) => path.includes("aggregates/timeseries")).map(decodeURIComponent);
     assert.equal(queries.length, 2);
-    for (const query of queries) {
-      assert.ok(query.includes('"operator":"gte","field":"date","value":"2026-10-01"'));
-    }
-  });
-
-  test("no since date means no date filter", async () => {
-    const { provider, paths } = makeProvider();
-    await provider.getHistory("60", null);
-    const query = decodeURIComponent(paths.find((path) => path.includes("aggregates/timeseries")) ?? "");
-    assert.ok(!query.includes('"field":"date"'));
+    for (const query of queries) assert.ok(!query.includes('"field":"date"'));
   });
 
   test("a series for another asset is noted and not returned", async () => {
     const body = JSON.parse(load("assetTimeseries")) as { results: { group: { id: number } }[] };
     for (const result of body.results) result.group.id = 999;
     const { provider } = makeProvider({ "/assets/aggregates/timeseries": { body: JSON.stringify(body) } });
-    const { series, notes } = await provider.getHistory("60", null);
+    const { series, notes } = await provider.getHistory("60");
     assert.ok(series.every((row) => row.token !== null));
     assert.ok(notes.length > 0);
   });
@@ -267,7 +256,7 @@ describe("RWA.xyz getHistory", () => {
     const [first] = body.results;
     if (first) first.points = ["not a point"];
     const { provider } = makeProvider({ "/assets/aggregates/timeseries": { body: JSON.stringify(body) } });
-    await assert.rejects(provider.getHistory("60", null), ContractBrokenError);
+    await assert.rejects(provider.getHistory("60"), ContractBrokenError);
   });
 });
 
