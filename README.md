@@ -40,6 +40,25 @@ curl -H "Authorization: Bearer <key>" http://127.0.0.1:3000/assets
 
 The contract is [backend/openapi.json](backend/openapi.json).
 
+## Run the frontend
+
+The API serves a built frontend at `/ui`, so there's nothing else to start. The frontend has no
+sign-in yet, so this needs the data routes open: use it on your own machine only, never on a
+reachable host.
+
+```sh
+cd frontend
+npm ci --ignore-scripts
+npm run build                        # writes frontend/dist, which the API looks for at startup
+
+cd ../backend
+API_AUTH_DISABLED=true HOST=127.0.0.1 npm run api
+```
+
+Then open `http://127.0.0.1:<PORT>/ui`, where `PORT` is the one in `backend/.env`. Without
+`frontend/dist`, as in the Docker image, the service is the API alone. Keys are required unless
+`API_AUTH_DISABLED` is `true`.
+
 ## Commands
 
 | Command | Does |

@@ -2,6 +2,9 @@
  * Entry point for the `api` command: checks the config, connects, listens, and shuts down cleanly.
  * A crash logs the exception and exits, so Railway restarts the replica.
  */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadApiConfig } from "../config.ts";
 import { checkConnection, createPool } from "../db/pool.ts";
 import { createLogger } from "../logger.ts";
@@ -31,7 +34,14 @@ const pool = createPool({
 });
 await checkConnection(pool);
 
-const app = await buildApp({ db: pool, logger });
+// The Docker image has no frontend, so there it's the API alone.
+const builtUi = fileURLToPath(new URL("../../../frontend/dist", import.meta.url));
+const uiDir = existsSync(join(builtUi, "index.html")) ? builtUi : undefined;
+
+if (config.authDisabled) logger.warn("API_AUTH_DISABLED is set: the data routes need no key");
+if (uiDir) logger.info({ uiDir }, "serving the frontend at /ui");
+
+const app = await buildApp({ db: pool, logger, authDisabled: config.authDisabled, uiDir });
 
 let shuttingDown = false;
 async function shutDown(signal: NodeJS.Signals): Promise<void> {

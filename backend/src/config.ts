@@ -7,6 +7,7 @@ interface ApiConfig {
   databaseUrl: string;
   port: number;
   host: string;
+  authDisabled: boolean;
 }
 
 export interface JobConfig {
@@ -39,6 +40,7 @@ export function loadApiConfig(): ApiConfig {
     databaseUrl: requireEnv("DATABASE_URL"),
     port: parsePort(process.env.PORT),
     host: process.env.HOST || "::",
+    authDisabled: process.env.API_AUTH_DISABLED === "true",
   };
 }
 

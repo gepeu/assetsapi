@@ -11,6 +11,7 @@ import { createAuthHook, getClientIp } from "./auth.ts";
 import { registerErrorHandling } from "./errors.ts";
 import { registerAssetRoutes } from "./routes/assets.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
+import { registerUiRoutes } from "./routes/ui.ts";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const RATE_LIMIT_WINDOW = "1 minute";
@@ -22,6 +23,10 @@ interface AppOptions {
   rateLimitMax?: number;
   failedAuthMax?: number;
   now?: () => number;
+  /** Serves the data routes with no API key, for the local frontend. Keys are required unless this is set. */
+  authDisabled?: boolean;
+  /** The built frontend. Without it, the service is the API alone. */
+  uiDir?: string;
 }
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
@@ -92,9 +97,12 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   registerHealthRoutes(app, db);
+  if (options.uiDir) registerUiRoutes(app, options.uiDir);
 
   await app.register(async (scope) => {
-    scope.addHook("onRequest", createAuthHook({ db, maxFailures: options.failedAuthMax, now: options.now }));
+    if (!options.authDisabled) {
+      scope.addHook("onRequest", createAuthHook({ db, maxFailures: options.failedAuthMax, now: options.now }));
+    }
     scope.addHook("onRequest", async (_request, reply) => {
       reply.header("cache-control", "private, no-cache");
     });
