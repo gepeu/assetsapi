@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getAsset, getAssetFields, getAssetTokens, type AssetDetail, type AssetFields, type AssetToken } from "../api/assets";
+import { getAssetPage, type AssetPage } from "../api/assets";
 import { AssetDataView } from "../components/AssetDataView";
 import { useAsync } from "../components/useAsync";
 
 export function AssetDetailPage() {
   const { slug = "" } = useParams();
-  const state = useAsync(() => Promise.all([getAsset(slug), getAssetFields(slug), getAssetTokens(slug)]), slug);
+  const state = useAsync(() => getAssetPage(slug), slug);
 
   if (state.status === "loading") return <Status>Loading asset…</Status>;
   if (state.status === "error") return <Status>Couldn't load this asset.</Status>;
 
-  const [asset, fields, tokens] = state.data;
-  if (!asset || !fields || !tokens) {
+  const asset = state.data;
+  if (!asset) {
     return (
       <Status>
         Asset not found.{" "}
@@ -22,14 +22,14 @@ export function AssetDetailPage() {
       </Status>
     );
   }
-  return <Detail asset={asset} fields={fields} tokens={tokens} />;
+  return <Detail asset={asset} />;
 }
 
 function Status({ children }: { children: React.ReactNode }) {
   return <p className="py-16 text-center text-sm text-muted-foreground">{children}</p>;
 }
 
-function Detail({ asset, fields, tokens }: { asset: AssetDetail; fields: AssetFields; tokens: AssetToken[] }) {
+function Detail({ asset }: { asset: AssetPage }) {
   return (
     <article className="flex w-full flex-col gap-6">
       <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs">
@@ -53,7 +53,7 @@ function Detail({ asset, fields, tokens }: { asset: AssetDetail; fields: AssetFi
 
       <Description key={asset.slug} text={asset.description} />
 
-      <AssetDataView key={`data-${asset.slug}`} asset={asset} fields={fields} tokens={tokens} />
+      <AssetDataView key={`data-${asset.slug}`} asset={asset} fields={asset.fields} tokens={asset.tokens} />
     </article>
   );
 }

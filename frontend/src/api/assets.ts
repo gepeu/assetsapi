@@ -6,13 +6,8 @@ export const PRIMARY_SOURCE = "RWA.xyz";
 /** The API's largest page. */
 const PAGE_SIZE = 200;
 
-export interface Figures {
-  price_dollar: number | null;
-  net_asset_value_dollar: number | null;
-  total_asset_value_dollar: number | null;
-  apy_30_day: number | null;
-  holding_addresses_count: number | null;
-}
+/** Numbers by metric name. A metric with no value is null. */
+export type Metrics = Record<string, number | null>;
 
 export interface AssetListItem {
   slug: string;
@@ -22,7 +17,7 @@ export interface AssetListItem {
   assetType: string;
   issuer: string | null;
   asOf: string | null;
-  figures: Figures;
+  metrics: Metrics;
 }
 
 interface AssetListResponse {
@@ -46,7 +41,7 @@ export interface AssetDetail {
   organizations: { slug: string; name: string; role: string; legalName: string | null }[];
   networks: NetworkRef[];
   asOf: string | null;
-  figures: Figures;
+  metrics: Metrics;
 }
 
 export type DataValue = string | number | boolean | string[];
@@ -74,12 +69,7 @@ export interface AssetToken {
   address: string;
   issuanceType: string;
   fields: FieldValue[];
-  figures: {
-    total_asset_value_dollar: number | null;
-    market_value_dollar: number | null;
-    total_supply_token: number | null;
-    holding_addresses_count: number | null;
-  };
+  metrics: Metrics;
   asOf: string | null;
 }
 
@@ -87,8 +77,8 @@ export type FinancialRange = "7d" | "30d" | "3m" | "1y" | "all";
 
 export type FinancialScope = "asset" | "solana";
 
-export interface FinancialFigure {
-  measure: string;
+export interface FinancialMetric {
+  metric: string;
   label: string;
   group: string;
   unit: string | null;
@@ -108,25 +98,32 @@ export interface FinancialNetwork {
 }
 
 export interface FinancialSeries {
-  measure: string;
+  metric: string;
   label: string;
   group: string;
   unit: string | null;
   scope: FinancialScope;
 }
 
-export interface AssetFinancials {
-  asOf: string | null;
-  figures: FinancialFigure[];
+/** The asset's core with the sections its asset page and financials area ask for. */
+export interface AssetPage extends AssetDetail {
+  fields: AssetFields;
+  tokens: AssetToken[];
+}
+
+export interface AssetFinancials extends AssetDetail {
+  financials: FinancialMetric[];
+  series: FinancialSeries[];
+  valueByNetwork: FinancialNetwork[];
   terms: FieldValue[];
-  networks: FinancialNetwork[];
-  history: FinancialSeries[];
 }
 
 export interface FinancialHistory {
-  measure: string;
+  metric: string;
   points: [string, number][];
 }
+
+const API_PATH = "/tokenized_assets";
 
 /** Null on a 404. */
 async function fetchJson<T>(path: string): Promise<T | null> {
@@ -144,29 +141,22 @@ async function fetchData<T>(path: string): Promise<T | null> {
 export async function listAssets(): Promise<AssetListItem[]> {
   const assets: AssetListItem[] = [];
   for (;;) {
-    const page = await fetchJson<AssetListResponse>(`/assets?limit=${PAGE_SIZE}&offset=${assets.length}`);
+    const page = await fetchJson<AssetListResponse>(`${API_PATH}?limit=${PAGE_SIZE}&offset=${assets.length}`);
     if (!page) throw new Error("The asset list is missing");
     assets.push(...page.data);
     if (page.data.length === 0 || assets.length >= page.meta.total) return assets;
   }
 }
 
-export function getAsset(slug: string): Promise<AssetDetail | null> {
-  return fetchData(`/assets/${slug}`);
-}
-
-export function getAssetFields(slug: string): Promise<AssetFields | null> {
-  return fetchData(`/assets/${slug}/fields`);
-}
-
-export function getAssetTokens(slug: string): Promise<AssetToken[] | null> {
-  return fetchData(`/assets/${slug}/tokens`);
+export function getAssetPage(slug: string): Promise<AssetPage | null> {
+  return fetchData(`${API_PATH}/${slug}?include=fields,tokens`);
 }
 
 export function getAssetFinancials(slug: string): Promise<AssetFinancials | null> {
-  return fetchData(`/assets/${slug}/financials`);
+  return fetchData(`${API_PATH}/${slug}?include=financials,series,valueByNetwork,terms`);
 }
 
-export function getFinancialHistory(slug: string, measure: string, range: FinancialRange): Promise<FinancialHistory | null> {
-  return fetchData(`/assets/${slug}/history?${new URLSearchParams({ measure, range })}`);
+export async function getFinancialHistory(slug: string, metric: string, range: FinancialRange): Promise<FinancialHistory | null> {
+  const asset = await fetchData<{ history: FinancialHistory[] }>(`${API_PATH}/${slug}?${new URLSearchParams({ history: metric, range })}`);
+  return asset?.history[0] ?? null;
 }

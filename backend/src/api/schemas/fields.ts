@@ -1,42 +1,35 @@
-/** `GET /assets/{slug}/fields`. */
+/** The `fields` section of `GET /tokenized_assets/{slug}`. */
 import type { FromSchema } from "json-schema-to-ts";
-import { coverageSchema, errorResponses, fieldValueSchema, slugParams } from "./shared.ts";
+import { coverageSchema, fieldValueSchema } from "./shared.ts";
 
-const fieldsQuery = { type: "object", additionalProperties: false, properties: {} } as const;
-
-const fieldsResponse = {
+export const fieldsSection = {
   type: "object",
   additionalProperties: false,
-  required: ["data"],
+  required: ["coverage", "categories"],
+  description: "Descriptive values by category, without token-level fields",
   properties: {
-    data: {
-      type: "object",
-      additionalProperties: false,
-      required: ["coverage", "categories"],
-      properties: {
-        coverage: coverageSchema,
-        categories: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["name", "coverage", "fields", "records"],
-            properties: {
-              name: { type: "string" },
-              coverage: coverageSchema,
-              fields: { type: "array", items: fieldValueSchema },
-              records: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["group", "key", "fields"],
-                  properties: {
-                    group: { type: "string" },
-                    key: { type: "string" },
-                    fields: { type: "array", items: fieldValueSchema },
-                  },
-                },
+    coverage: { ...coverageSchema, description: "The whole asset, whichever categories were asked for" },
+    categories: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "coverage", "fields", "records"],
+        properties: {
+          name: { type: "string" },
+          coverage: coverageSchema,
+          fields: { type: "array", items: fieldValueSchema },
+          records: {
+            type: "array",
+            description: "Values that repeat, such as one record per network",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["group", "key", "fields"],
+              properties: {
+                group: { type: "string" },
+                key: { type: "string" },
+                fields: { type: "array", items: fieldValueSchema },
               },
             },
           },
@@ -45,11 +38,4 @@ const fieldsResponse = {
     },
   },
 } as const;
-export type FieldsResponse = FromSchema<typeof fieldsResponse>;
-
-export const fieldsRoute = {
-  summary: "Catalog values by category, with coverage. Excludes token-level fields",
-  params: slugParams,
-  querystring: fieldsQuery,
-  response: { 200: fieldsResponse, ...errorResponses },
-} as const;
+export type FieldsSection = FromSchema<typeof fieldsSection>;

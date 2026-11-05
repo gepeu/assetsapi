@@ -1,5 +1,6 @@
 /** The `asset` table and its aliases: the only list of the universe. */
 import type { Queryable } from "../pool.ts";
+import { servedSolanaToken } from "./history.ts";
 
 const PROVIDER_NAMESPACE = "rwa_xyz_id";
 
@@ -118,19 +119,6 @@ export async function findActiveAssetBySlug(db: Queryable, slug: string): Promis
   return rows[0] ?? null;
 }
 
-/** The figures shown for every asset, which are also what the list can sort by. */
-const KEY_FIGURES = [
-  "price_dollar",
-  "net_asset_value_dollar",
-  "total_asset_value_dollar",
-  "apy_30_day",
-  "holding_addresses_count",
-] as const;
-
-export type KeyFigure = (typeof KEY_FIGURES)[number];
-
-export type SortColumn = "ticker" | KeyFigure;
-
 interface AssetListFilters {
   assetClass: string | null;
   assetType: string | null;
@@ -138,14 +126,17 @@ interface AssetListFilters {
   q: string | null;
 }
 
+export type AssetSort = { by: "ticker" } | { by: "metric"; metric: string; scope: "asset" | "solana" };
+
 interface AssetListOptions extends AssetListFilters {
-  sort: SortColumn;
+  sort: AssetSort;
   descending: boolean;
   limit: number;
   offset: number;
 }
 
-export interface AssetListRow extends Record<KeyFigure, number | null> {
+export interface AssetListRow {
+  id: number;
   slug: string;
   ticker: string;
   name: string;
@@ -156,14 +147,17 @@ export interface AssetListRow extends Record<KeyFigure, number | null> {
 }
 
 // Text sorts with a fixed collation, because the database's own locale differs by host and would
-// reorder most of the list. Columns come only from this function's fixed names, never from the request.
-const toSortExpression = (sort: SortColumn): string =>
-  sort === "ticker" ? `lower(a.ticker) COLLATE "C"` : `f.${sort}`;
+// reorder most of the list.
+const toSortExpression = (sort: AssetSort): string =>
+  sort.by === "ticker" ? `lower(a.ticker) COLLATE "C"` : "s.value";
 
-const KEY_FIGURE_COLUMNS = KEY_FIGURES.map((figure) => `f.${figure}`).join(", ");
-const KEY_FIGURE_PIVOT = KEY_FIGURES.map(
-  (figure) => `max(c.value) FILTER (WHERE c.metric = '${figure}') AS ${figure}`,
-).join(",\n              ");
+/** The sort metric's value for each asset, in $7. A holder share above 100% can't be true, so it sorts as missing. */
+function toSortJoin(sort: AssetSort): string {
+  if (sort.by === "ticker") return "";
+  const scope =
+    sort.scope === "asset" ? "s.token_id IS NULL" : `s.token_id = ${servedSolanaToken("a.id")} AND s.value <= 100`;
+  return `LEFT JOIN financial_current s ON s.asset_id = a.id AND s.metric = $7 AND ${scope}`;
+}
 
 const ISSUER_JOIN = `
   LEFT JOIN LATERAL (
@@ -191,24 +185,31 @@ function toSearchPattern(q: string | null): string | null {
 
 export async function listAssetRows(db: Queryable, options: AssetListOptions): Promise<AssetListRow[]> {
   const direction = options.descending ? "DESC" : "ASC";
+  const { sort } = options;
   const { rows } = await db.query<AssetListRow>(
-    `SELECT a.slug, a.ticker, a.name, a.asset_class, a.asset_type, i.brand_name AS issuer,
-            f.as_of, ${KEY_FIGURE_COLUMNS}
+    `SELECT a.id, a.slug, a.ticker, a.name, a.asset_class, a.asset_type, i.brand_name AS issuer, d.as_of
      FROM asset a
      ${ISSUER_JOIN}
+     ${toSortJoin(sort)}
      LEFT JOIN (
-       SELECT c.asset_id,
-              max(c.as_of)::text AS as_of,
-              ${KEY_FIGURE_PIVOT}
+       SELECT c.asset_id, max(c.as_of)::text AS as_of
        FROM financial_current c
        JOIN financial_measure m ON m.slug = c.metric AND m.served
        WHERE c.token_id IS NULL
        GROUP BY c.asset_id
-     ) f ON f.asset_id = a.id
+     ) d ON d.asset_id = a.id
      WHERE ${FILTERS}
-     ORDER BY ${toSortExpression(options.sort)} ${direction} NULLS LAST, a.slug COLLATE "C"
+     ORDER BY ${toSortExpression(sort)} ${direction} NULLS LAST, a.slug COLLATE "C"
      LIMIT $5 OFFSET $6`,
-    [options.assetClass, options.assetType, options.network, toSearchPattern(options.q), options.limit, options.offset],
+    [
+      options.assetClass,
+      options.assetType,
+      options.network,
+      toSearchPattern(options.q),
+      options.limit,
+      options.offset,
+      ...(sort.by === "metric" ? [sort.metric] : []),
+    ],
   );
   return rows;
 }

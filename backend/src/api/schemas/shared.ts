@@ -6,8 +6,17 @@ import type { FromSchema } from "json-schema-to-ts";
 import { settings } from "../../config.ts";
 
 export const SLUG_PATTERN = `^[a-z0-9-]{1,${settings.limits.maxSlugLength}}$`;
-export const MEASURE_NAME_PATTERN = `^[a-z0-9_]{1,${settings.limits.maxMeasureNameLength}}$`;
+const METRIC_NAME = `[a-z0-9_]{1,${settings.limits.maxMeasureNameLength}}`;
+const SHORT_NAME = "[a-z0-9]{1,64}";
 const DAY_PATTERN = "^\\d{4}-\\d{2}-\\d{2}$";
+
+/** A comma-separated list of names, with no spaces or empty items. */
+export const toListPattern = (name: string, max: number): string => `^${name}(,${name}){0,${max - 1}}$`;
+
+export const METRIC_PATTERN = `^-?${METRIC_NAME}$`;
+export const METRIC_LIST_PATTERN = toListPattern(METRIC_NAME, settings.api.maxNamesPerParameter);
+export const HISTORY_LIST_PATTERN = toListPattern(METRIC_NAME, settings.api.maxHistoryMetrics);
+export const SHORT_NAME_LIST_PATTERN = toListPattern(SHORT_NAME, settings.api.maxNamesPerParameter);
 
 export const ASSET_TYPES = [
   "tokenized_equity",
@@ -23,35 +32,29 @@ export const nullableNumber = { type: ["number", "null"] } as const;
 export const nullableString = { type: ["string", "null"] } as const;
 export const dayOrNull = { type: ["string", "null"], pattern: DAY_PATTERN } as const;
 
-export const scopeSchema = { type: "string", enum: ["asset", "solana"] } as const;
+export const scopeSchema = {
+  type: "string",
+  enum: ["asset", "solana"],
+  description: "`asset` is the whole asset across networks. `solana` is its Solana token only",
+} as const;
 
 export const slugParams = {
   type: "object",
   additionalProperties: false,
   required: ["slug"],
-  properties: { slug: { type: "string", pattern: SLUG_PATTERN } },
+  properties: {
+    slug: { type: "string", pattern: SLUG_PATTERN, description: "The asset's slug, such as `usdt`" },
+  },
 } as const;
 export type SlugParams = FromSchema<typeof slugParams>;
 
-export const figuresSchema = {
+/** Plain numbers by metric name, wherever `metrics` appears. A metric with no value is null. */
+export const metricsSchema = {
   type: "object",
-  additionalProperties: false,
-  required: [
-    "price_dollar",
-    "net_asset_value_dollar",
-    "total_asset_value_dollar",
-    "apy_30_day",
-    "holding_addresses_count",
-  ],
-  properties: {
-    price_dollar: nullableNumber,
-    net_asset_value_dollar: nullableNumber,
-    total_asset_value_dollar: nullableNumber,
-    apy_30_day: nullableNumber,
-    holding_addresses_count: nullableNumber,
-  },
+  description: "Numbers by metric name. A metric with no value is `null`",
+  additionalProperties: nullableNumber,
 } as const;
-export type Figures = FromSchema<typeof figuresSchema>;
+export type Metrics = FromSchema<typeof metricsSchema>;
 
 export const fieldValueSchema = {
   type: "object",
@@ -79,6 +82,7 @@ export const coverageSchema = {
   type: "object",
   additionalProperties: false,
   required: ["withData", "applicable"],
+  description: "How many of the fields that apply to this asset have a value",
   properties: {
     withData: { type: "integer" },
     applicable: { type: "integer" },
@@ -123,10 +127,12 @@ const notModified = { description: "The ETag matches, so there's no body", type:
 /** The non-success responses every data route can give. */
 export const errorResponses = {
   304: notModified,
-  400: { description: "Invalid or unknown parameter", ...errorSchema },
+  400: { description: "Invalid or unknown parameter or name", ...errorSchema },
   401: { description: "Missing, revoked or expired key", ...errorSchema },
-  404: { description: "Unknown or deactivated asset, or an unknown measure", ...errorSchema },
+  404: { description: "Unknown or deactivated asset", ...errorSchema },
   429: { description: "Rate limited", ...errorSchema },
   500: { description: "Internal error", ...errorSchema },
   503: { description: "Database unavailable", ...errorSchema },
 } as const;
+
+export const API_TAG = "Tokenized assets";

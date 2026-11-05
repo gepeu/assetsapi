@@ -353,12 +353,19 @@ export async function updateAsset(
   return result;
 }
 
+/** API paths that sit where an asset's slug would, so an asset with one of these could never be read. */
+const RESERVED_SLUGS: ReadonlySet<string> = new Set(["catalog"]);
+
+async function isSlugFree(db: Queryable, slug: string): Promise<boolean> {
+  return !RESERVED_SLUGS.has(slug) && !(await isSlugTaken(db, slug));
+}
+
 async function findFreeSlug(db: Queryable, base: string): Promise<string> {
-  if (!(await isSlugTaken(db, base))) return base;
+  if (await isSlugFree(db, base)) return base;
   for (let suffix = 2; ; suffix++) {
     const ending = `-${suffix}`;
     const candidate = `${base.slice(0, settings.limits.maxSlugLength - ending.length)}${ending}`;
-    if (!(await isSlugTaken(db, candidate))) return candidate;
+    if (await isSlugFree(db, candidate)) return candidate;
   }
 }
 

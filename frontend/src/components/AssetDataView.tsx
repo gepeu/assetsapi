@@ -69,10 +69,10 @@ function toTables(category: FieldCategory, networkNames: ReadonlyMap<string, str
   });
 }
 
-/** One row per chain, with its figures and any token fields that have a value. */
+/** One row per token, with its metrics and any token fields that have a value. */
 function toTokensBlock(tokens: AssetToken[]): RecordsBlock | null {
-  const dollar = (value: number | null) => (value === null ? null : formatValue(value, "dollar"));
-  const count = (value: number | null) => (value === null ? null : formatValue(value, "count"));
+  const dollar = (value: number | null | undefined) => (value == null ? null : formatValue(value, "dollar"));
+  const count = (value: number | null | undefined) => (value == null ? null : formatValue(value, "count"));
   const fieldColumns = tokens[0]?.fields.map(({ key, label, valueType }) => ({ key, label, valueType })) ?? [];
 
   return withoutEmpty({
@@ -94,10 +94,10 @@ function toTokensBlock(tokens: AssetToken[]): RecordsBlock | null {
       cells: [
         token.address,
         token.issuanceType,
-        dollar(token.figures.total_asset_value_dollar),
-        dollar(token.figures.market_value_dollar),
-        count(token.figures.total_supply_token),
-        count(token.figures.holding_addresses_count),
+        dollar(token.metrics.total_asset_value_dollar),
+        dollar(token.metrics.market_value_dollar),
+        count(token.metrics.total_supply_token),
+        count(token.metrics.holding_addresses_count),
         ...fieldColumns.map((column) => token.fields.find((field) => field.key === column.key)?.value ?? null),
       ],
     })),

@@ -105,6 +105,8 @@ describe("config", () => {
       ["RATE_LIMIT_MAX", ["0", "-5", "1.5", "unlimited"]],
       ["MAX_SLUG_LENGTH", ["0", "65"]],
       ["MAX_PAGE_OFFSET", ["2147483648"]],
+      ["MAX_HISTORY_METRICS", ["0", "-1", "abc"]],
+      ["MAX_NAMES_PER_PARAMETER", ["0", "1.5"]],
       ["PROVIDER_MAX_RETRIES", ["-1", "0.5"]],
       ["JOB_MAX_FAILED_SHARE", ["0", "1.5", "-0.1", "half"]],
       ["UNIVERSE_MIN_REMAINING_SHARE", ["0", "80"]],

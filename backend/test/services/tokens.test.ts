@@ -1,7 +1,7 @@
 /** Tests for token service. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { listAssetTokens } from "../../src/services/tokens.ts";
+import { getAsset } from "../../src/services/assets.ts";
 import { type FakeAsset, makeAsset, seedAssets, TODAY } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
@@ -16,13 +16,13 @@ describe("token service", () => {
   });
   after(() => db.close());
 
-  async function load(network: string | null = null) {
-    const response = await listAssetTokens(db.pool, "asset-1", network);
-    assert.ok(response);
-    return response.data;
+  async function load(network?: string) {
+    const response = await getAsset(db.pool, "asset-1", { include: "tokens", ...(network && { network }) });
+    assert.ok(response?.data.tokens);
+    return response.data.tokens;
   }
 
-  test("returns one row per chain, ordered by network name", async () => {
+  test("returns one row per token, ordered by network name", async () => {
     const data = await load();
     assert.deepEqual(
       data.map((row) => row.network),
@@ -33,11 +33,11 @@ describe("token service", () => {
     );
   });
 
-  test("each row has its address, issuance type, figures and date", async () => {
+  test("each row has its address, issuance type, metrics and date", async () => {
     const solana = (await load()).find((row) => row.network.key === "solana");
     assert.equal(solana?.address, asset.mint);
     assert.equal(solana?.issuanceType, "native");
-    assert.deepEqual(solana?.figures, {
+    assert.deepEqual(solana?.metrics, {
       total_asset_value_dollar: 1200,
       market_value_dollar: 1180,
       total_supply_token: 200,
@@ -46,10 +46,10 @@ describe("token service", () => {
     assert.equal(solana?.asOf, TODAY);
   });
 
-  test("a missing figure is null", async () => {
+  test("a missing metric is null", async () => {
     const ethereum = (await load()).find((row) => row.network.key === "ethereum");
-    assert.equal(ethereum?.figures.market_value_dollar, null);
-    assert.equal(ethereum?.figures.total_asset_value_dollar, 800);
+    assert.equal(ethereum?.metrics.market_value_dollar, null);
+    assert.equal(ethereum?.metrics.total_asset_value_dollar, 800);
   });
 
   test("token fields carry values, without repeating top-level properties", async () => {
@@ -84,6 +84,6 @@ describe("token service", () => {
   });
 
   test("an unknown asset is null", async () => {
-    assert.equal(await listAssetTokens(db.pool, "nope", null), null);
+    assert.equal(await getAsset(db.pool, "nope", { include: "tokens" }), null);
   });
 });

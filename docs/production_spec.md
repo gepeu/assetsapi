@@ -82,7 +82,8 @@ The frontend and backend are two apps, deployed separately. The API and both job
     ├── tsconfig.json
     ├── db/migrations/
     │   ├── 001_baseline.sql            # the final schema
-    │   └── 002_catalog_seed.sql        # fields, sources and measures
+    │   ├── 002_catalog_seed.sql        # fields, sources and measures
+    │   └── 003_stop_serving_duplicate_terms.sql
     ├── scripts/
     │   ├── createApiKey.ts
     │   ├── generateOpenApi.ts
@@ -122,22 +123,26 @@ The frontend and backend are two apps, deployed separately. The API and both job
     │   │       ├── runs.ts
     │   │       └── tokens.ts
     │   ├── services/
-    │   │   ├── assets.ts
+    │   │   ├── assets.ts               # the list, and one asset with its sections
+    │   │   ├── catalog.ts
     │   │   ├── fields.ts
     │   │   ├── financials.ts
     │   │   ├── history.ts
+    │   │   ├── names.ts                # short names and comma-separated lists
     │   │   └── tokens.ts
     │   └── api/
     │       ├── server.ts               # entry point: listens and shuts down cleanly
     │       ├── app.ts                  # builds the Fastify app
     │       ├── auth.ts
     │       ├── errors.ts               # the standard error response
+    │       ├── guide.ts                # the introduction on the docs page
     │       ├── routes/
     │       │   ├── assets.ts
     │       │   └── health.ts
     │       └── schemas/
     │           ├── shared.ts
     │           ├── assets.ts
+    │           ├── catalog.ts
     │           ├── fields.ts
     │           ├── financials.ts
     │           ├── history.ts
@@ -178,12 +183,11 @@ The frontend and backend are two apps, deployed separately. The API and both job
         └── api/
             ├── assets.test.ts
             ├── auth.test.ts
-            ├── fields.test.ts
-            ├── financials.test.ts
+            ├── catalog.test.ts
+            ├── docs.test.ts
             ├── health.test.ts
-            ├── history.test.ts
             ├── openapi.test.ts
-            └── tokens.test.ts
+            └── sections.test.ts
 ```
 
 `assets.ts` appears in `queries/`, `services/`, `routes/` and `schemas/`, one for each layer of the same resource. The folder tells you the layer.
@@ -204,7 +208,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
 
 **`asset_type` for new assets** comes from a mapping of RWA.xyz's class. Existing assets keep their type, because "Active Strategies" currently covers both `defi_yield` and `tokenized_fund`. An asset with an unmapped class is held back and reported until the mapping is added.
 
-**Slugs:** new assets use RWA.xyz's slug, with a number added if it's taken. Existing slugs don't change.
+**Slugs:** new assets use RWA.xyz's slug, with a number added if it's taken or is an API path. Existing slugs don't change.
 
 ## 3. Providers
 
@@ -345,14 +349,15 @@ Unique on asset, token and metric, with empty tokens treated as equal. There's o
 
 ### Served measures
 
-Local data has 90 distinct names, and 77 are served.
+Local data has 90 distinct names, and 70 are served.
 
 | Treatment | Count | Names |
 |---|---|---|
-| **Served** | 77 | Everything not listed below. `yield_to_maturity` waits until its units are confirmed, so 76 at first |
+| **Served** | 70 | Everything not listed below. `yield_to_maturity` waits until its units are confirmed, so 69 at first |
 | **Not served: provider IDs and objects** | 6 | `accounting_frequency_type_id`, `denomination_asset_id`, `primary_market__kyc_provider_id`, `primary_market_non_pegged_asset`, `primary_market_pegged_asset`, `primary_markets` |
 | **Not served: technical or covered elsewhere** | 3 | `raw_supply`, `rebase_transfer_unit`, `ratings` |
 | **Not served: exact duplicates** | 3 | `bridged_token_value_dollar`, `bridged_token_market_cap_dollar`, `bridged_token_supply_token` |
+| **Not served: repeat catalog fields** | 7 | `primary_market__subscription_frequency`, `primary_market__redemption_frequency`, `primary_market__subscription_description`, `primary_market__redemption_description`, `primary_market__investor_types`, `primary_market__is_kyc_required`, `primary_market__base_asset_ticker`. These repeat `primary.*` fields, which cover more assets, and for investor types the two sources disagree on 64 of 95 assets |
 | **Merged** | 1 | `yield_to_maturity_percent` into `yield_to_maturity` |
 
 The adapter also cleans up units, such as `Dollars` becoming `dollar`, and the wrong `address` unit on `number_of_daily_transactions_count`.
@@ -388,7 +393,7 @@ Rules carried over from `main`: holder shares are read from the Solana token, an
 ### Views
 
 - **`asset_subject`:** every subject that counts towards an asset, without contracts.
-- **`asset_field_status`:** one row per asset and field: `with_data`, `no_data` or `not_applicable`. `/fields` counts coverage from it.
+- **`asset_field_status`:** one row per asset and field: `with_data`, `no_data` or `not_applicable`. The `fields` section counts coverage from it.
 
 ### Migrations and starting data
 
@@ -396,6 +401,7 @@ The schema starts fresh from where we are now, and the old migrations stay on `m
 
 - **`001_baseline.sql`:** the final 15 tables, 2 views, indexes and triggers.
 - **`002_catalog_seed.sql`:** the 135 fields, 3 sources and the measure list.
+- **`003_stop_serving_duplicate_terms.sql`:** stops serving the 7 terms that repeat catalog fields. The values stay stored.
 - **Later changes:** start at `003`.
 
 **Starting data:** the new database is filled from main's `rwa` database, not rebuilt by the jobs. A one-off conversion runs once, outside the migration system:
@@ -467,42 +473,60 @@ All are `GET`, and all require a key.
 
 | Endpoint | Returns |
 |---|---|
-| `/assets` | Active assets with key figures, plus filter options |
-| `/assets/{slug}` | Identity, issuer, organizations, networks and key figures |
-| `/assets/{slug}/fields` | Catalog values by category, with coverage. Excludes token-level fields |
-| `/assets/{slug}/tokens` | One row per chain: address, issuance type, token fields and figures |
-| `/assets/{slug}/financials` | Figures, fund terms, value by network and available history |
-| `/assets/{slug}/history` | Daily points for one measure |
+| `/tokenized_assets` | All active assets, one row each, with the metrics you choose |
+| `/tokenized_assets/catalog` | Everything you can request: metrics, groups, categories, fields and filter values |
+| `/tokenized_assets/{slug}` | One asset, plus any sections you ask for |
 
-One operational route needs no key: `/readyz` reports whether the database is reachable and the schema is new enough. Railway's deploy check and the uptime monitor call it.
+With no parameters, `/tokenized_assets/{slug}` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with `include`, and only those are queried:
+
+| Section | Contents | Narrow with |
+|---|---|---|
+| `financials` | Each metric's value, label, group, unit, scope, date and values 7, 30 and 90 days ago | `groups`, `financialMetrics` |
+| `series` | Which history series this asset has | |
+| `valueByNetwork` | Value and share per network | |
+| `terms` | Fund terms and fees | |
+| `fields` | Catalog values by category, with coverage. Excludes token-level fields | `categories`, `empty` |
+| `tokens` | One row per token: address, issuance type, token fields and metrics | `network` |
+
+Daily points have their own parameter, because they're asked for by metric: `history` names the metrics and `range` sets how far back they go.
+
+Two operational paths need no key. `/readyz` reports whether the database is reachable and the schema is new enough, and Railway's deploy check and the uptime monitor call it. `/docs` is the Swagger page, with the contract at `/docs/json`, and neither holds any data.
 
 ### Input
 
-Every input schema uses `additionalProperties: false`, in the style of Kamino's API. An unknown parameter returns a `400`. Fastify strips unknown properties by default, so that setting is turned off.
+Every input schema uses `additionalProperties: false`, in the style of Kamino's API. An unknown parameter returns a `400`. Fastify strips unknown properties by default, so that setting is turned off. Lists are comma-separated with no spaces, and names are checked, so a typo is a `400` rather than an empty answer.
 
 | Endpoint | Parameter | Rule |
 |---|---|---|
-| All `{slug}` routes | `slug` | `^[a-z0-9-]{1,64}$` |
-| `/assets` | `assetClass` | String, 1 to 64 characters |
+| `/tokenized_assets` | `assetClass` | String, 1 to 64 characters |
 | | `assetType` | Enum of our asset types |
 | | `network` | `^[a-z0-9-]{1,64}$` |
 | | `q` | String, 1 to 64 characters. Searches ticker, name and issuer |
-| | `sort` | Default `ticker`. Also `price_dollar`, `net_asset_value_dollar`, `total_asset_value_dollar`, `apy_30_day` and `holding_addresses_count`. A leading `-` sorts descending. Ties break by `slug`, so paging stays stable |
+| | `metrics` | Up to 100 metric names. Defaults to the five key metrics |
+| | `sort` | Default `ticker`, or any metric name. A leading `-` sorts descending. Missing values sort last, and ties break by `slug`, so paging stays stable |
 | | `limit` | Integer, 1 to 200, default 50 |
 | | `offset` | Integer, at least 0, default 0 |
-| `/assets/{slug}/tokens` | `network` | Optional, same rule |
-| `/assets/{slug}/history` | `measure` | Required, `^[a-z0-9_]{1,64}$`. An unknown or unserved measure returns a `404` |
-| | `range` | `7d`, `30d`, `3m`, `1y` or `all`, default `all` |
+| `/tokenized_assets/{slug}` | `slug` | `^[a-z0-9-]{1,64}$` |
+| | `include` | Any of `financials`, `series`, `valueByNetwork`, `terms`, `fields` and `tokens` |
+| | `metrics` | Up to 100 metric names for the core. Defaults to the five key metrics |
+| | `groups` | Narrows `financials`: `value`, `yield`, `supply` or `activity` |
+| | `financialMetrics` | Narrows `financials` to these metric names. With `groups`, a metric must match both |
+| | `categories` | Narrows `fields`, such as `issuer,legal`. The catalog lists them |
+| | `empty` | Default `true`. `false` drops listed fields with no value. Coverage doesn't change |
+| | `network` | Narrows `tokens`, `^[a-z0-9-]{1,64}$` |
+| | `history` | Up to 10 metric names to return daily points for |
+| | `range` | `7d`, `30d`, `3m`, `1y` or `all`, default `3m`. Counts back from each series' own last point |
+
+A filter for a section that wasn't asked for is a `400`, such as `categories` without `include=fields` or `range` without `history`. It would otherwise do nothing, and the caller wouldn't know. These parameters state their defaults in their descriptions rather than as schema defaults, because Swagger's form sends every schema default, which would trip this rule on an untouched form.
 
 ### Responses
 
-These are the shapes. The strict JSON Schemas live in `backend/src/api/schemas/`. Every declared property is always present, with `null` when there's no value.
+These are the shapes. The strict JSON Schemas live in `backend/src/api/schemas/`. Every core property is always present, with `null` when there's no value, and a section appears only if it was asked for.
+
+One rule holds across the API: `metrics` is always a plain map of names to numbers, wherever it appears, and `financials` is the only name for the full rows with labels and past values.
 
 ```ts
-Figures {
-  price_dollar, net_asset_value_dollar, total_asset_value_dollar,
-  apy_30_day, holding_addresses_count: number | null
-}
+Metrics { [metric: string]: number | null }
 FieldValue {
   key, label, valueType: string
   value: string | number | boolean | string[] | null
@@ -510,21 +534,32 @@ FieldValue {
 }
 Coverage { withData, applicable: integer }
 
-// GET /assets
+// GET /tokenized_assets
 {
   data: [{
     slug, ticker, name, assetClass, assetType: string
     issuer: string | null
     asOf: date | null
-    figures: Figures
+    metrics: Metrics
   }],
-  meta: {
-    total, limit, offset: integer
+  meta: { total, limit, offset: integer }
+}
+
+// GET /tokenized_assets/catalog
+{
+  data: {
+    metrics: [{
+      metric, label, group: string
+      unit: string | null
+      hasCurrentValue, hasHistory: boolean
+    }]
+    groups, categories: [{ key, label: string }]   // key is what the parameter takes
+    fields: [{ key, label, category, valueType, level: string }]
     filters: { assetClasses, assetTypes, networks: string[] }
   }
 }
 
-// GET /assets/{slug}
+// GET /tokenized_assets/{slug}
 {
   data: {
     slug, ticker, name, assetClass, assetType: string
@@ -532,63 +567,43 @@ Coverage { withData, applicable: integer }
     organizations: [{ slug, name, role: string, legalName: string | null }]
     networks: [{ key, name: string }]
     asOf: date | null
-    figures: Figures
-  }
-}
+    metrics: Metrics
 
-// GET /assets/{slug}/fields
-{
-  data: {
-    coverage: Coverage
-    categories: [{
-      name: string
-      coverage: Coverage
-      fields: FieldValue[]
-      records: [{ group, key: string, fields: FieldValue[] }]
-    }]
-  }
-}
-
-// GET /assets/{slug}/tokens
-{
-  data: [{
-    network: { key, name: string }
-    address: string
-    issuanceType: "native" | "bridged" | "wrapper" | "unknown"
-    fields: FieldValue[]
-    figures: {
-      total_asset_value_dollar, market_value_dollar,
-      total_supply_token, holding_addresses_count: number | null
-    }
-    asOf: date | null
-  }]
-}
-
-// GET /assets/{slug}/financials
-{
-  data: {
-    asOf: date | null
-    figures: [{
-      measure, label, group: string
+    // Each of these only if asked for
+    financials?: [{
+      metric, label, group: string
       unit: string | null
       scope: "asset" | "solana"
       value: number
       value7d, value30d, value90d: number | null
       asOf: date | null
     }]
-    terms: FieldValue[]
-    networks: [{ key, name: string, value, share: number }]
-    history: [{ measure, label, group: string, unit: string | null, scope: "asset" | "solana" }]
-  }
-}
-
-// GET /assets/{slug}/history
-{
-  data: {
-    measure, label: string
-    unit: string | null
-    scope: "asset" | "solana"
-    points: [day, value][]   // oldest first; empty for a valid measure with no data
+    series?: [{ metric, label, group: string, unit: string | null, scope: "asset" | "solana" }]
+    valueByNetwork?: [{ key, name: string, value, share: number }]
+    terms?: FieldValue[]
+    fields?: {
+      coverage: Coverage
+      categories: [{
+        name: string
+        coverage: Coverage
+        fields: FieldValue[]
+        records: [{ group, key: string, fields: FieldValue[] }]
+      }]
+    }
+    tokens?: [{
+      network: { key, name: string }
+      address: string
+      issuanceType: "native" | "bridged" | "wrapper" | "unknown"
+      fields: FieldValue[]
+      metrics: Metrics   // total_asset_value_dollar, market_value_dollar, total_supply_token, holding_addresses_count
+      asOf: date | null
+    }]
+    history?: [{
+      metric, label: string
+      unit: string | null
+      scope: "asset" | "solana"
+      points: [day, value][]   // oldest first; empty for a valid metric with no data
+    }]
   }
 }
 
@@ -605,15 +620,19 @@ Coverage { withData, applicable: integer }
 |---|---|
 | `200` | Success |
 | `304` | The `ETag` matches, so there's no body |
-| `400` | Invalid or unknown parameter |
+| `400` | Invalid or unknown parameter or name, or a filter for a section that wasn't asked for |
 | `401` | Missing, revoked or expired key |
-| `404` | Unknown or deactivated asset, or an unknown measure |
+| `404` | Unknown or deactivated asset |
 | `429` | Rate limited |
 | `503` | Database unavailable |
 
 **Not returned:** section layouts, chart types, per-value sources, conflicts and documents. The frontend team needs to keep the "Data obtained from RWA.xyz" banner.
 
-**Missing data:** missing figures are `null` and sort last. `apy_30_day` exists for only 11 assets and price for 101.
+**Missing data:** missing metrics are `null` and sort last. `apy_30_day` exists for only 11 assets and price for 101. Of the 51 metrics, `net_asset_value_token` and `daily_asset_performance_rate` have history but no current value, and 7 have a current value but no history. The catalog says which is which.
+
+**Holder shares:** `top_*_holder_concentration` always reads the Solana token, on the list as well as the asset, because the asset-level value adds up each token's percentage. A share above 100% can't be true, so it reads as `null`.
+
+**Reserved slug:** an asset can't take the slug `catalog`, because that path belongs to the catalog. A new asset whose slug would be `catalog` gets a number, as it does when a slug is taken.
 
 **Changing the contract:** with no version prefix, we add to responses, and a real break gets a new path. That's manageable while there's one client.
 
@@ -627,7 +646,7 @@ Coverage { withData, applicable: integer }
 
 ### For the frontend team
 
-The frontend team receives `backend/openapi.json` and an API key. There's no hosted docs page, because a browser can't send the key when it opens one.
+The frontend team receives the docs page at `/docs`, `backend/openapi.json` and an API key. The page itself needs no key, and its **Authorize** button takes one for trying calls.
 
 - **Store the key as a Railway variable** on the frontend service, and use it only in server code. A static build variable, such as `VITE_`, ends up in the browser's JavaScript.
 - **Add a small server route** that adds the key to each API call. Browsers then only talk to the frontend's own domain, so the API needs no CORS.
@@ -644,6 +663,7 @@ The frontend team receives `backend/openapi.json` and an API key. There's no hos
 
 - **Source of truth:** `backend/src/api/schemas/`, as JSON Schema in `.ts` files. Fastify validates against them, and TypeScript types are derived from them.
 - **`backend/openapi.json`:** generated and committed, so contract changes show up as a diff. CI fails if it's out of date.
+- **`/docs`:** the same contract as a Swagger page, served by the API, with an introduction from `backend/src/api/guide.ts`.
 - **Frontend types:** the team generates them with `openapi-typescript`.
 
 ## 7. Production operations
@@ -680,7 +700,9 @@ Several npm supply-chain compromises were reported in 2026, some running code at
 | **No secrets during install** | A malicious package has nothing to steal in that CI step |
 | **Production image holds production packages only** | Built with `--omit=dev`, on a Node 22 base image pinned by digest |
 
-**Production packages:** `fastify`, `@fastify/swagger`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/compress`, `@fastify/etag`, `pg` and `pino`. With their own dependencies, that's 78 packages, none with install scripts. Sentry and a hosted docs page would have added 54 more.
+**Production packages:** `fastify`, `@fastify/swagger`, `@fastify/swagger-ui`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/compress`, `@fastify/etag`, `pg` and `pino`. With their own dependencies, that's 98 packages, none with install scripts. The docs page accounts for 20 of them, and Sentry would have added more.
+
+**Temporary overrides:** `package.json` pins `glob` to 14.0.3 and `minimatch` to 11.0.3. `@fastify/static` 10.1.8 asks for older versions with moderate advisories, and the release that fixes this came out on 2026-11-04, under the 7-day minimum. From 2026-11-11, move to `@fastify/swagger-ui` 6.1.3 or later with `--before`, and remove the overrides.
 
 **Dev packages:** `typescript`, `@biomejs/biome`, `@types/node`, `@types/pg` and `json-schema-to-ts`.
 

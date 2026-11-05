@@ -26,7 +26,8 @@ describe("API key auth", () => {
     time += 120_000;
   });
 
-  const get = (headers: Record<string, string> = {}, url = "/assets") => app.inject({ method: "GET", url, headers });
+  const get = (headers: Record<string, string> = {}, url = "/tokenized_assets") =>
+    app.inject({ method: "GET", url, headers });
   const bearer = (key: string) => ({ authorization: `Bearer ${key}` });
 
   test("the scheme's name is case-insensitive, and the key isn't", async () => {
@@ -56,12 +57,11 @@ describe("API key auth", () => {
 
   test("every data route requires a key", async () => {
     for (const url of [
-      "/assets",
-      "/assets/x",
-      "/assets/x/fields",
-      "/assets/x/tokens",
-      "/assets/x/financials",
-      "/assets/x/history?measure=price_dollar",
+      "/tokenized_assets",
+      "/tokenized_assets/x",
+      "/tokenized_assets/catalog",
+      "/tokenized_assets/x?include=fields",
+      "/tokenized_assets/x?history=price_dollar",
     ]) {
       time += 120_000;
       assert.equal((await get({}, url)).statusCode, 401, url);
@@ -73,7 +73,7 @@ describe("API key auth", () => {
   });
 
   test("auth runs before validation, so a bad parameter doesn't reveal anything without a key", async () => {
-    assert.equal((await get({}, "/assets?unknown=1")).statusCode, 401);
+    assert.equal((await get({}, "/tokenized_assets?unknown=1")).statusCode, 401);
   });
 
   test("an expired key gets a 401", async () => {
@@ -168,12 +168,12 @@ describe("per-key rate limit", () => {
     const busy = { authorization: `Bearer ${await createTestKey(db.pool)}` };
     const quiet = { authorization: `Bearer ${await createTestKey(db.pool)}` };
     for (let attempt = 0; attempt < 3; attempt++) {
-      assert.equal((await app.inject({ method: "GET", url: "/assets", headers: busy })).statusCode, 200);
+      assert.equal((await app.inject({ method: "GET", url: "/tokenized_assets", headers: busy })).statusCode, 200);
     }
-    const limited = await app.inject({ method: "GET", url: "/assets", headers: busy });
+    const limited = await app.inject({ method: "GET", url: "/tokenized_assets", headers: busy });
     assert.equal(limited.statusCode, 429);
     assert.equal(limited.json().error.code, "rate_limited");
-    assert.equal((await app.inject({ method: "GET", url: "/assets", headers: quiet })).statusCode, 200);
+    assert.equal((await app.inject({ method: "GET", url: "/tokenized_assets", headers: quiet })).statusCode, 200);
   });
 
   test("/readyz is never rate limited", async () => {
@@ -196,13 +196,13 @@ describe("request logs", () => {
     const logger = pino({ redact: ["req.headers.authorization"] }, { write: (line: string) => void lines.push(line) });
     const app = await buildApp({ db: db.pool, logger });
     const key = await createTestKey(db.pool, { clientName: "frontend staging" });
-    await app.inject({ method: "GET", url: "/assets", headers: { authorization: `Bearer ${key}` } });
+    await app.inject({ method: "GET", url: "/tokenized_assets", headers: { authorization: `Bearer ${key}` } });
     await app.close();
 
     const requestLines = lines.map((line) => JSON.parse(line)).filter((line) => line.msg === "request");
     assert.equal(requestLines.length, 1);
     const [line] = requestLines;
-    assert.equal(line.route, "/assets");
+    assert.equal(line.route, "/tokenized_assets");
     assert.equal(line.status, 200);
     assert.equal(line.client, "frontend staging");
     assert.equal(typeof line.requestId, "string");

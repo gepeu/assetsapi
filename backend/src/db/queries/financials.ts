@@ -1,6 +1,7 @@
 /** Financial measures and current values. */
 import type { Queryable } from "../pool.ts";
 import { missingGrace } from "./fieldValues.ts";
+import { servedSolanaToken } from "./history.ts";
 
 export interface NewMeasure {
   slug: string;
@@ -227,17 +228,76 @@ export async function listValueByNetwork(db: Queryable, assetId: number): Promis
   return rows;
 }
 
-export interface MeasureInfo {
+export interface MetricInfo {
   slug: string;
   label: string;
   unit: string | null;
   group: string | null;
 }
 
-export async function findServedMeasure(db: Queryable, slug: string): Promise<MeasureInfo | null> {
-  const { rows } = await db.query<MeasureInfo>(
-    `SELECT slug, label, unit, measure_group AS "group" FROM financial_measure WHERE slug = $1 AND served`,
-    [slug],
+/** Every name a client can ask for. Terms are text about the asset, so they aren't metrics. */
+export async function listServedMetrics(db: Queryable): Promise<MetricInfo[]> {
+  const { rows } = await db.query<MetricInfo>(
+    `SELECT slug, label, unit, measure_group AS "group"
+     FROM financial_measure
+     WHERE served AND kind = 'figure'
+     ORDER BY sort_order, slug`,
   );
-  return rows[0] ?? null;
+  return rows;
+}
+
+export interface CatalogMetric extends MetricInfo {
+  hasCurrentValue: boolean;
+  hasHistory: boolean;
+}
+
+export async function listCatalogMetrics(db: Queryable): Promise<CatalogMetric[]> {
+  const { rows } = await db.query<CatalogMetric>(
+    `SELECT m.slug, m.label, m.unit, m.measure_group AS "group",
+            EXISTS (SELECT 1 FROM financial_current c WHERE c.metric = m.slug AND c.value IS NOT NULL) AS "hasCurrentValue",
+            EXISTS (SELECT 1 FROM financial_timeseries s WHERE s.measure = m.slug) AS "hasHistory"
+     FROM financial_measure m
+     WHERE m.served AND m.kind = 'figure'
+     ORDER BY m.sort_order, m.slug`,
+  );
+  return rows;
+}
+
+export interface AssetMetricValue {
+  asset_id: number;
+  metric: string;
+  value: number | null;
+}
+
+/** Asset-level values for a page of assets. */
+export async function listAssetMetricValues(
+  db: Queryable,
+  assetIds: readonly number[],
+  metrics: readonly string[],
+): Promise<AssetMetricValue[]> {
+  const { rows } = await db.query<AssetMetricValue>(
+    `SELECT c.asset_id, c.metric, c.value
+     FROM financial_current c
+     JOIN financial_measure m ON m.slug = c.metric AND m.served
+     WHERE c.asset_id = ANY($1::int[]) AND c.token_id IS NULL AND c.metric = ANY($2::text[])`,
+    [assetIds, metrics],
+  );
+  return rows;
+}
+
+/** The same values read from each asset's Solana token. */
+export async function listSolanaMetricValues(
+  db: Queryable,
+  assetIds: readonly number[],
+  metrics: readonly string[],
+): Promise<AssetMetricValue[]> {
+  const { rows } = await db.query<AssetMetricValue>(
+    `SELECT c.asset_id, c.metric, c.value
+     FROM financial_current c
+     JOIN financial_measure m ON m.slug = c.metric AND m.served
+     WHERE c.asset_id = ANY($1::int[]) AND c.metric = ANY($2::text[])
+       AND c.token_id = ${servedSolanaToken("c.asset_id")}`,
+    [assetIds, metrics],
+  );
+  return rows;
 }

@@ -1,7 +1,7 @@
 /** Tests for field service. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { getAssetFields } from "../../src/services/fields.ts";
+import { getAsset } from "../../src/services/assets.ts";
 import { makeAsset, seedAssets, TODAY } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
@@ -17,10 +17,10 @@ describe("field service", () => {
   });
   after(() => db.close());
 
-  async function load() {
-    const response = await getAssetFields(db.pool, "asset-1");
-    assert.ok(response);
-    return response.data;
+  async function load(query = {}) {
+    const response = await getAsset(db.pool, "asset-1", { include: "fields", ...query });
+    assert.ok(response?.data.fields);
+    return response.data.fields;
   }
 
   const allFields = (data: Awaited<ReturnType<typeof load>>) => data.categories.flatMap((category) => category.fields);
@@ -51,6 +51,41 @@ describe("field service", () => {
     const website = fields.find((field) => field.key === "identity.website");
     assert.equal(website?.value, null);
     assert.equal(website?.asOf, null);
+  });
+
+  test("categories narrow the section, and coverage stays whole-asset", async () => {
+    const all = await load();
+    const some = await load({ categories: "identity,legal" });
+    assert.deepEqual(
+      some.categories.map((category) => category.name),
+      ["Identity", "Legal and regulatory"],
+    );
+    assert.deepEqual(some.coverage, all.coverage);
+  });
+
+  test("a category that doesn't apply to this asset is valid and comes back empty", async () => {
+    assert.deepEqual((await load({ categories: "governance" })).categories, []);
+  });
+
+  test("an unknown category is a 400", async () => {
+    await assert.rejects(load({ categories: "made_up" }), (error: { code?: string }) => error.code === "bad_request");
+  });
+
+  test("empty=false drops listed fields with no value, and coverage doesn't change", async () => {
+    const all = await load();
+    const filled = await load({ empty: false });
+    assert.deepEqual(filled.coverage, all.coverage);
+    assert.ok(allFields(all).some((field) => field.value === null));
+    assert.ok(allFields(filled).length > 0);
+    assert.ok(allFields(filled).every((field) => field.value !== null));
+    const coverageOf = (data: typeof all) => data.categories.map((category) => [category.name, category.coverage]);
+    assert.deepEqual(coverageOf(filled), coverageOf(all));
+    for (const category of filled.categories) {
+      for (const record of category.records) {
+        assert.ok(record.fields.length > 0);
+        assert.ok(record.fields.every((field) => field.value !== null));
+      }
+    }
   });
 
   test("token-level fields and their category are excluded", async () => {
@@ -125,6 +160,6 @@ describe("field service", () => {
   });
 
   test("an unknown or deactivated asset is null", async () => {
-    assert.equal(await getAssetFields(db.pool, "nope"), null);
+    assert.equal(await getAsset(db.pool, "nope", { include: "fields" }), null);
   });
 });

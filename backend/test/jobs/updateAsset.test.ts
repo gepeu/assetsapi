@@ -420,6 +420,14 @@ describe("updateAsset and createNewAsset", () => {
     assert.equal((await fieldRow(id, "identity.description"))?.value, `About asset ${target.ref}`);
   });
 
+  test("a new asset can't take a slug that's an API path", async () => {
+    const { id } = await createAsset((reference) => {
+      reference.slug = "catalog";
+    });
+    const { rows } = await db.pool.query<{ slug: string }>("SELECT slug FROM asset WHERE id = $1", [id]);
+    assert.equal(rows[0]?.slug, "catalog-2");
+  });
+
   test("a new asset's slug gets a number if it's taken", async () => {
     await createAsset((reference) => {
       reference.slug = "taken-slug";

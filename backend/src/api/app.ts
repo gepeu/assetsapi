@@ -5,14 +5,17 @@ import etag from "@fastify/etag";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
+import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, LogController } from "fastify";
 import { settings } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import { createAuthHook, getClientIp } from "./auth.ts";
 import { registerErrorHandling } from "./errors.ts";
+import { API_GUIDE } from "./guide.ts";
 import { registerAssetRoutes } from "./routes/assets.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerUiRoutes } from "./routes/ui.ts";
+import { API_TAG } from "./schemas/shared.ts";
 
 interface AppOptions {
   db: Queryable;
@@ -74,10 +77,14 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     openapi: {
       openapi: "3.1.0",
       info: {
-        title: "RWA data service",
-        version: "1.0.0",
-        description: "Private, read-only API over tokenized asset data. Every data route requires an API key.",
+        title: "Tokenized assets API",
+        version: "2.0.0",
+        description: API_GUIDE,
       },
+      tags: [
+        { name: API_TAG, description: "Asset data. Requires an API key" },
+        { name: "Service", description: "Operational routes" },
+      ],
       components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } } },
       security: [{ bearerAuth: [] }],
     },
@@ -91,6 +98,19 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     // After authentication, so the limit is per key. Each replica counts separately.
     hook: "preValidation",
     keyGenerator: (request) => (request.apiClient ? `key:${request.apiClient.id}` : `ip:${getClientIp(request)}`),
+  });
+
+  // After the rate limit, so it covers these pages too. They hold the contract and no data, so they need no key.
+  await app.register(swaggerUi, {
+    routePrefix: "/docs",
+    uiConfig: {
+      deepLinking: true,
+      docExpansion: "list",
+      // Without the stock top bar, which is only a logo and a box for loading some other contract.
+      layout: "BaseLayout",
+      persistAuthorization: true,
+      validatorUrl: null,
+    },
   });
 
   registerHealthRoutes(app, db);

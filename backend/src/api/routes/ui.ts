@@ -1,6 +1,6 @@
 /**
- * Serves the built frontend under `/ui`, because `/assets` belongs to the API. Page URLs get
- * index.html, so reloading a deep link works. A path with an extension never does, so a missing
+ * Serves the built frontend under `/ui`, apart from the API's own paths. Page URLs get index.html,
+ * so reloading a deep link works. A path with an extension never does, so a missing
  * script is a 404 rather than HTML. Asset slugs contain no dots, so pages have no extension.
  */
 import { readFile } from "node:fs/promises";

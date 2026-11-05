@@ -42,7 +42,7 @@ describe("database roles", () => {
 
   test("rwa_owner runs migrations and manages keys", async () => {
     const { rows } = await owner.query<{ n: number }>("SELECT count(*)::int AS n FROM schema_migration");
-    assert.equal(rows[0]?.n, 2);
+    assert.equal(rows[0]?.n, 3);
     await owner.query("UPDATE api_key SET revoked_at = NULL WHERE client_name = 't'");
   });
 

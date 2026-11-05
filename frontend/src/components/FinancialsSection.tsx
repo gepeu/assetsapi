@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from "react";
-import type { AssetFinancials, FieldValue, FinancialFigure, FinancialNetwork } from "../api/assets";
+import type { AssetFinancials, FieldValue, FinancialMetric, FinancialNetwork } from "../api/assets";
 import { displayText } from "./fieldValues";
 import { changeBetween, chartFormFor, dayToTime, formatChange, formatDay, formatFor, formatValue, toChartInfo } from "./financialFormat";
 import { SectionHeader } from "./SectionHeader";
@@ -13,8 +13,8 @@ const NETWORKS_SHOWN = 8;
 /** Term text longer than this gets a row of its own. */
 const LONG_TERM_CHARS = 80;
 
-/** Shown large, in this order. Every other figure is listed under its group. */
-const OVERVIEW_MEASURES: readonly string[] = [
+/** Shown large, in this order. Every other metric is listed under its group. */
+const OVERVIEW_METRICS: readonly string[] = [
   "price_dollar",
   "net_asset_value_dollar",
   "total_asset_value_dollar",
@@ -23,15 +23,15 @@ const OVERVIEW_MEASURES: readonly string[] = [
 ];
 
 export function hasFinancials(view: AssetFinancials | null): view is AssetFinancials {
-  return view !== null && (view.figures.length > 0 || view.history.length > 0);
+  return view !== null && (view.financials.length > 0 || view.series.length > 0);
 }
 
 /** Whether a search should bring up this section, which is shown whole rather than filtered. */
 export function financialsMatch(view: AssetFinancials, query: string): boolean {
   const labels = [
     "financials",
-    ...[...view.figures, ...view.terms, ...view.history].map((item) => item.label),
-    ...view.figures.map((figure) => figure.group),
+    ...[...view.financials, ...view.terms, ...view.series].map((item) => item.label),
+    ...view.financials.map((row) => row.group),
   ];
   return labels.some((label) => label.toLowerCase().includes(query));
 }
@@ -48,32 +48,32 @@ export function FinancialsSection({ slug, view }: { slug: string; view: AssetFin
 }
 
 function Content({ slug, view }: { slug: string; view: AssetFinancials }) {
-  const overview = OVERVIEW_MEASURES.flatMap((measure) => view.figures.filter((figure) => figure.measure === measure));
-  const others = view.figures.filter((figure) => !OVERVIEW_MEASURES.includes(figure.measure));
-  const groups = [...new Set(others.map((figure) => figure.group))];
+  const overview = OVERVIEW_METRICS.flatMap((metric) => view.financials.filter((row) => row.metric === metric));
+  const others = view.financials.filter((row) => !OVERVIEW_METRICS.includes(row.metric));
+  const groups = [...new Set(others.map((row) => row.group))];
   const isLong = (term: FieldValue) => typeof term.value === "string" && term.value.length > LONG_TERM_CHARS;
-  const charts = useMemo(() => view.history.map(toChartInfo), [view.history]);
+  const charts = useMemo(() => view.series.map(toChartInfo), [view.series]);
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      {overview.length > 0 && <FigureGrid figures={overview} large />}
+      {overview.length > 0 && <MetricGrid rows={overview} large />}
       {view.asOf && <p className="-mt-4 text-[11px] leading-4 text-muted-foreground">As of {formatDay(dayToTime(view.asOf))}</p>}
 
       {charts.length > 0 && (
         <Suspense fallback={<div className="h-[440px] rounded-xl border border-border" />}>
-          <FinancialChart slug={slug} charts={charts} solanaOnlyNote={solanaOnlyNote(view.networks)} />
+          <FinancialChart slug={slug} charts={charts} solanaOnlyNote={solanaOnlyNote(view.valueByNetwork)} />
         </Suspense>
       )}
 
       {groups.map((group) => (
         <Group key={group} title={group}>
-          <FigureGrid figures={others.filter((figure) => figure.group === group)} />
+          <MetricGrid rows={others.filter((row) => row.group === group)} />
         </Group>
       ))}
 
-      {view.networks.length > 1 && (
+      {view.valueByNetwork.length > 1 && (
         <Group title="Value by network">
-          <NetworkBars networks={view.networks} />
+          <NetworkBars networks={view.valueByNetwork} />
         </Group>
       )}
 
@@ -102,7 +102,7 @@ function Content({ slug, view }: { slug: string; view: AssetFinancials }) {
 /** Nothing to say when Solana is the asset's only network: its history is then the whole story. */
 function solanaOnlyNote(networks: FinancialNetwork[]): string | null {
   if (networks.length === 1 && networks[0].key === "solana") return null;
-  return "Solana only. The figures above cover all networks.";
+  return "Solana only. The numbers above cover all networks.";
 }
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -123,17 +123,17 @@ function Cell({ label, wide, children }: { label: string; wide?: boolean; childr
   );
 }
 
-function FigureGrid({ figures, large }: { figures: FinancialFigure[]; large?: boolean }) {
+function MetricGrid({ rows, large }: { rows: FinancialMetric[]; large?: boolean }) {
   return (
     <div className={`grid gap-x-8 ${large ? "grid-cols-[repeat(auto-fit,minmax(150px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"}`}>
-      {figures.map((figure) => {
-        const format = formatFor(figure.measure, figure.unit);
+      {rows.map((row) => {
+        const format = formatFor(row.metric, row.unit);
         // A daily flow compared with one other day says nothing about its direction.
-        const isFlow = chartFormFor(figure.measure, figure.unit) === "bar";
-        const change = figure.value30d === null || isFlow ? null : changeBetween(figure.value30d, figure.value, format);
+        const isFlow = chartFormFor(row.metric, row.unit) === "bar";
+        const change = row.value30d === null || isFlow ? null : changeBetween(row.value30d, row.value, format);
         return (
-          <Cell key={figure.measure} label={figure.scope === "solana" ? `${figure.label} (Solana)` : figure.label}>
-            <span className={large ? "text-xl font-medium" : "text-sm leading-5"}>{formatValue(figure.value, format)}</span>
+          <Cell key={row.metric} label={row.scope === "solana" ? `${row.label} (Solana)` : row.label}>
+            <span className={large ? "text-xl font-medium" : "text-sm leading-5"}>{formatValue(row.value, format)}</span>
             {change !== null && <span className="text-[11px] leading-4 text-muted-foreground">{formatChange(change, format)} in 30 days</span>}
           </Cell>
         );

@@ -46,7 +46,7 @@ describe("asset services", () => {
     assert.equal(response.meta.offset, 0);
   });
 
-  test("each row has its identity, issuer, date and figures", async () => {
+  test("each row has its identity, issuer, date and metrics", async () => {
     const response = await listAssets(db.pool, { q: "CCC" });
     assert.deepEqual(response.data[0], {
       slug: "fund",
@@ -56,7 +56,7 @@ describe("asset services", () => {
       assetType: "tokenized_fund",
       issuer: "Shared Issuer",
       asOf: "2026-11-05",
-      figures: {
+      metrics: {
         price_dollar: 2,
         net_asset_value_dollar: 2,
         total_asset_value_dollar: 2000,
@@ -64,13 +64,6 @@ describe("asset services", () => {
         holding_addresses_count: 20,
       },
     });
-  });
-
-  test("filter options describe all active assets, whatever the filter", async () => {
-    const { meta } = await listAssets(db.pool, { assetType: "tokenized_fund" });
-    assert.deepEqual(meta.filters.assetClasses, ["Stablecoins", "Stocks", "US Treasury Debt"]);
-    assert.deepEqual(meta.filters.assetTypes, ["stablecoin", "tokenized_equity", "tokenized_fund"]);
-    assert.deepEqual(meta.filters.networks, ["ethereum", "solana"]);
   });
 
   test("filters by class, type and network", async () => {
@@ -88,7 +81,7 @@ describe("asset services", () => {
     assert.equal((await listAssets(db.pool, { q: "_" })).meta.total, 0);
   });
 
-  test("missing figures sort last in both directions", async () => {
+  test("missing values sort last in both directions", async () => {
     assert.deepEqual(slugs(await listAssets(db.pool, { sort: "price_dollar" })), ["fund", "stock", "twin", "coin"]);
     assert.deepEqual(slugs(await listAssets(db.pool, { sort: "-price_dollar" })), ["twin", "stock", "fund", "coin"]);
   });
@@ -121,8 +114,60 @@ describe("asset services", () => {
       { key: "ethereum", name: "Ethereum" },
       { key: "solana", name: "Solana" },
     ]);
-    assert.equal(data.figures.price_dollar, 2);
+    assert.equal(data.metrics.price_dollar, 2);
     assert.equal(data.asOf, "2026-11-05");
+  });
+
+  test("the list carries the metrics asked for, and only those", async () => {
+    const { data } = await listAssets(db.pool, { q: "CCC", metrics: "holding_addresses_count,price_dollar" });
+    assert.deepEqual(data[0]?.metrics, { holding_addresses_count: 20, price_dollar: 2 });
+  });
+
+  test("the list can sort by any metric, whether or not it's shown", async () => {
+    assert.deepEqual(slugs(await listAssets(db.pool, { sort: "-holding_addresses_count", metrics: "price_dollar" })), [
+      "twin",
+      "stock",
+      "coin",
+      "fund",
+    ]);
+  });
+
+  test("a metric with no value is null", async () => {
+    const { data } = await listAssets(db.pool, { q: "BBB", metrics: "price_dollar" });
+    assert.deepEqual(data[0]?.metrics, { price_dollar: null });
+  });
+
+  test("holder shares on the list come from the Solana token, as on the asset", async () => {
+    const { data } = await listAssets(db.pool, { q: "CCC", metrics: "top_holder_concentration" });
+    assert.deepEqual(data[0]?.metrics, { top_holder_concentration: 40 });
+    const detail = await getAsset(db.pool, "fund", { metrics: "top_holder_concentration" });
+    assert.deepEqual(detail?.data.metrics, { top_holder_concentration: 40 });
+  });
+
+  test("a holder share above 100% reads as null, and sorts last", async () => {
+    const { data } = await listAssets(db.pool, { q: "CCC", metrics: "top_5_holder_concentration" });
+    assert.deepEqual(data[0]?.metrics, { top_5_holder_concentration: null });
+    const detail = await getAsset(db.pool, "fund", { metrics: "top_5_holder_concentration" });
+    assert.deepEqual(detail?.data.metrics, { top_5_holder_concentration: null });
+    await db.pool.query(
+      `UPDATE financial_current c SET value = 10
+       WHERE c.metric = 'top_5_holder_concentration' AND c.token_id IS NOT NULL
+         AND c.asset_id = (SELECT id FROM asset WHERE slug = 'coin')`,
+    );
+    const sorted = slugs(await listAssets(db.pool, { sort: "-top_5_holder_concentration" }));
+    assert.equal(sorted[0], "coin");
+    await db.pool.query(
+      `UPDATE financial_current c SET value = 140
+       WHERE c.metric = 'top_5_holder_concentration' AND c.token_id IS NOT NULL
+         AND c.asset_id = (SELECT id FROM asset WHERE slug = 'coin')`,
+    );
+  });
+
+  test("an unknown metric or sort is a 400, on both endpoints", async () => {
+    const isBadRequest = (error: { code?: string }) => error.code === "bad_request";
+    await assert.rejects(listAssets(db.pool, { metrics: "made_up" }), isBadRequest);
+    await assert.rejects(listAssets(db.pool, { sort: "-made_up" }), isBadRequest);
+    await assert.rejects(getAsset(db.pool, "fund", { metrics: "made_up" }), isBadRequest);
   });
 
   test("an unknown or deactivated asset is null", async () => {
@@ -130,12 +175,12 @@ describe("asset services", () => {
     assert.equal(await getAsset(db.pool, "gone"), null);
   });
 
-  test("an unserved measure never appears in figures", async () => {
+  test("an unserved measure never appears in metrics", async () => {
     await db.pool.query("UPDATE financial_measure SET served = false WHERE slug = 'price_dollar'");
     try {
       const listed = await listAssets(db.pool, { q: "CCC" });
-      assert.equal(listed.data[0]?.figures.price_dollar, null);
-      assert.equal((await getAsset(db.pool, "fund"))?.data.figures.price_dollar, null);
+      assert.equal(listed.data[0]?.metrics.price_dollar, null);
+      assert.equal((await getAsset(db.pool, "fund"))?.data.metrics.price_dollar, null);
     } finally {
       await db.pool.query("UPDATE financial_measure SET served = true WHERE slug = 'price_dollar'");
     }

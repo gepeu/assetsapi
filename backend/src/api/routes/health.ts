@@ -7,6 +7,7 @@ import { errorSchema } from "../schemas/shared.ts";
 
 const readySchema = {
   summary: "Whether the database is reachable and the schema is new enough",
+  tags: ["Service"],
   security: [],
   response: {
     200: {

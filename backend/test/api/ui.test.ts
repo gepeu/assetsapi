@@ -80,7 +80,7 @@ describe("frontend", () => {
   });
 
   test("the API keeps its paths and still requires a key", async () => {
-    const response = await get("/assets");
+    const response = await get("/tokenized_assets");
     assert.equal(response.statusCode, 401);
     assert.equal(response.json().error.code, "unauthorized");
   });
@@ -120,10 +120,10 @@ describe("authDisabled", () => {
   });
 
   test("the data routes need no key", async () => {
-    assert.equal((await app.inject({ method: "GET", url: "/assets" })).statusCode, 200);
+    assert.equal((await app.inject({ method: "GET", url: "/tokenized_assets" })).statusCode, 200);
   });
 
   test("requests are still validated", async () => {
-    assert.equal((await app.inject({ method: "GET", url: "/assets?unknown=1" })).statusCode, 400);
+    assert.equal((await app.inject({ method: "GET", url: "/tokenized_assets?unknown=1" })).statusCode, 400);
   });
 });

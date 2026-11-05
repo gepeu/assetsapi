@@ -47,13 +47,13 @@ export function FinancialChart({
   /** Shown beside history that covers only the Solana token of an asset on other networks too. */
   solanaOnlyNote: string | null;
 }) {
-  const [measure, setMeasure] = useState(charts[0].measure);
+  const [metric, setMetric] = useState(charts[0].metric);
   const [range, setRange] = useState<FinancialRange>("3m");
   const [asTable, setAsTable] = useState(false);
-  const selected = charts.find((chart) => chart.measure === measure) ?? charts[0];
+  const selected = charts.find((chart) => chart.metric === metric) ?? charts[0];
   const groups = [...new Set(charts.map((chart) => chart.group))];
 
-  const state = useAsync(() => getFinancialHistory(slug, selected.measure, range), `${selected.measure}|${range}`);
+  const state = useAsync(() => getFinancialHistory(slug, selected.metric, range), `${selected.metric}|${range}`);
 
   // The last good render stays up, dimmed, while the next one loads.
   const [shown, setShown] = useState<Shown | null>(null);
@@ -72,7 +72,7 @@ export function FinancialChart({
           <Choice
             key={group}
             active={selected.group === group}
-            onClick={() => setMeasure(charts.find((chart) => chart.group === group)!.measure)}
+            onClick={() => setMetric(charts.find((chart) => chart.group === group)!.metric)}
           >
             {group}
           </Choice>
@@ -84,7 +84,7 @@ export function FinancialChart({
           {charts
             .filter((chart) => chart.group === selected.group)
             .map((chart) => (
-              <Choice key={chart.measure} active={chart.measure === selected.measure} onClick={() => setMeasure(chart.measure)}>
+              <Choice key={chart.metric} active={chart.metric === selected.metric} onClick={() => setMetric(chart.metric)}>
                 {chart.label}
               </Choice>
             ))}

@@ -1,16 +1,18 @@
-/** Turns rows into `/assets/{slug}/history`: daily points for one measure, and which series to read. */
-import type { HistoryResponse } from "../api/schemas/history.ts";
+/** Turns rows into the `history` part of an asset: daily points per metric, and which series to read. */
+import { DEFAULT_HISTORY_RANGE, type HistorySection } from "../api/schemas/history.ts";
 import type { Queryable } from "../db/pool.ts";
-import { findActiveAssetBySlug } from "../db/queries/assets.ts";
-import { findServedMeasure } from "../db/queries/financials.ts";
+import type { MetricInfo } from "../db/queries/financials.ts";
 import { findSeriesPresence, listHistoryPoints, type SeriesPresence } from "../db/queries/history.ts";
 
-/** Read from the Solana token, because the asset-level figure adds up each token's percentage. */
-export const HOLDER_SHARE_MEASURES: readonly string[] = [
+/** Read from the Solana token, because the asset-level value adds up each token's percentage. */
+export const HOLDER_SHARE_METRICS: readonly string[] = [
   "top_holder_concentration",
   "top_5_holder_concentration",
   "top_10_holder_concentration",
 ];
+
+/** A share above 100% can't be true, though the source has some. These are stored but not served. */
+export const toServableShare = (value: number | null): number | null => (value !== null && value > 100 ? null : value);
 
 const RANGE_DAYS: Readonly<Record<string, number | null>> = {
   "7d": 7,
@@ -21,30 +23,28 @@ const RANGE_DAYS: Readonly<Record<string, number | null>> = {
 };
 
 /** The whole-asset series when there is one, and otherwise the Solana token's. */
-export function chooseSeriesScope(measure: string, presence: SeriesPresence): "asset" | "solana" {
-  if (HOLDER_SHARE_MEASURES.includes(measure)) return "solana";
+export function chooseSeriesScope(metric: string, presence: SeriesPresence): "asset" | "solana" {
+  if (HOLDER_SHARE_METRICS.includes(metric)) return "solana";
   return !presence.hasAssetSeries && presence.hasSolanaSeries ? "solana" : "asset";
 }
 
-/** Null when the asset or the measure is unknown, or the measure isn't served. */
-export async function getAssetHistory(
+export function loadHistory(
   db: Queryable,
-  slug: string,
-  measureSlug: string,
-  range: string,
-): Promise<HistoryResponse | null> {
-  const [asset, measure] = await Promise.all([findActiveAssetBySlug(db, slug), findServedMeasure(db, measureSlug)]);
-  if (!asset || !measure) return null;
-
-  const scope = chooseSeriesScope(measure.slug, await findSeriesPresence(db, asset.id, measure.slug));
-  const points = await listHistoryPoints(db, asset.id, measure.slug, scope, RANGE_DAYS[range] ?? null);
-  return {
-    data: {
-      measure: measure.slug,
-      label: measure.label,
-      unit: measure.unit,
-      scope,
-      points: points.map((point) => [point.day, point.value]),
-    },
-  };
+  assetId: number,
+  metrics: readonly MetricInfo[],
+  range: string = DEFAULT_HISTORY_RANGE,
+): Promise<HistorySection> {
+  return Promise.all(
+    metrics.map(async (metric) => {
+      const scope = chooseSeriesScope(metric.slug, await findSeriesPresence(db, assetId, metric.slug));
+      const points = await listHistoryPoints(db, assetId, metric.slug, scope, RANGE_DAYS[range] ?? null);
+      return {
+        metric: metric.slug,
+        label: metric.label,
+        unit: metric.unit,
+        scope,
+        points: points.map((point) => [point.day, point.value]),
+      };
+    }),
+  );
 }

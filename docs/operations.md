@@ -34,7 +34,7 @@ The ones most likely to change:
 - **Each replica counts separately:** the rate limit is kept in memory, so two replicas allow about twice the number.
 - **Two that go together:** `API_STATEMENT_TIMEOUT_MS` is applied to the `rwa_api` role by `npm run setup-roles`, so set it in the shell that runs that script. `DB_QUERY_TIMEOUT_MS` on the API must stay above it, and the API won't start otherwise.
 - **One that must match everywhere:** `JOB_LOCK_ID` is the lock that keeps the jobs and the migrate step from running at once. Leave it unset. If it ever has to change, set it as one shared variable on the API service and both jobs, because a service with a different number would run unprotected without any error.
-- **Part of the API contract:** `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE`, `MAX_PAGE_OFFSET`, `MAX_FILTER_LENGTH`, `MAX_SLUG_LENGTH` and `MAX_MEASURE_NAME_LENGTH` change what requests the API accepts. `openapi.json` is generated with the defaults, so after changing one, run `npm run openapi` with the same value and tell the callers.
+- **Part of the API contract:** `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE`, `MAX_PAGE_OFFSET`, `MAX_FILTER_LENGTH`, `MAX_HISTORY_METRICS`, `MAX_NAMES_PER_PARAMETER`, `MAX_SLUG_LENGTH` and `MAX_MEASURE_NAME_LENGTH` change what requests the API accepts. `openapi.json` is generated with the defaults, so after changing one, run `npm run openapi` with the same value and tell the callers.
 
 **Why these times:** RWA.xyz refreshes more than once a day. On the day this was checked, records were stamped 05:35 and then 15:54 UTC, and its API caches responses for up to an hour. The 07:00 run picks up the morning refresh, and a later refresh waits for the next day's run. Check the times again after a week, using `_updated_at`. More runs give fresher current values, but not finer charts, because history is stored per day.
 
@@ -49,7 +49,7 @@ These depend on Railway's behaviour, which the tests can't reach.
 ```sh
 for i in $(seq 1 25); do
   curl -s -o /dev/null -w '%{http_code}\n' -H "X-Real-IP: 198.51.100.$i" \
-    -H "Authorization: Bearer rwa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "$API_URL/assets"
+    -H "Authorization: Bearer rwa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "$API_URL/tokenized_assets"
 done
 ```
 

@@ -1,12 +1,12 @@
 /** Daily history: writing changed days, and reading series for the API. */
 import { settings } from "../../config.ts";
 import type { Queryable } from "../pool.ts";
-import type { MeasureInfo } from "./financials.ts";
+import type { MetricInfo } from "./financials.ts";
 
-/** The one token that Solana-scoped reads use, so every endpoint agrees on it. Expects the asset ID as $1. */
-const SERVED_SOLANA_TOKEN = `(
+/** The one token that Solana-scoped reads use, so every endpoint agrees on it. */
+export const servedSolanaToken = (assetId: string): string => `(
   SELECT t.id FROM token t JOIN network n ON n.id = t.network_id AND n.key = 'solana'
-  WHERE t.asset_id = $1 AND t.deactivated_at IS NULL ORDER BY t.id LIMIT 1
+  WHERE t.asset_id = ${assetId} AND t.deactivated_at IS NULL ORDER BY t.id LIMIT 1
 )`;
 
 // A holder share above 100% can't be true, though the source has some. These are stored but not served.
@@ -52,14 +52,14 @@ export async function upsertHistory(
   return written;
 }
 
-/** Which of an asset's series have anything servable for a measure. */
+/** Which of an asset's series have anything servable for a metric. */
 export interface SeriesPresence {
   hasAssetSeries: boolean;
   hasSolanaSeries: boolean;
 }
 
-export async function listAvailableSeries(db: Queryable, assetId: number): Promise<(MeasureInfo & SeriesPresence)[]> {
-  const { rows } = await db.query<MeasureInfo & SeriesPresence>(
+export async function listAvailableSeries(db: Queryable, assetId: number): Promise<(MetricInfo & SeriesPresence)[]> {
+  const { rows } = await db.query<MetricInfo & SeriesPresence>(
     `SELECT m.slug, m.label, m.unit, m.measure_group AS "group",
             bool_or(a.token_id IS NULL) AS "hasAssetSeries",
             bool_or(a.token_id IS NOT NULL) AS "hasSolanaSeries"
@@ -67,7 +67,7 @@ export async function listAvailableSeries(db: Queryable, assetId: number): Promi
        SELECT DISTINCT s.measure, s.token_id
        FROM financial_timeseries s
        WHERE s.asset_id = $1 AND ${SERVABLE_POINT}
-         AND (s.token_id IS NULL OR s.token_id = ${SERVED_SOLANA_TOKEN})
+         AND (s.token_id IS NULL OR s.token_id = ${servedSolanaToken("$1")})
      ) a
      JOIN financial_measure m ON m.slug = a.measure AND m.served AND m.kind = 'figure'
      GROUP BY m.slug, m.label, m.unit, m.measure_group, m.sort_order
@@ -86,7 +86,7 @@ export async function findSeriesPresence(db: Queryable, assetId: number, measure
        ) AS "hasAssetSeries",
        EXISTS (
          SELECT 1 FROM financial_timeseries s
-         WHERE s.asset_id = $1 AND s.measure = $2 AND s.token_id = ${SERVED_SOLANA_TOKEN} AND ${SERVABLE_POINT}
+         WHERE s.asset_id = $1 AND s.measure = $2 AND s.token_id = ${servedSolanaToken("$1")} AND ${SERVABLE_POINT}
        ) AS "hasSolanaSeries"`,
     [assetId, measure],
   );
@@ -104,7 +104,7 @@ export async function listHistoryPoints(
   scope: "asset" | "solana",
   rangeDays: number | null,
 ): Promise<{ day: string; value: number }[]> {
-  const scopeFilter = scope === "asset" ? "s.token_id IS NULL" : `s.token_id = ${SERVED_SOLANA_TOKEN}`;
+  const scopeFilter = scope === "asset" ? "s.token_id IS NULL" : `s.token_id = ${servedSolanaToken("$1")}`;
   const { rows } = await db.query<{ day: string; value: number }>(
     `WITH series AS (
        SELECT s.day, s.value FROM financial_timeseries s

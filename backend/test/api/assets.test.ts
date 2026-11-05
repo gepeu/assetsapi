@@ -1,4 +1,4 @@
-/** Tests for GET /assets and /assets/{slug}. */
+/** Tests for GET /tokenized_assets and /tokenized_assets/{slug}: paths, validation and service behaviour. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
@@ -7,7 +7,7 @@ import { runUniverseJob } from "../../src/jobs/updateUniverse.ts";
 import { createFakeProvider, makeAsset, universeDeps } from "../helpers/fakeProvider.ts";
 import { createTestDb, createTestKey, silentLogger, type TestDb } from "../helpers/testDb.ts";
 
-describe("GET /assets and /assets/{slug}", () => {
+describe("GET /tokenized_assets and /tokenized_assets/{slug}", () => {
   let db: TestDb;
   let app: FastifyInstance;
   let headers: { authorization: string };
@@ -27,7 +27,7 @@ describe("GET /assets and /assets/{slug}", () => {
     app.inject({ method: "GET", url, headers: { ...headers, ...extra } });
 
   test("lists assets in the documented shape", async () => {
-    const response = await get("/assets");
+    const response = await get("/tokenized_assets");
     assert.equal(response.statusCode, 200);
     const body = response.json();
     assert.equal(body.data.length, 2);
@@ -35,42 +35,48 @@ describe("GET /assets and /assets/{slug}", () => {
       "asOf",
       "assetClass",
       "assetType",
-      "figures",
       "issuer",
+      "metrics",
       "name",
       "slug",
       "ticker",
     ]);
-    assert.deepEqual(Object.keys(body.meta).sort(), ["filters", "limit", "offset", "total"]);
-    assert.equal(body.data[0].figures.apy_30_day, null);
+    assert.deepEqual(Object.keys(body.meta).sort(), ["limit", "offset", "total"]);
+    assert.equal(body.data[0].metrics.apy_30_day, null);
   });
 
   test("query numbers arrive as numbers", async () => {
-    const body = (await get("/assets?limit=1&offset=1")).json();
+    const body = (await get("/tokenized_assets?limit=1&offset=1")).json();
     assert.equal(body.meta.limit, 1);
     assert.equal(body.meta.offset, 1);
     assert.equal(body.data.length, 1);
   });
 
   for (const url of [
-    "/assets?unknown=1",
-    "/assets?limit=0",
-    "/assets?limit=201",
-    "/assets?limit=abc",
-    "/assets?limit=1&limit=2",
-    "/assets?offset=-1",
-    "/assets?offset=99999999999999999999",
-    "/assets?q=%00",
-    "/assets?assetClass=%00",
-    "/assets?sort=name",
-    "/assets?assetType=made_up",
-    "/assets?network=Not%20Valid",
-    "/assets?q=",
-    `/assets?q=${"x".repeat(65)}`,
-    `/assets?assetClass=${"x".repeat(65)}`,
-    "/assets/Not_Valid",
-    `/assets/${"a".repeat(65)}`,
-    "/assets/asset-1?unknown=1",
+    "/tokenized_assets?unknown=1",
+    "/tokenized_assets?limit=0",
+    "/tokenized_assets?limit=201",
+    "/tokenized_assets?limit=abc",
+    "/tokenized_assets?limit=1&limit=2",
+    "/tokenized_assets?offset=-1",
+    "/tokenized_assets?offset=99999999999999999999",
+    "/tokenized_assets?q=%00",
+    "/tokenized_assets?assetClass=%00",
+    "/tokenized_assets?sort=name",
+    "/tokenized_assets?sort=Bad-Name",
+    "/tokenized_assets?metrics=made_up",
+    "/tokenized_assets?metrics=price_dollar,",
+    "/tokenized_assets?metrics=price_dollar,%20apy_30_day",
+    "/tokenized_assets?metrics=raw_supply",
+    "/tokenized_assets?metrics=sp_rating",
+    "/tokenized_assets?assetType=made_up",
+    "/tokenized_assets?network=Not%20Valid",
+    "/tokenized_assets?q=",
+    `/tokenized_assets?q=${"x".repeat(65)}`,
+    `/tokenized_assets?assetClass=${"x".repeat(65)}`,
+    "/tokenized_assets/Not_Valid",
+    `/tokenized_assets/${"a".repeat(65)}`,
+    "/tokenized_assets/asset-1?unknown=1",
   ]) {
     test(`rejects ${url.slice(0, 40)} with a 400`, async () => {
       const response = await get(url);
@@ -90,22 +96,31 @@ describe("GET /assets and /assets/{slug}", () => {
       "net_asset_value_dollar",
       "total_asset_value_dollar",
       "holding_addresses_count",
+      "market_value_dollar",
+      "-top_holder_concentration",
     ]) {
-      assert.equal((await get(`/assets?sort=${sort}`)).statusCode, 200, sort);
+      assert.equal((await get(`/tokenized_assets?sort=${sort}`)).statusCode, 200, sort);
     }
   });
 
   test("returns one asset", async () => {
-    const response = await get("/assets/asset-1");
+    const response = await get("/tokenized_assets/asset-1");
     assert.equal(response.statusCode, 200);
     const { data } = response.json();
     assert.equal(data.slug, "asset-1");
     assert.equal(data.issuer, "Shared Issuer");
     assert.ok(Array.isArray(data.organizations));
+    assert.deepEqual(Object.keys(data.metrics), [
+      "price_dollar",
+      "net_asset_value_dollar",
+      "total_asset_value_dollar",
+      "apy_30_day",
+      "holding_addresses_count",
+    ]);
   });
 
   test("an unknown asset is a 404 in the standard shape", async () => {
-    const response = await get("/assets/nope");
+    const response = await get("/tokenized_assets/nope");
     assert.equal(response.statusCode, 404);
     const body = response.json();
     assert.equal(body.error.code, "not_found");
@@ -114,7 +129,7 @@ describe("GET /assets and /assets/{slug}", () => {
 
   test("a deactivated asset is a 404", async () => {
     await db.pool.query("UPDATE asset SET deactivated_at = now() WHERE slug = 'asset-2'");
-    assert.equal((await get("/assets/asset-2")).statusCode, 404);
+    assert.equal((await get("/tokenized_assets/asset-2")).statusCode, 404);
     await db.pool.query("UPDATE asset SET deactivated_at = NULL WHERE slug = 'asset-2'");
   });
 
@@ -124,33 +139,39 @@ describe("GET /assets and /assets/{slug}", () => {
     assert.equal(response.json().error.code, "not_found");
   });
 
+  test("the old paths are gone", async () => {
+    for (const url of ["/assets", "/assets/asset-1", "/tokenized_assets/asset-1/fields"]) {
+      assert.equal((await get(url)).statusCode, 404, url);
+    }
+  });
+
   test("only GET is allowed", async () => {
-    const response = await app.inject({ method: "POST", url: "/assets", headers });
+    const response = await app.inject({ method: "POST", url: "/tokenized_assets", headers });
     assert.equal(response.statusCode, 404);
   });
 
   test("a response has an ETag, and sending it back gets a 304 with no body", async () => {
-    const first = await get("/assets/asset-1");
+    const first = await get("/tokenized_assets/asset-1");
     const etag = first.headers.etag;
     assert.equal(typeof etag, "string");
     assert.equal(first.headers["cache-control"], "private, no-cache");
 
-    const second = await get("/assets/asset-1", { "if-none-match": String(etag) });
+    const second = await get("/tokenized_assets/asset-1", { "if-none-match": String(etag) });
     assert.equal(second.statusCode, 304);
     assert.equal(second.body, "");
   });
 
   test("the ETag changes when the data does", async () => {
-    const first = await get("/assets/asset-1");
+    const first = await get("/tokenized_assets/asset-1");
     await db.pool.query(`UPDATE asset SET name = 'Renamed' WHERE slug = 'asset-1'`);
-    const second = await get("/assets/asset-1", { "if-none-match": String(first.headers.etag) });
+    const second = await get("/tokenized_assets/asset-1", { "if-none-match": String(first.headers.etag) });
     assert.equal(second.statusCode, 200);
     assert.notEqual(second.headers.etag, first.headers.etag);
     await db.pool.query(`UPDATE asset SET name = 'Asset 1' WHERE slug = 'asset-1'`);
   });
 
   test("long responses are compressed, and the ETag survives", async () => {
-    const url = "/assets/asset-1/fields";
+    const url = "/tokenized_assets/asset-1?include=fields";
     const plain = await get(url);
     assert.ok(plain.body.length > 1024);
     const zipped = await get(url, { "accept-encoding": "gzip" });
@@ -161,7 +182,7 @@ describe("GET /assets and /assets/{slug}", () => {
   });
 
   test("security headers are set", async () => {
-    const response = await get("/assets");
+    const response = await get("/tokenized_assets");
     assert.ok(response.headers["strict-transport-security"]);
     assert.equal(response.headers["x-content-type-options"], "nosniff");
   });
@@ -178,7 +199,7 @@ describe("GET /assets and /assets/{slug}", () => {
     const key = await createTestKey(db.pool);
     const response = await broken.inject({
       method: "GET",
-      url: "/assets",
+      url: "/tokenized_assets",
       headers: { authorization: `Bearer ${key}` },
     });
     await broken.close();
@@ -198,7 +219,11 @@ describe("GET /assets and /assets/{slug}", () => {
       } as never,
       logger: silentLogger,
     });
-    const response = await full.inject({ method: "GET", url: "/assets", headers: { authorization: `Bearer ${key}` } });
+    const response = await full.inject({
+      method: "GET",
+      url: "/tokenized_assets",
+      headers: { authorization: `Bearer ${key}` },
+    });
     await full.close();
     assert.equal(response.statusCode, 503);
     assert.equal(response.json().error.code, "unavailable");
@@ -213,7 +238,11 @@ describe("GET /assets and /assets/{slug}", () => {
       } as never,
       logger: silentLogger,
     });
-    const response = await quiet.inject({ method: "GET", url: "/assets", headers: { authorization: `Bearer ${key}` } });
+    const response = await quiet.inject({
+      method: "GET",
+      url: "/tokenized_assets",
+      headers: { authorization: `Bearer ${key}` },
+    });
     await quiet.close();
     assert.equal(response.statusCode, 503);
     assert.equal(response.json().error.code, "unavailable");
@@ -233,7 +262,11 @@ describe("GET /assets and /assets/{slug}", () => {
       } as never,
       logger: silentLogger,
     });
-    const response = await flaky.inject({ method: "GET", url: "/assets", headers: { authorization: `Bearer ${key}` } });
+    const response = await flaky.inject({
+      method: "GET",
+      url: "/tokenized_assets",
+      headers: { authorization: `Bearer ${key}` },
+    });
     await flaky.close();
     assert.ok(calls > 0);
     assert.equal(response.statusCode, 500);

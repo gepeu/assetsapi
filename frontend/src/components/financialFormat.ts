@@ -2,11 +2,11 @@ import type { FinancialScope, FinancialSeries } from "../api/assets";
 
 export type FinancialFormat = "dollar" | "price" | "percent" | "count";
 
-/** How a measure's history reads best: levels as areas, rates and prices as lines, daily flows as bars. */
+/** How a metric's history reads best: levels as areas, rates and prices as lines, daily flows as bars. */
 export type ChartForm = "area" | "line" | "bar";
 
 export interface ChartInfo {
-  measure: string;
+  metric: string;
   label: string;
   group: string;
   scope: FinancialScope;
@@ -14,10 +14,10 @@ export interface ChartInfo {
   form: ChartForm;
 }
 
-const PRICE_MEASURES: ReadonlySet<string> = new Set(["price_dollar", "net_asset_value_dollar"]);
+const PRICE_METRICS: ReadonlySet<string> = new Set(["price_dollar", "net_asset_value_dollar"]);
 
 /** Levels that aren't amounts of anything, so a chart starting from zero would flatten them. */
-const LINE_MEASURES: ReadonlySet<string> = new Set([
+const LINE_METRICS: ReadonlySet<string> = new Set([
   "net_asset_value_token",
   "hypothetical_10_000_performance",
   "rebase_multiplier",
@@ -25,26 +25,26 @@ const LINE_MEASURES: ReadonlySet<string> = new Set([
 
 const DAILY_FLOW = /^(adjusted_daily|daily|number_of_daily)_/;
 
-/** The API gives each measure a unit. Prices are dollars that need more decimals than totals do. */
-export function formatFor(measure: string, unit: string | null): FinancialFormat {
+/** The API gives each metric a unit. Prices are dollars that need more decimals than totals do. */
+export function formatFor(metric: string, unit: string | null): FinancialFormat {
   if (unit === "percent") return "percent";
-  if (unit === "dollar") return PRICE_MEASURES.has(measure) ? "price" : "dollar";
+  if (unit === "dollar") return PRICE_METRICS.has(metric) ? "price" : "dollar";
   return "count";
 }
 
-export function chartFormFor(measure: string, unit: string | null): ChartForm {
-  if (unit === "percent" || PRICE_MEASURES.has(measure) || LINE_MEASURES.has(measure)) return "line";
-  return DAILY_FLOW.test(measure) ? "bar" : "area";
+export function chartFormFor(metric: string, unit: string | null): ChartForm {
+  if (unit === "percent" || PRICE_METRICS.has(metric) || LINE_METRICS.has(metric)) return "line";
+  return DAILY_FLOW.test(metric) ? "bar" : "area";
 }
 
 export function toChartInfo(series: FinancialSeries): ChartInfo {
   return {
-    measure: series.measure,
+    metric: series.metric,
     label: series.label,
     group: series.group,
     scope: series.scope,
-    format: formatFor(series.measure, series.unit),
-    form: chartFormFor(series.measure, series.unit),
+    format: formatFor(series.metric, series.unit),
+    form: chartFormFor(series.metric, series.unit),
   };
 }
 
@@ -75,7 +75,7 @@ export function formatValue(value: number, format: FinancialFormat): string {
   return `${value < 0 ? MINUS : ""}${magnitude(Math.abs(value), format)}`;
 }
 
-/** A change in percentage points for a percent figure, otherwise a percent change. */
+/** A change in percentage points for a percent metric, otherwise a percent change. */
 export function formatChange(change: number, format: FinancialFormat): string {
   const size = Math.abs(change);
   const shown = fixed(size, size >= 1000 ? 0 : 2);

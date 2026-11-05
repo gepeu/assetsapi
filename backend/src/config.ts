@@ -124,6 +124,10 @@ export function loadSettings() {
       maxPageOffset: readWholeNumber("MAX_PAGE_OFFSET", POSTGRES_MAX_OFFSET, { max: POSTGRES_MAX_OFFSET }),
       /** The longest search text and asset class filter a request may send. */
       maxFilterLength: readWholeNumber("MAX_FILTER_LENGTH", 64),
+      /** The most metrics one request may ask history for. Each one is a full series. */
+      maxHistoryMetrics: readWholeNumber("MAX_HISTORY_METRICS", 10),
+      /** The most names any other comma-separated parameter may list. */
+      maxNamesPerParameter: readWholeNumber("MAX_NAMES_PER_PARAMETER", 100),
       /** The group shown for a measure that has none of its own. */
       otherGroupLabel: readText("OTHER_GROUP_LABEL", "Other"),
       /** How much of a new key is stored in the clear, to tell keys apart. */

@@ -1,19 +1,24 @@
 /**
- * Turns catalog rows and stored values into `/assets/{slug}/fields`. Organizations are resolved to
- * their names, so consumers never see internal IDs.
+ * Turns catalog rows and stored values into an asset's `fields`. Organizations are resolved to their
+ * names, so consumers never see internal IDs.
  */
 
-import type { FieldsResponse } from "../api/schemas/fields.ts";
+import { ApiError } from "../api/errors.ts";
+import type { FieldsSection } from "../api/schemas/fields.ts";
 import type { Coverage, FieldValue } from "../api/schemas/shared.ts";
 import type { Queryable } from "../db/pool.ts";
-import { findActiveAssetBySlug } from "../db/queries/assets.ts";
 import type { FieldStatusRow, StoredValue } from "../db/queries/fieldValues.ts";
 import { listAssetFieldStatuses, listAssetSubjectValues } from "../db/queries/fieldValues.ts";
 import { findOrganizationNames } from "../db/queries/organizations.ts";
-import { type AssetNetworkRow, listAssetNetworks } from "../db/queries/tokens.ts";
+import type { AssetNetworkRow } from "../db/queries/tokens.ts";
+import { toShortName } from "./names.ts";
 
 /** Fields that only describe the provider's own records, so they stay out of what users see. */
-const INTERNAL_FIELD_KEYS: ReadonlySet<string> = new Set(["identity.rwa_xyz_slug", "identity.logo", "issuer.logo"]);
+export const INTERNAL_FIELD_KEYS: ReadonlySet<string> = new Set([
+  "identity.rwa_xyz_slug",
+  "identity.logo",
+  "issuer.logo",
+]);
 
 type ServedValue = FieldValue["value"];
 
@@ -63,7 +68,7 @@ const countCoverage = (statuses: readonly FieldStatusRow[]): Coverage => ({
   applicable: statuses.filter((row) => row.status !== "not_applicable").length,
 });
 
-type Category = FieldsResponse["data"]["categories"][number];
+type Category = FieldsSection["categories"][number];
 
 interface CategorySources {
   valuesByField: ReadonlyMap<number, StoredValue[]>;
@@ -114,29 +119,59 @@ function toCategory(name: string, statuses: readonly FieldStatusRow[], sources: 
   return { name, coverage: countCoverage(inCategory), fields, records: toRecords(applicable, sources) };
 }
 
-/** Null when the asset is unknown or deactivated. */
-export async function getAssetFields(db: Queryable, slug: string): Promise<FieldsResponse | null> {
-  const asset = await findActiveAssetBySlug(db, slug);
-  if (!asset) return null;
+const hasValue = (field: FieldValue): boolean => field.value !== null;
 
-  const [allStatuses, values, networks] = await Promise.all([
-    listAssetFieldStatuses(db, asset.id),
-    listAssetSubjectValues(db, asset.id),
-    listAssetNetworks(db, asset.id),
+/** Coverage stays as it was, because it counts what applies to the asset rather than what's listed. */
+function withoutEmptyValues(category: Category): Category {
+  return {
+    ...category,
+    fields: category.fields.filter(hasValue),
+    records: category.records
+      .map((record) => ({ ...record, fields: record.fields.filter(hasValue) }))
+      .filter((record) => record.fields.length > 0),
+  };
+}
+
+interface FieldOptions {
+  /** Short category names. Undefined means every category. */
+  categories: readonly string[] | undefined;
+  /** False drops listed fields that have no value. */
+  empty: boolean;
+}
+
+export async function loadFields(
+  db: Queryable,
+  assetId: number,
+  networks: readonly AssetNetworkRow[],
+  options: FieldOptions,
+): Promise<FieldsSection> {
+  const [allStatuses, values] = await Promise.all([
+    listAssetFieldStatuses(db, assetId),
+    listAssetSubjectValues(db, assetId),
   ]);
   const organizations = await loadOrganizationLookup(db, values);
 
-  // Token fields live on /tokens. Coverage counts exactly the fields this response can show.
+  // Token fields live on `tokens`. Coverage counts exactly the fields this section can show.
   const statuses = allStatuses.filter((row) => row.level !== "token" && !INTERNAL_FIELD_KEYS.has(row.key));
+  const names = [...new Set(statuses.map((row) => row.category))];
+
+  const known = new Set(names.map(toShortName));
+  const unknown = options.categories?.find((category) => !known.has(category));
+  if (unknown !== undefined) {
+    throw new ApiError("bad_request", `Unknown category: ${unknown}. /tokenized_assets/catalog lists them`);
+  }
 
   const valuesByField = new Map<number, StoredValue[]>();
   for (const row of values) valuesByField.set(row.field_id, [...(valuesByField.get(row.field_id) ?? []), row]);
 
   const sources = { valuesByField, networks, organizations };
-  const categories = [...new Set(statuses.map((row) => row.category))].flatMap((name) => {
-    const category = toCategory(name, statuses, sources);
-    return category ? [category] : [];
-  });
+  const categories = names
+    .filter((name) => options.categories === undefined || options.categories.includes(toShortName(name)))
+    .flatMap((name) => {
+      const category = toCategory(name, statuses, sources);
+      if (!category) return [];
+      return [options.empty ? category : withoutEmptyValues(category)];
+    });
 
-  return { data: { coverage: countCoverage(statuses), categories } };
+  return { coverage: countCoverage(statuses), categories };
 }

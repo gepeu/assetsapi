@@ -1,36 +1,33 @@
 /**
- * Turns rows into `/assets/{slug}/financials`. Holder shares are read from the Solana token, because
- * the asset-level figure adds up each token's percentage, and a share above 100% is stored but not served.
+ * Turns rows into an asset's `financials`, `terms`, `series` and `valueByNetwork`. Holder shares are
+ * read from the Solana token, because the asset-level value adds up each token's percentage.
  */
-import type { FinancialsResponse } from "../api/schemas/financials.ts";
+import type {
+  FinancialsSection,
+  SeriesSection,
+  TermsSection,
+  ValueByNetworkSection,
+} from "../api/schemas/financials.ts";
 import type { FieldValue } from "../api/schemas/shared.ts";
 import { settings } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
-import { findActiveAssetBySlug } from "../db/queries/assets.ts";
-import {
-  listServedAssetValues,
-  listServedSolanaValues,
-  listValueByNetwork,
-  type ServedValueRow,
-} from "../db/queries/financials.ts";
+import { listValueByNetwork, type ServedValueRow } from "../db/queries/financials.ts";
 import { listAvailableSeries } from "../db/queries/history.ts";
-import { chooseSeriesScope, HOLDER_SHARE_MEASURES } from "./history.ts";
+import { chooseSeriesScope, HOLDER_SHARE_METRICS, toServableShare } from "./history.ts";
+import { toShortName } from "./names.ts";
 
-const OTHER_GROUP = settings.api.otherGroupLabel;
+const groupLabelOf = (group: string | null): string => group ?? settings.api.otherGroupLabel;
 
-/** A share above 100% can't be true. */
-const toServableShare = (value: number | null): number | null => (value !== null && value > 100 ? null : value);
+type Financial = FinancialsSection[number];
 
-type Figure = FinancialsResponse["data"]["figures"][number];
-
-function toFigure(row: ServedValueRow, scope: Figure["scope"]): Figure | null {
+function toFinancial(row: ServedValueRow, scope: Financial["scope"]): Financial | null {
   const isShare = scope === "solana";
   const value = isShare ? toServableShare(row.value) : row.value;
   if (value === null) return null;
   return {
-    measure: row.metric,
+    metric: row.metric,
     label: row.label,
-    group: row.measure_group ?? OTHER_GROUP,
+    group: groupLabelOf(row.measure_group),
     unit: row.unit,
     scope,
     value,
@@ -39,6 +36,36 @@ function toFigure(row: ServedValueRow, scope: Figure["scope"]): Figure | null {
     value90d: isShare ? toServableShare(row.value_90d) : row.value_90d,
     asOf: row.as_of,
   };
+}
+
+interface FinancialFilters {
+  /** Short group names. Undefined means every group. */
+  groups: readonly string[] | undefined;
+  /** Metric names. Undefined means every metric. */
+  metrics: readonly string[] | undefined;
+}
+
+export function toFinancials(
+  assetRows: readonly ServedValueRow[],
+  solanaRows: readonly ServedValueRow[],
+  { groups, metrics }: FinancialFilters,
+): FinancialsSection {
+  const isWanted = (row: ServedValueRow) =>
+    (groups === undefined || groups.includes(toShortName(groupLabelOf(row.measure_group)))) &&
+    (metrics === undefined || metrics.includes(row.metric));
+
+  const financials: Financial[] = [];
+  for (const row of assetRows) {
+    if (row.kind !== "figure" || HOLDER_SHARE_METRICS.includes(row.metric) || !isWanted(row)) continue;
+    const financial = toFinancial(row, "asset");
+    if (financial) financials.push(financial);
+  }
+  for (const row of solanaRows) {
+    if (!isWanted(row)) continue;
+    const financial = toFinancial(row, "solana");
+    if (financial) financials.push(financial);
+  }
+  return financials;
 }
 
 function toTerm(row: ServedValueRow): FieldValue | null {
@@ -56,7 +83,15 @@ function toTerm(row: ServedValueRow): FieldValue | null {
   return null;
 }
 
-/** The latest date across a set of values, whichever measure it's on. */
+export function toTerms(assetRows: readonly ServedValueRow[]): TermsSection {
+  return assetRows.flatMap((row) => {
+    if (row.kind !== "term") return [];
+    const term = toTerm(row);
+    return term ? [term] : [];
+  });
+}
+
+/** The latest date across a set of values, whichever metric it's on. */
 export function findLatestAsOf(rows: readonly { as_of: string }[]): string | null {
   return rows.reduce<string | null>(
     (latest, row) => (latest === null || row.as_of > latest ? row.as_of : latest),
@@ -64,55 +99,24 @@ export function findLatestAsOf(rows: readonly { as_of: string }[]): string | nul
   );
 }
 
-/** Null when the asset is unknown or deactivated. */
-export async function getAssetFinancials(db: Queryable, slug: string): Promise<FinancialsResponse | null> {
-  const asset = await findActiveAssetBySlug(db, slug);
-  if (!asset) return null;
-
-  const [assetRows, solanaRows, networkRows, seriesRows] = await Promise.all([
-    listServedAssetValues(db, asset.id),
-    listServedSolanaValues(db, asset.id, HOLDER_SHARE_MEASURES),
-    listValueByNetwork(db, asset.id),
-    listAvailableSeries(db, asset.id),
-  ]);
-
-  const figures: Figure[] = [];
-  for (const row of assetRows) {
-    if (row.kind !== "figure" || HOLDER_SHARE_MEASURES.includes(row.metric)) continue;
-    const figure = toFigure(row, "asset");
-    if (figure) figures.push(figure);
-  }
-  for (const row of solanaRows) {
-    const figure = toFigure(row, "solana");
-    if (figure) figures.push(figure);
-  }
-
-  const terms = assetRows.flatMap((row) => {
-    if (row.kind !== "term") return [];
-    const term = toTerm(row);
-    return term ? [term] : [];
+export async function loadSeries(db: Queryable, assetId: number): Promise<SeriesSection> {
+  const rows = await listAvailableSeries(db, assetId);
+  return rows.flatMap((row) => {
+    if (HOLDER_SHARE_METRICS.includes(row.slug) && !row.hasSolanaSeries) return [];
+    return [
+      {
+        metric: row.slug,
+        label: row.label,
+        group: groupLabelOf(row.group),
+        unit: row.unit,
+        scope: chooseSeriesScope(row.slug, row),
+      },
+    ];
   });
+}
 
-  const networkTotal = networkRows.reduce((sum, row) => sum + row.value, 0);
-
-  const history = seriesRows.flatMap((row) => {
-    if (HOLDER_SHARE_MEASURES.includes(row.slug) && !row.hasSolanaSeries) return [];
-    const scope = chooseSeriesScope(row.slug, row);
-    return [{ measure: row.slug, label: row.label, group: row.group ?? OTHER_GROUP, unit: row.unit, scope }];
-  });
-
-  return {
-    data: {
-      asOf: findLatestAsOf(assetRows),
-      figures,
-      terms,
-      networks: networkRows.map((row) => ({
-        key: row.key,
-        name: row.name,
-        value: row.value,
-        share: (row.value / networkTotal) * 100,
-      })),
-      history,
-    },
-  };
+export async function loadValueByNetwork(db: Queryable, assetId: number): Promise<ValueByNetworkSection> {
+  const rows = await listValueByNetwork(db, assetId);
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  return rows.map((row) => ({ key: row.key, name: row.name, value: row.value, share: (row.value / total) * 100 }));
 }

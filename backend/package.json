@@ -26,6 +26,7 @@
     "@fastify/helmet": "13.2.0",
     "@fastify/rate-limit": "11.2.1",
     "@fastify/swagger": "9.9.2",
+    "@fastify/swagger-ui": "6.1.2",
     "fastify": "5.12.7",
     "pg": "8.23.1",
     "pino": "10.4.0"
@@ -36,5 +37,9 @@
     "@types/pg": "8.23.1",
     "json-schema-to-ts": "3.1.1",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "glob": "14.0.3",
+    "minimatch": "11.0.3"
   }
 }

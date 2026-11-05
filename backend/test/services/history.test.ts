@@ -1,7 +1,7 @@
 /** Tests for history service. */
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { getAssetHistory } from "../../src/services/history.ts";
+import { getAsset } from "../../src/services/assets.ts";
 import { makeAsset, seedAssets } from "../helpers/fakeProvider.ts";
 import { createTestDb, type TestDb } from "../helpers/testDb.ts";
 
@@ -14,10 +14,14 @@ describe("history service", () => {
   });
   after(() => db.close());
 
+  async function load(metric: string, range?: "7d" | "30d" | "3m" | "1y" | "all") {
+    const response = await getAsset(db.pool, "asset-1", { history: metric, ...(range && { range }) });
+    return response?.data.history?.[0];
+  }
+
   test("returns daily points oldest first, with labels", async () => {
-    const response = await getAssetHistory(db.pool, "asset-1", "price_dollar", "all");
-    assert.deepEqual(response?.data, {
-      measure: "price_dollar",
+    assert.deepEqual(await load("price_dollar", "all"), {
+      metric: "price_dollar",
       label: "Price",
       unit: "dollar",
       scope: "asset",
@@ -37,41 +41,56 @@ describe("history service", () => {
        FROM asset a, generate_series('2024-01-01'::date, '2024-12-31'::date, '1 day') d
        WHERE a.slug = 'asset-1'`,
     );
-    const count = async (range: string) =>
-      (await getAssetHistory(db.pool, "asset-1", "apy_7_day", range))?.data.points.length;
+    const count = async (range: "7d" | "30d" | "3m" | "1y" | "all") => (await load("apy_7_day", range))?.points.length;
     assert.equal(await count("7d"), 7);
     assert.equal(await count("30d"), 30);
     assert.equal(await count("3m"), 90);
     assert.equal(await count("1y"), 365);
     assert.equal(await count("all"), 366);
-    const last = (await getAssetHistory(db.pool, "asset-1", "apy_7_day", "7d"))?.data.points.at(-1);
+    const last = (await load("apy_7_day", "7d"))?.points.at(-1);
     assert.deepEqual(last, ["2024-12-31", 1]);
   });
 
+  test("the range defaults to three months", async () => {
+    assert.equal((await load("apy_7_day"))?.points.length, 90);
+  });
+
+  test("several metrics come back in the order asked for, without repeats", async () => {
+    const response = await getAsset(db.pool, "asset-1", {
+      history: "top_holder_concentration,price_dollar,top_holder_concentration",
+      range: "all",
+    });
+    assert.deepEqual(
+      response?.data.history?.map((series) => series.metric),
+      ["top_holder_concentration", "price_dollar"],
+    );
+  });
+
   test("holder shares read the Solana series and skip impossible days", async () => {
-    const response = await getAssetHistory(db.pool, "asset-1", "top_holder_concentration", "all");
-    assert.equal(response?.data.scope, "solana");
-    assert.deepEqual(response?.data.points, [
+    const series = await load("top_holder_concentration", "all");
+    assert.equal(series?.scope, "solana");
+    assert.deepEqual(series?.points, [
       ["2026-11-02", 50],
       ["2026-11-04", 40],
     ]);
   });
 
-  test("a measure with only a Solana series reads that one", async () => {
-    const response = await getAssetHistory(db.pool, "asset-1", "holding_addresses_count", "all");
-    assert.equal(response?.data.scope, "solana");
-    assert.deepEqual(response?.data.points, [["2026-11-04", 77]]);
+  test("a metric with only a Solana series reads that one", async () => {
+    const series = await load("holding_addresses_count", "all");
+    assert.equal(series?.scope, "solana");
+    assert.deepEqual(series?.points, [["2026-11-04", 77]]);
   });
 
-  test("a valid measure with no data has empty points", async () => {
-    const response = await getAssetHistory(db.pool, "asset-1", "apy_30_day", "all");
-    assert.deepEqual(response?.data.points, []);
-    assert.equal(response?.data.scope, "asset");
+  test("a valid metric with no data has empty points", async () => {
+    const series = await load("apy_30_day", "all");
+    assert.deepEqual(series?.points, []);
+    assert.equal(series?.scope, "asset");
   });
 
-  test("an unknown or unserved measure, or an unknown asset, is null", async () => {
-    assert.equal(await getAssetHistory(db.pool, "asset-1", "made_up", "all"), null);
-    assert.equal(await getAssetHistory(db.pool, "asset-1", "raw_supply", "all"), null);
-    assert.equal(await getAssetHistory(db.pool, "nope", "price_dollar", "all"), null);
+  test("an unknown or unserved metric is a 400, and an unknown asset is null", async () => {
+    const isBadRequest = (error: { code?: string }) => error.code === "bad_request";
+    await assert.rejects(getAsset(db.pool, "asset-1", { history: "made_up" }), isBadRequest);
+    await assert.rejects(getAsset(db.pool, "asset-1", { history: "raw_supply" }), isBadRequest);
+    assert.equal(await getAsset(db.pool, "nope", { history: "price_dollar" }), null);
   });
 });

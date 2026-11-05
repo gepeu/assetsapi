@@ -55,7 +55,7 @@ describe("migrations on an empty database", () => {
     );
   });
 
-  test("seeds the catalog: 135 fields, 3 sources and 89 measures, 76 of them served", async () => {
+  test("seeds the catalog: 135 fields, 3 sources and 89 measures, 69 of them served", async () => {
     assert.equal(await scalar("SELECT count(*)::int AS value FROM field"), 135);
     assert.equal(await scalar("SELECT count(*)::int AS value FROM field WHERE key LIKE 'control.%'"), 0);
     const { rows } = await db.pool.query<{ key: string }>("SELECT key FROM source ORDER BY key");
@@ -64,7 +64,7 @@ describe("migrations on an empty database", () => {
       ["kamino", "manual", "rwa_xyz"],
     );
     assert.equal(await scalar("SELECT count(*)::int AS value FROM financial_measure"), 89);
-    assert.equal(await scalar("SELECT count(*)::int AS value FROM financial_measure WHERE served"), 76);
+    assert.equal(await scalar("SELECT count(*)::int AS value FROM financial_measure WHERE served"), 69);
   });
 
   test("the unserved measures are exactly the agreed ones", async () => {
@@ -79,7 +79,14 @@ describe("migrations on an empty database", () => {
         "bridged_token_supply_token",
         "bridged_token_value_dollar",
         "denomination_asset_id",
+        "primary_market__base_asset_ticker",
+        "primary_market__investor_types",
+        "primary_market__is_kyc_required",
         "primary_market__kyc_provider_id",
+        "primary_market__redemption_description",
+        "primary_market__redemption_frequency",
+        "primary_market__subscription_description",
+        "primary_market__subscription_frequency",
         "primary_market_non_pegged_asset",
         "primary_market_pegged_asset",
         "primary_markets",
@@ -199,7 +206,11 @@ describe("findPendingMigrations", () => {
     const client = new pg.default.Client({ connectionString: empty.url });
     await client.connect();
     try {
-      assert.deepEqual(await findPendingMigrations(client), ["001_baseline.sql", "002_catalog_seed.sql"]);
+      assert.deepEqual(await findPendingMigrations(client), [
+        "001_baseline.sql",
+        "002_catalog_seed.sql",
+        "003_stop_serving_duplicate_terms.sql",
+      ]);
     } finally {
       await client.end();
       await empty.drop();
