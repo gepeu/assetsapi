@@ -1,19 +1,17 @@
 /**
- * API key checks. Replicas cache a good key for up to a minute, so a revoked key stops within one.
+ * API key checks. Replicas cache a good key, for a minute by default, so a revoked key stops within one.
  * Failed attempts are limited per IP, and a valid key is never blocked by IP, so a neighbour behind
  * the same address can't lock anyone out.
  */
 import { createHash } from "node:crypto";
 import type { FastifyRequest, onRequestAsyncHookHandler } from "fastify";
+import { settings } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import { type ActiveKey, findActiveKey, touchKey } from "../db/queries/apiKeys.ts";
 import { ApiError } from "./errors.ts";
 
-const CACHE_TTL_MS = 60_000;
+/** The window the failed-attempts-per-minute setting counts over. */
 const FAILURE_WINDOW_MS = 60_000;
-/** Enough for a misconfigured client to be seen as one, not enough to guess a key. */
-const DEFAULT_MAX_FAILURES = 20;
-const MAX_TRACKED_IPS = 10_000;
 /** The auth scheme's name is case-insensitive under HTTP's rules, and the key isn't. */
 const BEARER_KEY_PATTERN = /^bearer (rwa_[A-Za-z0-9_-]{43})$/i;
 
@@ -49,20 +47,21 @@ interface CachedKey {
 
 export function createAuthHook({
   db,
-  maxFailures = DEFAULT_MAX_FAILURES,
+  maxFailures = settings.api.failedAuthPerMinute,
   now = Date.now,
 }: AuthOptions): onRequestAsyncHookHandler {
+  const { keyCacheMs, failedAuthTrackedIps } = settings.api;
   const cache = new Map<string, CachedKey>();
   const failures = new Map<string, { count: number; resetAt: number }>();
 
   const recordFailure = (request: FastifyRequest): void => {
     const ip = getClientIp(request);
     const time = now();
-    if (failures.size >= MAX_TRACKED_IPS) {
+    if (failures.size >= failedAuthTrackedIps) {
       for (const [tracked, entry] of failures) {
         if (entry.resetAt <= time) failures.delete(tracked);
       }
-      if (failures.size >= MAX_TRACKED_IPS) failures.clear();
+      if (failures.size >= failedAuthTrackedIps) failures.clear();
     }
     const current = failures.get(ip);
     const entry = current && current.resetAt > time ? current : { count: 0, resetAt: time + FAILURE_WINDOW_MS };
@@ -81,7 +80,7 @@ export function createAuthHook({
 
     const key = await findActiveKey(db, hash);
     if (!key) return null;
-    cache.set(hash, { key, cachedUntil: now() + CACHE_TTL_MS });
+    cache.set(hash, { key, cachedUntil: now() + keyCacheMs });
     // Once per cache refresh is enough, and a failed touch mustn't fail the request.
     void touchKey(db, key.id).catch((error: unknown) => {
       request.log.warn({ err: error }, "couldn't record key use");

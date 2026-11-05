@@ -4,15 +4,10 @@
  * errors, and messages carry only the path, never headers.
  */
 import { setTimeout as delay } from "node:timers/promises";
+import { settings } from "../config.ts";
 import { AuthOrQuotaError, ContractBrokenError, NotFoundError, TransientError } from "./errors.ts";
 
-const DEFAULT_INTERVAL_MS = 250;
-const DEFAULT_TIMEOUT_MS = 60_000;
-const DEFAULT_MAX_RETRIES = 4;
-const BASE_BACKOFF_MS = 1000;
-/** A wait longer than this isn't a burst to sit out: the quota is used up for now. */
-const DEFAULT_MAX_RATE_LIMIT_WAIT_MS = 120_000;
-
+/** Anything left out takes its value from the provider settings in config.ts. */
 export interface HttpClientOptions {
   provider: string;
   baseUrl: string;
@@ -21,6 +16,7 @@ export interface HttpClientOptions {
   timeoutMs?: number;
   maxRetries?: number;
   maxRateLimitWaitMs?: number;
+  backoffMs?: number;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<unknown>;
   now?: () => number;
@@ -45,6 +41,7 @@ export class HttpClient {
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
   private readonly maxRateLimitWaitMs: number;
+  private readonly backoffMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly sleep: (ms: number) => Promise<unknown>;
   private readonly now: () => number;
@@ -54,10 +51,12 @@ export class HttpClient {
     this.provider = options.provider;
     this.baseUrl = options.baseUrl;
     this.headers = options.headers ?? {};
-    this.requestIntervalMs = options.requestIntervalMs ?? DEFAULT_INTERVAL_MS;
-    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
-    this.maxRateLimitWaitMs = options.maxRateLimitWaitMs ?? DEFAULT_MAX_RATE_LIMIT_WAIT_MS;
+    const defaults = settings.providers;
+    this.requestIntervalMs = options.requestIntervalMs ?? defaults.requestIntervalMs;
+    this.timeoutMs = options.timeoutMs ?? defaults.timeoutMs;
+    this.maxRetries = options.maxRetries ?? defaults.maxRetries;
+    this.maxRateLimitWaitMs = options.maxRateLimitWaitMs ?? defaults.maxRateLimitWaitMs;
+    this.backoffMs = options.backoffMs ?? defaults.backoffMs;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleep = options.sleep ?? ((ms) => delay(ms));
     this.now = options.now ?? Date.now;
@@ -66,7 +65,7 @@ export class HttpClient {
   async getJson(path: string): Promise<unknown> {
     let lastError: TransientError | undefined;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      if (attempt > 0 && lastError) await this.sleep(BASE_BACKOFF_MS * 2 ** (attempt - 1));
+      if (attempt > 0 && lastError) await this.sleep(this.backoffMs * 2 ** (attempt - 1));
       await this.waitForTurn(path);
 
       let response: Response;
@@ -136,7 +135,7 @@ export class HttpClient {
       return;
     }
     if (!this.waitUntilReset(response)) {
-      this.nextRequestAt = Math.max(this.nextRequestAt, this.now() + BASE_BACKOFF_MS);
+      this.nextRequestAt = Math.max(this.nextRequestAt, this.now() + this.backoffMs);
     }
   }
 

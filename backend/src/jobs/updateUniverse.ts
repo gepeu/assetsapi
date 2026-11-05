@@ -3,6 +3,7 @@
  * Kamino mint on each run, so both halves of the rule are checked, and changes nothing unless both
  * providers answered and enough active assets would remain.
  */
+import { settings, toPercent } from "../config.ts";
 import { inTransaction } from "../db/pool.ts";
 import { deactivateAssets, listKnownAssets, reactivateAssets } from "../db/queries/assets.ts";
 import { AuthOrQuotaError, NotFoundError } from "../providers/errors.ts";
@@ -103,7 +104,8 @@ export async function runUniverseJob(deps: UniverseJobDeps): Promise<JobOutcome>
     const counts = { listed: tokens.length, resolved: resolved.length, active: plan.active, remaining: plan.remaining };
 
     if (!isSafeToApply(plan)) {
-      const error = "Fewer than 80% of active assets would remain, so nothing changed";
+      const minimum = toPercent(settings.jobs.universeMinRemainingShare);
+      const error = `Fewer than ${minimum} of active assets would remain, so nothing changed`;
       return { status: "failed", severity: "urgent", summary: { ...counts, error } };
     }
 

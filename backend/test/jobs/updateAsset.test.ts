@@ -116,6 +116,19 @@ describe("updateAsset and createNewAsset", () => {
     assert.equal(result.historyDaysWritten, 0);
   });
 
+  test("unchanged history days aren't even locked", async () => {
+    const { id, target } = await createAsset();
+    await updateAsset(context, target);
+    // A row lock leaves its transaction in xmax, which the write fingerprint can't see.
+    const { rows } = await db.pool.query<{ days: number; locked: number }>(
+      `SELECT count(*)::int AS days, (count(*) FILTER (WHERE xmax <> 0))::int AS locked
+       FROM financial_timeseries WHERE asset_id = $1`,
+      [id],
+    );
+    assert.ok((rows[0]?.days ?? 0) > 0);
+    assert.equal(rows[0]?.locked, 0);
+  });
+
   test("a value missing from one load is kept and marked, and comes back cleanly", async () => {
     const { id, target, asset } = await createAsset();
     const saved = asset.reference.fields;

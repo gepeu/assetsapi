@@ -18,6 +18,23 @@ One image, built from `backend/`, runs as three services. Each holds only the va
 - **The owner password on the API service:** the pre-deploy step runs in the API service's environment, so it has to hold `MIGRATION_DATABASE_URL`. The running API uses only `DATABASE_URL`.
 - **Staging:** run the jobs less often, to save RWA.xyz quota.
 
+## Settings
+
+Every timeout, limit, threshold and provider address is an optional variable. `backend/.env.example` lists them all with their defaults, and `backend/src/config.ts` is the only file that reads them. Set a variable only on the service that uses it, and only to change its default. A value that isn't a sensible number or address stops the process when it starts, so a typo shows up as a failed deploy.
+
+The ones most likely to change:
+
+| Variable | Service | Default | When to change it |
+|---|---|---|---|
+| `RATE_LIMIT_PER_MINUTE` | API | `600` | A caller with many visitors behind one backend API key. `6000` covers about 200 requests a second across two replicas |
+| `DB_POOL_SIZE` | API | `5` | More replicas or a lower connection limit. Replicas times this, plus 4, has to stay under the Postgres limit |
+| `PROVIDER_REQUEST_INTERVAL_MS` | Jobs | `250` | RWA.xyz starts answering `429` |
+| `JOB_MAX_FAILED_SHARE` | Update job | `0.1` | Runs stop too early or too late when assets fail |
+
+- **Each replica counts separately:** the rate limit is kept in memory, so two replicas allow about twice the number.
+- **Two that go together:** `API_STATEMENT_TIMEOUT_MS` is applied to the `rwa_api` role by `npm run setup-roles`, so set it in the shell that runs that script. `DB_QUERY_TIMEOUT_MS` on the API must stay above it, and the API won't start otherwise.
+- **Not a setting:** the job lock's number, in `src/db/lock.ts`. Every job and the migrate step must use the same one, and a service given a different one would run unprotected without any error.
+
 **Why these times:** RWA.xyz refreshes more than once a day. On the day this was checked, records were stamped 05:35 and then 15:54 UTC, and its API caches responses for up to an hour. The 07:00 run picks up the morning refresh, and a later refresh waits for the next day's run. Check the times again after a week, using `_updated_at`. More runs give fresher current values, but not finer charts, because history is stored per day.
 
 ## Check on staging
@@ -58,6 +75,19 @@ ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';  -- needs a re
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 ```
 
+## Keys on Railway
+
+There are two kinds, stored differently.
+
+| Key | Used by | Where it lives |
+|---|---|---|
+| **RWA.xyz key** | Both jobs, to call RWA.xyz | A Railway variable, `RWA_XYZ_API_KEY` |
+| **Backend API key** | Each caller of this API | Its hash in the `api_key` table. The caller keeps the key itself |
+
+**RWA.xyz key:** add it once as a shared variable in the project settings, attach it to both job services, and seal it. A sealed value still reaches the running service, but the dashboard and the CLI never show it again, so keep a copy in the password manager.
+
+**Backend API keys:** the backend holds no key variable of its own. The script below writes a key's hash to the database and prints the key once. Give it to the caller, who stores it as a sealed variable on their own server. It must never reach browser code.
+
 ## API keys
 
 Keys are created with the script, as `rwa_owner`, and shown once.
@@ -65,6 +95,15 @@ Keys are created with the script, as `rwa_owner`, and shown once.
 ```sh
 npm run create-api-key -- --client "frontend staging" --expires-days 90
 ```
+
+**On Railway:** the database has no public address, so the script can't run from a laptop. Open a shell in the API service, which already holds `MIGRATION_DATABASE_URL`, and run it there:
+
+```sh
+railway ssh --service <api service>
+node scripts/createApiKey.ts --client "frontend production" --expires-days 365
+```
+
+Check this on staging first, because it hasn't been run on Railway yet. Use one key per caller and environment. An expired key stops that caller's data, so note the expiry date when the key is created.
 
 **Rotate:** create a new key, switch the client over, then revoke the old one. A client can hold two active keys while it switches.
 

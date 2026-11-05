@@ -1,8 +1,9 @@
 /** The field catalog and `field_value`. Writes skip locked rows and leave unchanged rows untouched. */
+import { settings } from "../../config.ts";
 import type { Queryable } from "../pool.ts";
 
-/** How long a value stays after the provider stops reporting it. */
-export const MISSING_GRACE = "7 days";
+/** How long a value stays after the provider stops reporting it, as a Postgres interval. */
+export const missingGrace = (): string => `${settings.jobs.missingGraceDays} days`;
 
 interface CatalogField {
   id: number;
@@ -112,7 +113,7 @@ export async function deleteExpiredFieldValues(db: Queryable, subjects: readonly
      WHERE subject_ref = ANY($1::text[])
        AND locked_reason IS NULL
        AND missing_since < now() - $2::interval`,
-    [subjects, MISSING_GRACE],
+    [subjects, missingGrace()],
   );
   return rowCount ?? 0;
 }

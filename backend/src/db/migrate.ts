@@ -6,14 +6,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type pg from "pg";
-import { loadMigrationDatabaseUrl } from "../config.ts";
+import { loadMigrationDatabaseUrl, settings } from "../config.ts";
 import { createLogger } from "../logger.ts";
 import { type JobLock, tryAcquireLock } from "./lock.ts";
 import type { Queryable } from "./pool.ts";
 
 const MIGRATIONS_DIR = join(import.meta.dirname, "../../db/migrations");
-const LOCK_WAIT_MS = 10 * 60 * 1000;
-const LOCK_POLL_MS = 5000;
 
 async function listMigrationFiles(): Promise<string[]> {
   return (await readdir(MIGRATIONS_DIR)).filter((file) => file.endsWith(".sql")).sort();
@@ -64,8 +62,8 @@ interface MigrateOptions {
 export async function migrate(connectionString: string, options: MigrateOptions = {}): Promise<string[]> {
   const lock = await waitForLock(
     connectionString,
-    options.lockTimeoutMs ?? LOCK_WAIT_MS,
-    options.lockPollMs ?? LOCK_POLL_MS,
+    options.lockTimeoutMs ?? settings.db.migrateLockWaitMs,
+    options.lockPollMs ?? settings.db.migrateLockPollMs,
   );
   try {
     await lock.client.query(`

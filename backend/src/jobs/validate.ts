@@ -2,6 +2,7 @@
  * Checks converted data before it's written, with no I/O. This is where value type checks live now:
  * a failure here fails that one asset, which keeps its last good data.
  */
+import { settings } from "../config.ts";
 import { ContractBrokenError } from "../providers/errors.ts";
 import { type CurrentData, type FieldInput, type HistoryData, isDay, type ReferenceData } from "../providers/types.ts";
 
@@ -144,7 +145,6 @@ export interface LargeSwing {
 }
 
 export const SWING_METRICS: readonly string[] = ["price_dollar", "net_asset_value_dollar", "total_asset_value_dollar"];
-const SWING_THRESHOLD = 0.5;
 
 /** Real values can jump, so a swing is noted in the run summary and still written. */
 export function findLargeSwings(previous: ReadonlyMap<string, number>, current: CurrentData): LargeSwing[] {
@@ -153,7 +153,7 @@ export function findLargeSwings(previous: ReadonlyMap<string, number>, current: 
     if (row.token !== null || row.value === null || !SWING_METRICS.includes(row.metric)) continue;
     const from = previous.get(row.metric);
     if (from === undefined || from === 0) continue;
-    if (Math.abs(row.value - from) / Math.abs(from) >= SWING_THRESHOLD) {
+    if (Math.abs(row.value - from) / Math.abs(from) >= settings.jobs.largeSwingShare) {
       swings.push({ metric: row.metric, from, to: row.value });
     }
   }

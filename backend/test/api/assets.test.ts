@@ -204,6 +204,21 @@ describe("GET /assets and /assets/{slug}", () => {
     assert.equal(response.json().error.code, "unavailable");
   });
 
+  test("a database connection that went quiet is a 503", async () => {
+    const key = await createTestKey(db.pool);
+    const quiet = await buildApp({
+      db: {
+        query: (sql: string, params: unknown[]) =>
+          /api_key/.test(sql) ? db.pool.query(sql, params) : Promise.reject(new Error("Query read timeout")),
+      } as never,
+      logger: silentLogger,
+    });
+    const response = await quiet.inject({ method: "GET", url: "/assets", headers: { authorization: `Bearer ${key}` } });
+    await quiet.close();
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.json().error.code, "unavailable");
+  });
+
   test("an unexpected error is a generic 500", async () => {
     const key = await createTestKey(db.pool);
     let calls = 0;

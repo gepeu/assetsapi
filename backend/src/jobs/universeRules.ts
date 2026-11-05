@@ -2,6 +2,7 @@
  * The universe rule, with no I/O: a token qualifies if its exact Solana mint is in both Kamino's
  * verified list and RWA.xyz. Tickers are never used, because they collide.
  */
+import { settings } from "../config.ts";
 
 export interface KnownAsset {
   id: number;
@@ -38,9 +39,6 @@ interface UniversePlan {
   remaining: number;
   active: number;
 }
-
-/** Below this share of active assets remaining, a run assumes the data is wrong and changes nothing. */
-const MIN_REMAINING_SHARE = 0.8;
 
 export function planUniverse(known: readonly KnownAsset[], resolved: readonly ResolvedMint[]): UniversePlan {
   const ownerByMint = new Map<string, KnownAsset>();
@@ -85,7 +83,10 @@ export function planUniverse(known: readonly KnownAsset[], resolved: readonly Re
   };
 }
 
-/** A short list usually means a bad response rather than dozens of real departures. */
+/**
+ * A short list usually means a bad response rather than dozens of real departures. Below the
+ * configured share of active assets remaining, a run changes nothing.
+ */
 export function isSafeToApply(plan: Pick<UniversePlan, "active" | "remaining">): boolean {
-  return plan.remaining >= plan.active * MIN_REMAINING_SHARE;
+  return plan.remaining >= plan.active * settings.jobs.universeMinRemainingShare;
 }

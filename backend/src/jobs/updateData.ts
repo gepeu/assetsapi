@@ -2,6 +2,7 @@
  * Entry point for `update-data`: one run over the active assets, then exit. Assets update one by one,
  * each in its own transaction, so a crash leaves finished assets updated and the next run does the rest.
  */
+import { settings, toPercent } from "../config.ts";
 import { listActiveAssets } from "../db/queries/assets.ts";
 import { AuthOrQuotaError } from "../providers/errors.ts";
 import { createRwaXyzProvider } from "../providers/rwaXyz/provider.ts";
@@ -22,15 +23,13 @@ import {
   updateAsset,
 } from "./updateAsset.ts";
 
-const MAX_CONSECUTIVE_FAILURES = 5;
-const MAX_FAILED_SHARE = 0.1;
-
 export type UpdateJobDeps = JobDeps & DataProviders;
 
 /** Why a run should stop after this many failures, or null to carry on. */
 function findFailureLimit(consecutive: number, failed: number, total: number): string | null {
-  if (consecutive >= MAX_CONSECUTIVE_FAILURES) return `${MAX_CONSECUTIVE_FAILURES} assets failed in a row`;
-  if (failed > total * MAX_FAILED_SHARE) return `More than ${MAX_FAILED_SHARE * 100}% of active assets failed`;
+  const { maxConsecutiveFailures, maxFailedShare } = settings.jobs;
+  if (consecutive >= maxConsecutiveFailures) return `${maxConsecutiveFailures} assets failed in a row`;
+  if (failed > total * maxFailedShare) return `More than ${toPercent(maxFailedShare)} of active assets failed`;
   return null;
 }
 

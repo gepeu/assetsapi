@@ -4,9 +4,7 @@
  * tables and default privileges would give rwa_job the api_key table.
  */
 import pg from "pg";
-import { loadAdminDatabaseUrl, loadRolePasswords, type RolePasswords } from "../src/config.ts";
-
-const API_STATEMENT_TIMEOUT = "5s";
+import { loadAdminDatabaseUrl, loadRolePasswords, type RolePasswords, settings } from "../src/config.ts";
 
 async function ensureRole(client: pg.Client, role: string, password: string): Promise<void> {
   const { rows } = await client.query<{ exists: boolean }>(
@@ -26,7 +24,8 @@ export async function setupRoles(connectionString: string, passwords: RolePasswo
     await ensureRole(client, "rwa_api", passwords.api);
 
     // Only the API has a statement timeout, because jobs and migrations run longer statements.
-    await client.query(`ALTER ROLE rwa_api SET statement_timeout = '${API_STATEMENT_TIMEOUT}'`);
+    // A whole number checked in config.ts. ALTER ROLE takes no parameters.
+    await client.query(`ALTER ROLE rwa_api SET statement_timeout = '${settings.db.apiStatementTimeoutMs}ms'`);
 
     const { rows } = await client.query<{ name: string }>("SELECT current_database() AS name");
     const database = pg.escapeIdentifier(rows[0]?.name ?? "");

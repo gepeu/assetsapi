@@ -5,14 +5,10 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadApiConfig } from "../config.ts";
+import { loadApiConfig, settings } from "../config.ts";
 import { checkConnection, createPool } from "../db/pool.ts";
 import { createLogger } from "../logger.ts";
 import { buildApp } from "./app.ts";
-
-const POOL_SIZE = 5;
-const POOL_WAIT_MS = 2000;
-const SHUTDOWN_TIMEOUT_MS = 20_000;
 
 const logger = createLogger();
 
@@ -28,8 +24,9 @@ process.on("unhandledRejection", (reason) => {
 const config = loadApiConfig();
 const pool = createPool({
   connectionString: config.databaseUrl,
-  max: POOL_SIZE,
-  connectionTimeoutMs: POOL_WAIT_MS,
+  max: settings.api.poolSize,
+  connectionTimeoutMs: settings.api.poolWaitMs,
+  queryTimeoutMs: settings.api.queryTimeoutMs,
   logger,
 });
 await checkConnection(pool);
@@ -41,6 +38,8 @@ const uiDir = existsSync(join(builtUi, "index.html")) ? builtUi : undefined;
 if (config.authDisabled) logger.warn("API_AUTH_DISABLED is set: the data routes need no key");
 if (uiDir) logger.info({ uiDir }, "serving the frontend at /ui");
 
+logger.info({ settings: settings.api }, "API settings");
+
 const app = await buildApp({ db: pool, logger, authDisabled: config.authDisabled, uiDir });
 
 let shuttingDown = false;
@@ -51,7 +50,7 @@ async function shutDown(signal: NodeJS.Signals): Promise<void> {
   const forced = setTimeout(() => {
     logger.warn("in-flight requests outlasted the shutdown timeout");
     process.exit(1);
-  }, SHUTDOWN_TIMEOUT_MS);
+  }, settings.api.shutdownTimeoutMs);
   forced.unref();
   await app.close();
   await pool.end();

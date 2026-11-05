@@ -6,6 +6,7 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, LogController } from "fastify";
+import { settings } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import { createAuthHook, getClientIp } from "./auth.ts";
 import { registerErrorHandling } from "./errors.ts";
@@ -13,9 +14,8 @@ import { registerAssetRoutes } from "./routes/assets.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerUiRoutes } from "./routes/ui.ts";
 
-const REQUEST_TIMEOUT_MS = 30_000;
+/** The window the per-minute settings count over. */
 const RATE_LIMIT_WINDOW = "1 minute";
-const DEFAULT_RATE_LIMIT = 600;
 
 interface AppOptions {
   db: Queryable;
@@ -39,8 +39,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     requestIdHeader: false,
     genReqId: () => randomUUID(),
     // One covers receiving the request and the other handling it, so neither can run on unbounded.
-    requestTimeout: REQUEST_TIMEOUT_MS,
-    handlerTimeout: REQUEST_TIMEOUT_MS,
+    requestTimeout: settings.api.requestTimeoutMs,
+    handlerTimeout: settings.api.requestTimeoutMs,
     exposeHeadRoutes: false,
     ajv: {
       customOptions: {
@@ -89,7 +89,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(etag, { algorithm: "sha256", weak: true });
   await app.register(compress);
   await app.register(rateLimit, {
-    max: options.rateLimitMax ?? DEFAULT_RATE_LIMIT,
+    max: options.rateLimitMax ?? settings.api.rateLimitPerMinute,
     timeWindow: RATE_LIMIT_WINDOW,
     // After authentication, so the limit is per key. Each replica counts separately.
     hook: "preValidation",

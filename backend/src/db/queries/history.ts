@@ -1,8 +1,7 @@
 /** Daily history: writing changed days, and reading series for the API. */
+import { settings } from "../../config.ts";
 import type { Queryable } from "../pool.ts";
 import type { MeasureInfo } from "./financials.ts";
-
-const HISTORY_BATCH_SIZE = 5000;
 
 /** The one token that Solana-scoped reads use, so every endpoint agrees on it. Expects the asset ID as $1. */
 const SERVED_SOLANA_TOKEN = `(
@@ -19,7 +18,11 @@ export interface HistoryWrite {
   points: readonly (readonly [string, number])[];
 }
 
-/** Writes only new or changed days, which stops each run rewriting the whole table. Returns days written. */
+/**
+ * Writes only new or changed days. Unchanged days are filtered out before the insert, because a WHERE
+ * on the conflict update would still lock each one, and a run reads every day of every series.
+ * Returns days written.
+ */
 export async function upsertHistory(
   db: Queryable,
   assetId: number,
@@ -28,14 +31,19 @@ export async function upsertHistory(
 ): Promise<number> {
   let written = 0;
   for (const { tokenId, measure, points } of series) {
-    for (let start = 0; start < points.length; start += HISTORY_BATCH_SIZE) {
-      const batch = points.slice(start, start + HISTORY_BATCH_SIZE);
+    // Spelled out for each case, because the index can't serve IS NOT DISTINCT FROM.
+    const sameToken = tokenId === null ? "e.token_id IS NULL" : "e.token_id = $2";
+    for (let start = 0; start < points.length; start += settings.jobs.historyBatchSize) {
+      const batch = points.slice(start, start + settings.jobs.historyBatchSize);
       const { rowCount } = await db.query(
         `INSERT INTO financial_timeseries (asset_id, token_id, measure, day, value, ingestion_run_id)
-         SELECT $1, $2, $3, p.day, p.value, $4 FROM unnest($5::date[], $6::float8[]) AS p(day, value)
+         SELECT $1::int, $2::int, $3::text, p.day, p.value, $4::bigint
+         FROM unnest($5::date[], $6::float8[]) AS p(day, value)
+         LEFT JOIN financial_timeseries e
+           ON e.asset_id = $1 AND ${sameToken} AND e.measure = $3 AND e.day = p.day
+         WHERE e.value IS DISTINCT FROM p.value
          ON CONFLICT (asset_id, token_id, measure, day) DO UPDATE
-           SET value = EXCLUDED.value, ingestion_run_id = EXCLUDED.ingestion_run_id
-           WHERE financial_timeseries.value IS DISTINCT FROM EXCLUDED.value`,
+           SET value = EXCLUDED.value, ingestion_run_id = EXCLUDED.ingestion_run_id`,
         [assetId, tokenId, measure, runId, batch.map(([day]) => day), batch.map(([, value]) => value)],
       );
       written += rowCount ?? 0;

@@ -2,11 +2,9 @@
  * RWA.xyz HTTP calls and the API key. Responses start as unknown and are checked here for the shape
  * the adapter relies on, so a format change surfaces as ContractBrokenError on that asset.
  */
+import { settings } from "../../config.ts";
 import { ContractBrokenError } from "../errors.ts";
 import { HttpClient, type HttpClientOptions } from "../http.ts";
-
-const RWA_XYZ_BASE_URL = "https://api.rwa.xyz/v4";
-const PER_PAGE = 100;
 
 export type ApiRecord = Record<string, unknown>;
 
@@ -61,10 +59,11 @@ function parseSeries(record: ApiRecord): TimeseriesSeries {
 
 export class RwaXyzClient {
   private readonly http: HttpClient;
+  private readonly pageSize = settings.providers.rwaXyzPageSize;
 
   constructor({ apiKey, ...options }: RwaXyzClientOptions) {
     this.http = new HttpClient({
-      baseUrl: RWA_XYZ_BASE_URL,
+      baseUrl: settings.providers.rwaXyzBaseUrl,
       ...options,
       provider: "RWA.xyz",
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -80,14 +79,14 @@ export class RwaXyzClient {
   }
 
   async findTokensByAddress(address: string): Promise<ApiRecord[]> {
-    const path = `/tokens?address=${encodeURIComponent(address)}&per_page=${PER_PAGE}`;
+    const path = `/tokens?address=${encodeURIComponent(address)}&per_page=${this.pageSize}`;
     return parsePage(await this.http.getJson(path), "token search").results;
   }
 
   async listTokensForAsset(assetId: string): Promise<ApiRecord[]> {
     const tokens: ApiRecord[] = [];
     for (let page = 1; ; page++) {
-      const path = `/tokens?asset_id=${encodeURIComponent(assetId)}&per_page=${PER_PAGE}&page=${page}`;
+      const path = `/tokens?asset_id=${encodeURIComponent(assetId)}&per_page=${this.pageSize}&page=${page}`;
       const { results, pageCount } = parsePage(await this.http.getJson(path), "token list");
       tokens.push(...results);
       if (page >= pageCount) return tokens;
@@ -114,7 +113,7 @@ export class RwaXyzClient {
           interval: "day",
           mode: "stock",
         },
-        pagination: { page, perPage: PER_PAGE },
+        pagination: { page, perPage: this.pageSize },
       });
       const body = await this.http.getJson(`/${scope}/aggregates/timeseries?query=${encodeURIComponent(query)}`);
       const { results, pageCount } = parsePage(body, "timeseries");

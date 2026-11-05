@@ -57,7 +57,14 @@ API_AUTH_DISABLED=true HOST=127.0.0.1 npm run api
 
 Then open `http://127.0.0.1:<PORT>/ui`, where `PORT` is the one in `backend/.env`. Without
 `frontend/dist`, as in the Docker image, the service is the API alone. Keys are required unless
-`API_AUTH_DISABLED` is `true`.
+`API_AUTH_DISABLED` is `true`, and with `NODE_ENV=production`, as in the Docker image, that value
+stops the API from starting.
+
+## Settings
+
+Every timeout, limit, threshold and provider address is an optional environment variable. They're
+listed with their defaults in `backend/.env.example`, and `backend/src/config.ts` is the only file
+that reads them. A value that doesn't parse stops the process when it starts.
 
 ## Commands
 

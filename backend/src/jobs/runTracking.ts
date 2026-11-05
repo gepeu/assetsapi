@@ -3,18 +3,12 @@
  * summary and the monitor ping. Both jobs run through `runTrackedJob`, so they fail the same way.
  */
 import type pg from "pg";
-import { type JobConfig, loadJobConfig } from "../config.ts";
+import { type JobConfig, loadJobConfig, settings } from "../config.ts";
 import { type JobLock, tryAcquireLock } from "../db/lock.ts";
 import { findPendingMigrations } from "../db/migrate.ts";
 import { createPool } from "../db/pool.ts";
 import { findSourceId, finishRun, type JobName, markStaleRuns, type RunStatus, startRun } from "../db/queries/runs.ts";
 import { createLogger, type Logger } from "../logger.ts";
-
-// One connection for each asset's transaction and one for run records. The lock has its own on top.
-const JOB_POOL_SIZE = 2;
-const MONITOR_TIMEOUT_MS = 10_000;
-/** Healthchecks.io keeps the first 100 kB of a ping body. */
-const MONITOR_BODY_LIMIT = 90_000;
 
 type Severity = "none" | "normal" | "urgent";
 
@@ -63,9 +57,10 @@ function listenForStop(logger: Logger): StopSignal {
 /** A very long run summary is cut, but the body stays valid JSON and says so. */
 export function toMonitorBody(body: unknown): string {
   const text = JSON.stringify(body);
-  if (text.length <= MONITOR_BODY_LIMIT) return text;
+  const limit = settings.jobs.monitorBodyLimit;
+  if (text.length <= limit) return text;
   // Half, because escaping the quotes in the cut text can up to double its length.
-  return JSON.stringify({ truncated: true, start: text.slice(0, MONITOR_BODY_LIMIT / 2) });
+  return JSON.stringify({ truncated: true, start: text.slice(0, Math.floor(limit / 2)) });
 }
 
 /** A monitor problem is logged and never fails the job, because the data work is already done. */
@@ -78,7 +73,7 @@ async function pingMonitor(deps: JobDeps, failed: boolean, body: unknown): Promi
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: toMonitorBody(body),
-      signal: AbortSignal.timeout(MONITOR_TIMEOUT_MS),
+      signal: AbortSignal.timeout(settings.jobs.monitorTimeoutMs),
     });
     if (!response.ok) deps.logger.warn({ status: response.status }, "job monitor rejected the ping");
   } catch (error) {
@@ -127,7 +122,18 @@ export async function runTrackedJob(
       report = { status: "failed", severity: "urgent", summary: { error: toErrorMessage(error) } };
     }
 
-    await finishRun(pool, runId, report.status, report.summary);
+    try {
+      await finishRun(pool, runId, report.status, report.summary);
+    } catch (error) {
+      // The database may be what stopped this run, and the monitor still has to hear about it.
+      // The record stays "running" until the next run marks it stale.
+      logger.error({ err: error, job, runId }, "couldn't record the end of the run");
+      report = {
+        status: "failed",
+        severity: "urgent",
+        summary: { ...report.summary, recordError: toErrorMessage(error) },
+      };
+    }
     logger.info({ job, runId, status: report.status, summary: report.summary }, "run finished");
     await pingMonitor(deps, report.severity !== "none", {
       job,
@@ -156,7 +162,13 @@ export async function runJobCommand(
 ): Promise<void> {
   const logger = createLogger();
   const config = loadJobConfig();
-  const pool = createPool({ connectionString: config.databaseUrl, max: JOB_POOL_SIZE, logger });
+  const pool = createPool({
+    connectionString: config.databaseUrl,
+    max: settings.jobs.poolSize,
+    connectionTimeoutMs: settings.jobs.connectTimeoutMs,
+    queryTimeoutMs: settings.jobs.queryTimeoutMs,
+    logger,
+  });
   try {
     const deps: JobDeps = {
       connectionString: config.databaseUrl,

@@ -203,6 +203,35 @@ describe("runTrackedJob", () => {
     assert.equal(outcome.kind, "finished");
   });
 
+  test("a run whose ending can't be recorded still pings the monitor as failed", async () => {
+    const { pings, fetchImpl } = recordingMonitor();
+    const pool = {
+      query: (sql: string, params?: unknown[]) =>
+        /^UPDATE ingestion_run SET status = \$1/.test(sql)
+          ? Promise.reject(new Error("Connection terminated unexpectedly"))
+          : db.pool.query(sql, params),
+    } as never;
+    const outcome = await runTrackedJob(
+      deps({ pool, monitorUrl: "https://monitor.test/abc", fetchImpl }),
+      "update",
+      "rwa_xyz",
+      succeed,
+    );
+    assert.equal(outcome.kind, "finished");
+    if (outcome.kind !== "finished") return;
+    assert.equal(outcome.status, "failed");
+    assert.equal(toExitCode(outcome), 1);
+    assert.equal(pings[0]?.url, "https://monitor.test/abc/fail");
+    assert.match(pings[0]?.body ?? "", /"severity":"urgent"/);
+    assert.match(pings[0]?.body ?? "", /Connection terminated/);
+    // The record is left for the next run to mark stale.
+    assert.equal((await runRecord(outcome.runId))?.status, "running");
+
+    const lock = await tryAcquireLock(db.url);
+    assert.ok(lock);
+    await lock.release();
+  });
+
   test("a very long summary is cut but stays valid JSON, and a short one is untouched", () => {
     assert.equal(toMonitorBody({ a: 1 }), '{"a":1}');
     const quotes = Array.from({ length: 50_000 }, () => '"');

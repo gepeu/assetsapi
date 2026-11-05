@@ -4,17 +4,19 @@
  * gone, and the holder has to stop rather than carry on unprotected.
  */
 import pg from "pg";
+import { settings } from "../config.ts";
 
-// Any fixed number works, as long as every holder uses the same one.
+// Not a setting: every holder has to use the same number, and a service given a different one would
+// run unprotected without any error.
 const LOCK_ID = 7_315_204;
 
 // This connection sits idle for a whole run, so a silent network drop would otherwise go unnoticed
 // on both ends: the job would carry on unprotected, and the server would hold the lock for hours.
-const CLIENT_KEEPALIVE_DELAY_MS = 30_000;
+// The values are whole numbers checked in config.ts, and SET takes no parameters.
 const SERVER_KEEPALIVE_SETTINGS = `
-  SET tcp_keepalives_idle = 60;
-  SET tcp_keepalives_interval = 10;
-  SET tcp_keepalives_count = 3;
+  SET tcp_keepalives_idle = ${settings.db.lockKeepaliveIdleSeconds};
+  SET tcp_keepalives_interval = ${settings.db.lockKeepaliveIntervalSeconds};
+  SET tcp_keepalives_count = ${settings.db.lockKeepaliveCount};
 `;
 
 export interface JobLock {
@@ -29,7 +31,7 @@ export async function tryAcquireLock(connectionString: string): Promise<JobLock 
   const client = new pg.Client({
     connectionString,
     keepAlive: true,
-    keepAliveInitialDelayMillis: CLIENT_KEEPALIVE_DELAY_MS,
+    keepAliveInitialDelayMillis: settings.db.keepaliveDelayMs,
   });
   await client.connect();
 

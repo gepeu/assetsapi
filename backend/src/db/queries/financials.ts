@@ -1,6 +1,6 @@
 /** Financial measures and current values. */
 import type { Queryable } from "../pool.ts";
-import { MISSING_GRACE } from "./fieldValues.ts";
+import { missingGrace } from "./fieldValues.ts";
 
 export interface NewMeasure {
   slug: string;
@@ -105,7 +105,7 @@ export async function markMissingCurrent(
 export async function deleteExpiredCurrent(db: Queryable, assetId: number): Promise<number> {
   const { rowCount } = await db.query(
     "DELETE FROM financial_current WHERE asset_id = $1 AND missing_since < now() - $2::interval",
-    [assetId, MISSING_GRACE],
+    [assetId, missingGrace()],
   );
   return rowCount ?? 0;
 }
