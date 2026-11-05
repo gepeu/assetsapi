@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { documentDownloadUrl } from "../api/agent";
 import {
+  documentDownloadUrl,
   getAssetFinancials,
   PRIMARY_SOURCE,
   type AssetDetailView,

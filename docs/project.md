@@ -2,7 +2,7 @@
 
 An internal demo/MVP that collects data on a defined set of assets, shows it in a UI, and lets users generate and save standard reports through an AI agent chat.
 
-The asset database, document storage, RWA.xyz load, document-based chat answers and the asset list and detail views are built. Reports aren't built yet. The high-level structure is in `architecture.md`.
+The asset database, document storage, RWA.xyz load, the asset list and detail views and the backend's document-based chat answers are built. The frontend has no chat for now. Reports aren't built yet. The high-level structure is in `architecture.md`.
 
 ## Stack
 

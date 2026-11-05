@@ -128,6 +128,11 @@ async function fetchView<T>(name: string, params?: Record<string, string>): Prom
   return (await response.json()) as T;
 }
 
+/** Requires a session. The backend then redirects to a link that always downloads. */
+export function documentDownloadUrl(documentId: number): string {
+  return `/api/documents/${documentId}/download`;
+}
+
 export async function listAssets(): Promise<AssetListItem[]> {
   return (await fetchView<AssetListItem[]>("asset_list")) ?? [];
 }

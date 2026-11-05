@@ -4,8 +4,7 @@ import { LoginPage } from "../pages/LoginPage";
 
 /**
  * Shows the login page in place of the app until there's a session, so the URL
- * stays put and the user lands where they were headed. Signing out unmounts the
- * app, which also clears the chat conversation.
+ * stays put and the user lands where they were headed. Signing out unmounts the app.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);

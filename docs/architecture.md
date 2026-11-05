@@ -38,7 +38,7 @@ From the repo root, run `docker compose up -d`. Then, from `backend/`:
 
 Reports go to `.local/reports/`, and `npm run coverage` writes the coverage table. `npm test` runs the tests against throwaway databases. `npm run agent:check` runs the chat checks against the real model, which uses your model usage.
 
-The app's chat is currently mocked in `frontend/src/api/agent.ts`, so it doesn't call the backend. To use the real agent, point `sendMessage` there at `requestReply`.
+The frontend has no chat for now. The agent stays available in the backend through `POST /api/agent/messages`.
 
 Set `AGENT_BACKEND=claude` in `backend/.env` to answer chat from documents. That uses your own Claude Code login, for your own use only. Set `ANTHROPIC_API_KEY` before anyone else uses the chat or it's deployed.
 
