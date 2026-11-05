@@ -17,6 +17,7 @@
     "agent:check": "node --env-file-if-exists=.env scripts/agentCheck.ts",
     "rwa:mapping": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzMappingDoc.ts",
     "rwa:load": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzLoad.ts",
+    "rwa:financials": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzFinancialsLoad.ts",
     "test": "node --env-file-if-exists=.env --test test/*.test.ts"
   },
   "devDependencies": {

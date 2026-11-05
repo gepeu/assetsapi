@@ -1,17 +1,28 @@
 import { useMemo, useState } from "react";
 import { documentDownloadUrl } from "../api/agent";
-import type {
-  AssetDetailView,
-  AssetDocument,
-  CategoryView,
-  DataValue,
-  FactValue,
-  FieldEntry,
-  RecordsBlock,
-  SourceClaim,
+import {
+  getAssetFinancials,
+  PRIMARY_SOURCE,
+  type AssetDetailView,
+  type AssetDocument,
+  type CategoryView,
+  type DataValue,
+  type FactValue,
+  type FieldEntry,
+  type RecordsBlock,
+  type SourceClaim,
 } from "../api/assets";
+import { financialsMatch, FinancialsSection, hasFinancials } from "./FinancialsSection";
+import { SectionHeader } from "./SectionHeader";
+import { useAsync } from "./useAsync";
 
 const DOCUMENTS = "Documents";
+const FINANCIALS = "Financials";
+
+/** True when a field has more behind it than a plain value from the primary source. */
+const hasSourceDetail = (field: FieldEntry) =>
+  field.hasConflict ||
+  field.claims.some((claim) => claim.source !== PRIMARY_SOURCE || claim.citations.length > 0 || claim.overrideReason);
 
 const METHOD_LABELS: Record<string, string> = {
   api: "API",
@@ -82,6 +93,10 @@ export function AssetDataView({ view }: { view: AssetDetailView }) {
   const query = queryText.trim().toLowerCase();
 
   const available = useMemo(() => availableCategories(view), [view]);
+  const { slug } = view.asset;
+  const financials = useAsync(() => getAssetFinancials(slug), slug);
+  const financialsView = financials.status === "ready" && hasFinancials(financials.data) ? financials.data : null;
+  const financialsFailed = financials.status === "error";
 
   const categories = available
     .filter((category) => selected === null || category.name === selected)
@@ -91,11 +106,19 @@ export function AssetDataView({ view }: { view: AssetDetailView }) {
     selected === null || selected === DOCUMENTS
       ? view.documents.filter((document) => !query || document.title.toLowerCase().includes(query))
       : [];
+  const showFinancials =
+    (selected === null || selected === FINANCIALS) &&
+    (financialsFailed ? !query : financialsView !== null && (!query || financialsMatch(financialsView, query)));
 
-  const nothingAtAll = available.length === 0 && view.documents.length === 0;
-  const railItems = [...available.map((category) => category.name), ...(view.documents.length > 0 ? [DOCUMENTS] : [])];
+  const nothingAtAll = available.length === 0 && view.documents.length === 0 && !financialsView && !financialsFailed;
+  const railItems = [
+    ...(financialsView || financialsFailed ? [FINANCIALS] : []),
+    ...available.map((category) => category.name),
+    ...(view.documents.length > 0 ? [DOCUMENTS] : []),
+  ];
 
   if (nothingAtAll) {
+    if (financials.status === "loading") return null;
     return <p className="py-12 text-center text-sm text-muted-foreground">No data available for this asset yet.</p>;
   }
 
@@ -125,11 +148,17 @@ export function AssetDataView({ view }: { view: AssetDetailView }) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-10">
-        {categories.length === 0 && documents.length === 0 && (
+        {categories.length === 0 && documents.length === 0 && !showFinancials && (
           <p className="py-12 text-center text-sm text-muted-foreground">Nothing matches your search.</p>
         )}
+        {showFinancials &&
+          (financialsView ? (
+            <FinancialsSection slug={slug} view={financialsView} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Couldn't load financial data.</p>
+          ))}
         {categories.map((category) => (
-          <CategorySection key={category.name} category={category} conflictOrders={view.conflictOrders} />
+          <CategorySection key={category.name} category={category} />
         ))}
         {documents.length > 0 && <DocumentsSection documents={documents} />}
       </div>
@@ -152,37 +181,7 @@ function RailButton({ name, active, onClick }: { name: string; active: boolean; 
   );
 }
 
-function SectionHeader({
-  title,
-  collapsed,
-  onToggle,
-}: {
-  title: string;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-lg font-medium">{title}</h2>
-      <button
-        type="button"
-        aria-expanded={!collapsed}
-        onClick={onToggle}
-        className="ml-auto inline-flex h-7 cursor-pointer items-center rounded-lg border border-border px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-canvas-hover hover:text-foreground"
-      >
-        {collapsed ? "Show" : "Hide"}
-      </button>
-    </div>
-  );
-}
-
-function CategorySection({
-  category,
-  conflictOrders,
-}: {
-  category: CategoryView;
-  conflictOrders: AssetDetailView["conflictOrders"];
-}) {
+function CategorySection({ category }: { category: CategoryView }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -192,7 +191,7 @@ function CategorySection({
         <div className="flex min-w-0 flex-col gap-6">
           {category.blocks.map((block) =>
             block.kind === "fields" ? (
-              <FieldGrid key="fields" fields={block.fields} conflictOrders={conflictOrders} />
+              <FieldGrid key="fields" fields={block.fields} />
             ) : (
               <RecordsTable key={block.key} block={block} />
             ),
@@ -203,13 +202,7 @@ function CategorySection({
   );
 }
 
-function FieldGrid({
-  fields,
-  conflictOrders,
-}: {
-  fields: FieldEntry[];
-  conflictOrders: AssetDetailView["conflictOrders"];
-}) {
+function FieldGrid({ fields }: { fields: FieldEntry[] }) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   // Short values first, so long text doesn't leave holes in the grid.
   const ordered = [
@@ -222,6 +215,7 @@ function FieldGrid({
       {ordered.map((field) => {
         const open = openKey === field.key;
         const wide = open || field.valueType === "long_text";
+        const source = field.source ?? field.claims[0]?.source;
         return (
           <div
             key={field.key}
@@ -236,25 +230,27 @@ function FieldGrid({
                   </span>
                 )}
               </span>
-              <button
-                type="button"
-                aria-expanded={open}
-                aria-label={`Show sources for ${field.label}`}
-                onClick={() => setOpenKey(open ? null : field.key)}
-                className="inline-flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap text-[11px] font-medium text-muted-foreground hover:text-foreground"
-              >
-                {field.source ?? field.claims[0]?.source}
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-                  <path d={open ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
-                </svg>
-              </button>
+              {hasSourceDetail(field) && (
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-label={`Show sources for ${field.label}`}
+                  onClick={() => setOpenKey(open ? null : field.key)}
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {source === PRIMARY_SOURCE ? "Sources" : source}
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                    <path d={open ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
+                  </svg>
+                </button>
+              )}
             </div>
 
             <FactDisplay fact={field} valueType={field.valueType} />
             {field.requiresAsOf && field.status === "disclosed" && field.asOf && (
               <span className="text-[11px] leading-4 text-muted-foreground">As of {field.asOf}</span>
             )}
-            {open && <ClaimsPanel field={field} conflictOrder={conflictOrders[field.conflictPolicy]} />}
+            {open && hasSourceDetail(field) && <ClaimsPanel field={field} />}
           </div>
         );
       })}
@@ -265,9 +261,10 @@ function FieldGrid({
 function FactDisplay({ fact, valueType }: { fact: FactValue; valueType: string }) {
   if (fact.status === "attributed_only") {
     const claim = fact.claims.find((c) => c.isAttributedOnly);
+    const speaker = claim && claim.source !== PRIMARY_SOURCE ? claim.source : "A source";
     return (
       <span className="text-sm leading-5">
-        <span className="text-muted-foreground">{claim?.source ?? "A source"} says</span> “{displayText(claim?.value ?? null)}”
+        <span className="text-muted-foreground">{speaker} says</span> “{displayText(claim?.value ?? null)}”
       </span>
     );
   }
@@ -320,10 +317,9 @@ function TypedValue({ value, valueType }: { value: DataValue; valueType: string 
   return <span className="text-sm leading-5 [overflow-wrap:anywhere]">{text}</span>;
 }
 
-function ClaimsPanel({ field, conflictOrder }: { field: FieldEntry; conflictOrder: string[] }) {
+function ClaimsPanel({ field }: { field: FieldEntry }) {
   return (
     <div className="mt-2 flex flex-col gap-3 rounded-lg bg-muted p-4">
-      <p className="text-xs leading-[18px] text-muted-foreground">Conflict order: {conflictOrder.join(", ")}.</p>
       {field.claims.map((claim, index) => (
         <ClaimRow key={index} claim={claim} />
       ))}
@@ -341,7 +337,7 @@ function ClaimRow({ claim }: { claim: SourceClaim }) {
   return (
     <div className="flex flex-col gap-1 border-t border-border pt-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-[13px] font-medium">{claim.source}</span>
+        <span className="text-[13px] font-medium">{claim.source === PRIMARY_SOURCE ? "Our data" : claim.source}</span>
         {claim.isFact && (
           <span className="rounded-md bg-foreground px-1.5 text-[11px] font-medium leading-[18px] text-primary-foreground">
             Shown
@@ -373,12 +369,13 @@ function ClaimRow({ claim }: { claim: SourceClaim }) {
 
 function RecordsTable({ block }: { block: RecordsBlock }) {
   const hasRowLabel = block.rowLabelHeader !== null;
+  const otherSources = block.sources.filter((source) => source !== PRIMARY_SOURCE);
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
         <h3 className="text-sm font-medium">{block.title}</h3>
-        {block.sources.length > 0 && (
-          <span className="text-xs text-muted-foreground">Source: {block.sources.join(", ")}</span>
+        {otherSources.length > 0 && (
+          <span className="text-xs text-muted-foreground">Source: {otherSources.join(", ")}</span>
         )}
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">

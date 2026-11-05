@@ -121,9 +121,9 @@ describe("catalog", () => {
     assert.equal(total.n, 144);
   });
 
-  it("has the 49 assets, with aliases that resolve", async () => {
+  it("has the 107 assets, with aliases that resolve", async () => {
     const total = await one<{ n: number }>(`SELECT count(*)::int AS n FROM asset`);
-    assert.equal(total.n, 49);
+    assert.equal(total.n, 107);
     const alias = await one<{ ticker: string }>(
       `SELECT a.ticker FROM asset_alias x JOIN asset a ON a.id = x.asset_id WHERE x.value = 'maple-usdc'`,
     );
@@ -172,7 +172,7 @@ describe("conflicting claims on ONyc's auditor", () => {
   it("gives one Fact, from the higher-ranked source, with the conflict visible", async () => {
     const { rows } = await factFor("provider.financial_auditor", `asset:${asset}`);
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].claim_id, String(officialClaim));
+    assert.equal(rows[0].claim_id, String(rwaClaim));
     assert.equal(rows[0].has_conflict, true);
     assert.deepEqual(rows[0].conflicting_claim_ids.map(String).sort(), [officialClaim, rwaClaim].map(String).sort());
   });
@@ -202,36 +202,36 @@ describe("conflicting claims on ONyc's auditor", () => {
   it("a manual override wins and is labelled, and clearing it restores the order", async () => {
     await pool.query(
       `INSERT INTO fact_override (claim_id, reason, created_by) VALUES ($1, 'Test override', 'test')`,
-      [rwaClaim],
+      [officialClaim],
     );
     let { rows } = await factFor("provider.financial_auditor", `asset:${asset}`);
-    assert.equal(rows[0].claim_id, String(rwaClaim));
+    assert.equal(rows[0].claim_id, String(officialClaim));
     assert.equal(rows[0].is_override, true);
     assert.equal(rows[0].has_conflict, true);
 
-    await pool.query(`UPDATE fact_override SET cleared_at = now() WHERE claim_id = $1`, [rwaClaim]);
+    await pool.query(`UPDATE fact_override SET cleared_at = now() WHERE claim_id = $1`, [officialClaim]);
     ({ rows } = await factFor("provider.financial_auditor", `asset:${asset}`));
-    assert.equal(rows[0].claim_id, String(officialClaim));
+    assert.equal(rows[0].claim_id, String(rwaClaim));
     assert.equal(rows[0].is_override, false);
   });
 
   it("withdrawing the winner switches the Fact and keeps the record", async () => {
     await pool.query(
       `UPDATE claim SET withdrawn_at = now(), withdrawn_reason = 'Former provider' WHERE id = $1`,
-      [officialClaim],
+      [rwaClaim],
     );
     const { rows } = await factFor("provider.financial_auditor", `asset:${asset}`);
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].claim_id, String(rwaClaim));
+    assert.equal(rows[0].claim_id, String(officialClaim));
     assert.equal(rows[0].has_conflict, false);
 
-    const kept = await one<{ withdrawn_reason: string }>(`SELECT withdrawn_reason FROM claim WHERE id = $1`, [officialClaim]);
+    const kept = await one<{ withdrawn_reason: string }>(`SELECT withdrawn_reason FROM claim WHERE id = $1`, [rwaClaim]);
     assert.equal(kept.withdrawn_reason, "Former provider");
   });
 
   it("rejects withdrawing the same claim twice", async () => {
     await assert.rejects(
-      pool.query(`UPDATE claim SET withdrawn_reason = 'Changed my mind' WHERE id = $1`, [officialClaim]),
+      pool.query(`UPDATE claim SET withdrawn_reason = 'Changed my mind' WHERE id = $1`, [rwaClaim]),
       /append-only/,
     );
   });
@@ -244,7 +244,7 @@ describe("AI claims", () => {
   let citation: number;
 
   before(async () => {
-    asset = await idOf("asset", "slug", "usyc");
+    asset = await idOf("asset", "slug", "dejaaa");
     aiClaim = await addClaim({
       fieldKey: "legal.domicile",
       subject: { column: "asset_id", id: asset },
@@ -253,7 +253,7 @@ describe("AI claims", () => {
       method: "ai_extraction",
     });
     document = (
-      await one<{ id: number }>(`INSERT INTO document (url, category) VALUES ('https://example.com/usyc', 'docs') RETURNING id`)
+      await one<{ id: number }>(`INSERT INTO document (url, category) VALUES ('https://example.com/dejaaa', 'docs') RETURNING id`)
     ).id;
   });
 
@@ -287,15 +287,17 @@ describe("AI claims", () => {
     assert.equal(rows[0].claim_id, String(aiClaim));
   });
 
-  it("rank below RWA.xyz unless the cited document is official, then rank as it", async () => {
-    const rwa = await addClaim({
+  it("rank as an official document when the cited one is official, which is still below RWA.xyz", async () => {
+    const subject = { column: "asset_id", id: asset } as const;
+    const chain = await addClaim({
       fieldKey: "legal.domicile",
-      subject: { column: "asset_id", id: asset },
-      sourceKey: "rwa_xyz",
-      value: "Cayman Islands",
+      subject,
+      sourceKey: "chain",
+      value: "Panama",
+      method: "chain_read",
     });
     let { rows } = await factFor("legal.domicile", `asset:${asset}`);
-    assert.equal(rows[0].claim_id, String(rwa));
+    assert.equal(rows[0].claim_id, String(chain));
     assert.equal(rows[0].has_conflict, true);
 
     await pool.query(
@@ -304,6 +306,10 @@ describe("AI claims", () => {
     );
     ({ rows } = await factFor("legal.domicile", `asset:${asset}`));
     assert.equal(rows[0].claim_id, String(aiClaim));
+
+    const rwa = await addClaim({ fieldKey: "legal.domicile", subject, sourceKey: "rwa_xyz", value: "Cayman Islands" });
+    ({ rows } = await factFor("legal.domicile", `asset:${asset}`));
+    assert.equal(rows[0].claim_id, String(rwa));
   });
 });
 
@@ -362,7 +368,7 @@ describe("tokens", () => {
 });
 
 describe("rules", () => {
-  const asset = () => idOf("asset", "slug", "ousg");
+  const asset = () => idOf("asset", "slug", "dejtrsy");
 
   it("rejects a disclosed claim with a JSON null, since a null from an API is no claim", async () => {
     await assert.rejects(
@@ -429,7 +435,7 @@ describe("rules", () => {
     assert.equal(rows[0].has_conflict, false);
   });
 
-  it("the chain beats RWA.xyz on token details, and official documents beat it elsewhere", async () => {
+  it("RWA.xyz beats the chain and official documents, even on token details", async () => {
     const network = await one<{ id: number }>(`INSERT INTO network (key, name) VALUES ('order-test', 'x') RETURNING id`);
     const token = await one<{ id: number }>(
       `INSERT INTO token (asset_id, network_id, address) VALUES ($1, $2, '0x01') RETURNING id`,
@@ -437,15 +443,15 @@ describe("rules", () => {
     );
     const subject = { column: "token_id", id: token.id } as const;
     await addClaim({ fieldKey: "token.decimals", subject, sourceKey: "official_documents", value: 9 });
-    await addClaim({ fieldKey: "token.decimals", subject, sourceKey: "rwa_xyz", value: 18 });
-    const chain = await addClaim({ fieldKey: "token.decimals", subject, sourceKey: "chain", value: 6, method: "chain_read" });
+    const rwa = await addClaim({ fieldKey: "token.decimals", subject, sourceKey: "rwa_xyz", value: 18 });
+    await addClaim({ fieldKey: "token.decimals", subject, sourceKey: "chain", value: 6, method: "chain_read" });
     const { rows } = await factFor("token.decimals", `token:${token.id}`);
-    assert.equal(rows[0].claim_id, String(chain));
+    assert.equal(rows[0].claim_id, String(rwa));
     assert.equal(rows[0].has_conflict, true);
   });
 
   it("a stated value beats an official 'not disclosed', and that is not a conflict", async () => {
-    const id = await idOf("asset", "slug", "buidl");
+    const id = await idOf("asset", "slug", "usdy");
     const subject = { column: "asset_id", id } as const;
     await addClaim({ fieldKey: "identity.cusip", subject, sourceKey: "official_documents", status: "not_disclosed" });
     const rwa = await addClaim({ fieldKey: "identity.cusip", subject, sourceKey: "rwa_xyz", value: "123456789" });
@@ -469,7 +475,7 @@ describe("rules", () => {
   });
 
   it("doesn't flag 'senior secured' or a Safe multisig as marketing", async () => {
-    const id = await idOf("asset", "slug", "acred");
+    const id = await idOf("asset", "slug", "prime");
     const subject = { column: "asset_id", id } as const;
     await addClaim({ fieldKey: "holder.holdings_security", subject, sourceKey: "rwa_xyz", value: "Senior secured notes held in a Safe" });
     assert.equal((await factFor("holder.holdings_security", `asset:${id}`)).rows.length, 1);
@@ -490,10 +496,10 @@ describe("rules", () => {
 
 describe("coverage", () => {
   it("computes per asset from the catalog, statuses and applicability", async () => {
-    const id = await idOf("asset", "slug", "near");
+    const id = await idOf("asset", "slug", "usdg");
     const subject = { column: "asset_id", id } as const;
     const applicable = await one<{ n: number }>(
-      `SELECT count(*)::int AS n FROM field WHERE 'native_crypto' = ANY (applicable_asset_types)`,
+      `SELECT count(*)::int AS n FROM field WHERE 'stablecoin' = ANY (applicable_asset_types)`,
     );
     const empty = await one<{ disclosed: number; applicable: number }>(
       `SELECT sum(disclosed)::int AS disclosed, sum(applicable)::int AS applicable FROM asset_coverage WHERE asset_id = $1`,
@@ -511,13 +517,13 @@ describe("coverage", () => {
       [id],
     );
     const identityFields = await one<{ n: number }>(
-      `SELECT count(*)::int AS n FROM field WHERE category = 'Identity' AND 'native_crypto' = ANY (applicable_asset_types)`,
+      `SELECT count(*)::int AS n FROM field WHERE category = 'Identity' AND 'stablecoin' = ANY (applicable_asset_types)`,
     );
     assert.deepEqual(row, { disclosed: 1, applicable: identityFields.n - 1, not_disclosed: 1, not_applicable: 1 });
   });
 
   it("counts a field as disclosed if any of the asset's tokens discloses it", async () => {
-    const id = await idOf("asset", "slug", "near");
+    const id = await idOf("asset", "slug", "usdg");
     const network = await one<{ id: number }>(`INSERT INTO network (key, name) VALUES ('coverage-test', 'x') RETURNING id`);
     const token = await one<{ id: number }>(
       `INSERT INTO token (asset_id, network_id, address) VALUES ($1, $2, '0x02') RETURNING id`,

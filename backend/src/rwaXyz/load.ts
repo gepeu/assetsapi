@@ -194,6 +194,11 @@ class Loader {
         );
       }
 
+      const assetClass = normalizeValue("text", record.asset_class_name);
+      if (assetClass.kind === "value") {
+        await db.query(`UPDATE asset SET asset_class = $1 WHERE id = $2`, [assetClass.value, ourAsset.id]);
+      }
+
       const issuer = record.issuer as ApiRecord | null | undefined;
       await this.applyMappings(
         db,
@@ -286,7 +291,7 @@ class Loader {
   }
 }
 
-/** Saves raw responses for audit. They hold financial data, so they're never mapped or exposed. */
+/** Saves raw responses for audit. */
 export function rawResponseKeeper(pool: pg.Pool, storage: BucketStorage, getRunId: () => string | null) {
   const pending: RawResponse[] = [];
   let kept = 0;

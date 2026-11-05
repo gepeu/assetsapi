@@ -10,7 +10,7 @@ TypeScript, Node and Postgres, with both backend and frontend in TypeScript.
 
 ## Input
 
-`token_universe.md` defines the assets we track. It hasn't been written yet.
+`token_universe.md` defines the assets we track.
 
 ## Layers
 

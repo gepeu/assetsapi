@@ -1,4 +1,7 @@
 import type pg from "pg";
+import { INTERNAL_FIELD_KEYS } from "../db/catalog/sources.ts";
+
+const INTERNAL_FIELDS = new Set<string>(INTERNAL_FIELD_KEYS);
 
 export type FieldStatus = "disclosed" | "not_disclosed" | "not_applicable" | "attributed_only" | "never_checked";
 
@@ -114,17 +117,6 @@ export interface AssetDetailView {
   /** Official documents first. */
   documents: AssetDocument[];
 }
-
-export const ASSET_CLASS_LABELS: Record<string, string> = {
-  equity: "Equity",
-  treasuries: "Treasuries",
-  private_credit: "Private credit",
-  reinsurance: "Reinsurance",
-  commodities: "Commodities",
-  cryptocurrency: "Cryptocurrency",
-  onchain_yield: "Onchain yield",
-  stablecoin: "Stablecoin",
-};
 
 /** How each repeating group is titled. A new group falls back to its key until it's added here. */
 const RECORD_TITLES: Record<string, string> = {
@@ -361,6 +353,7 @@ export async function loadAssetDetail(pool: pg.Pool, slug: string): Promise<Asse
 
     addToCoverage(category.coverage, field.status ?? "never_checked", field.has_conflict ?? false);
     addToCoverage(coverage, field.status ?? "never_checked", field.has_conflict ?? false);
+    if (INTERNAL_FIELDS.has(field.key)) continue;
 
     const group = field.record_group ?? (field.level === "token" || field.level === "network" ? field.level : null);
     if (group) {
@@ -446,7 +439,7 @@ export async function loadAssetDetail(pool: pg.Pool, slug: string): Promise<Asse
       slug: asset.slug,
       ticker: asset.ticker,
       name: asset.name,
-      assetClass: ASSET_CLASS_LABELS[asset.asset_class] ?? asset.asset_class,
+      assetClass: asset.asset_class,
       assetType: asset.asset_type,
       issuer: typeof issuer === "string" ? issuer : asset.listed_issuer,
       description: typeof description === "string" ? description : null,

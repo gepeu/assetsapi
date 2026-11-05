@@ -2,6 +2,9 @@
 // These types mirror backend/src/views/.
 import { notifySignedOut } from "./auth";
 
+/** Named once, in the page banner, rather than beside every value. Must match the backend's source name. */
+export const PRIMARY_SOURCE = "RWA.xyz";
+
 export interface AssetListItem {
   slug: string;
   ticker: string;
@@ -131,4 +134,61 @@ export async function listAssets(): Promise<AssetListItem[]> {
 
 export function getAsset(slug: string): Promise<AssetDetailView | null> {
   return fetchView<AssetDetailView>("asset_detail", { asset: slug });
+}
+
+export type FinancialFormat = "dollar" | "price" | "percent" | "count";
+
+export type FinancialRange = "7d" | "30d" | "3m" | "1y" | "all";
+
+export interface FinancialFigure {
+  key: string;
+  label: string;
+  format: FinancialFormat;
+  value: number;
+  change30d: number | null;
+}
+
+export interface FinancialTerm {
+  key: string;
+  label: string;
+  format: "percent" | "count" | "text" | "long_text";
+  value: number | string;
+}
+
+export interface FinancialNetwork {
+  key: string;
+  name: string;
+  value: number;
+  share: number;
+}
+
+export interface FinancialChart {
+  measure: string;
+  label: string;
+  group: string;
+  format: FinancialFormat;
+  form: "area" | "line" | "bar";
+  scope: "asset" | "solana";
+}
+
+export interface AssetFinancialsView {
+  asOf: string | null;
+  overview: FinancialFigure[];
+  sections: { title: string; figures: FinancialFigure[] }[];
+  terms: FinancialTerm[];
+  networks: FinancialNetwork[];
+  charts: FinancialChart[];
+}
+
+export interface FinancialHistoryView {
+  measure: string;
+  points: [string, number][];
+}
+
+export function getAssetFinancials(slug: string): Promise<AssetFinancialsView | null> {
+  return fetchView<AssetFinancialsView>("asset_financials", { asset: slug });
+}
+
+export function getFinancialHistory(slug: string, measure: string, range: FinancialRange): Promise<FinancialHistoryView | null> {
+  return fetchView<FinancialHistoryView>("asset_financial_history", { asset: slug, measure, range });
 }

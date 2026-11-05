@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { loadAssetDetail } from "./assetDetail.ts";
+import { loadAssetFinancialHistory, loadAssetFinancials } from "./assetFinancials.ts";
 import { loadAssetList } from "./assetList.ts";
 
 /**
@@ -21,5 +22,16 @@ export const VIEWS: Record<string, ViewDefinition> = {
     description:
       "One asset's Facts and their source claims across every catalog category, plus its documents. Takes ?asset=<slug>.",
     load: (pool, params) => loadAssetDetail(pool, params.get("asset") ?? ""),
+  },
+  asset_financials: {
+    description:
+      "One asset's latest financial figures, fund terms and value by network, plus the history charts it has data for. Takes ?asset=<slug>.",
+    load: (pool, params) => loadAssetFinancials(pool, params.get("asset") ?? ""),
+  },
+  asset_financial_history: {
+    description:
+      "One asset's daily history for one measure. Takes ?asset=<slug>&measure=<slug>&range=<7d|30d|3m|1y|all>, and range defaults to all.",
+    load: (pool, params) =>
+      loadAssetFinancialHistory(pool, params.get("asset") ?? "", params.get("measure") ?? "", params.get("range") ?? "all"),
   },
 };

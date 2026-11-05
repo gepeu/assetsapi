@@ -1,4 +1,5 @@
 import type pg from "pg";
+import { INTERNAL_FIELD_KEYS } from "../db/catalog/sources.ts";
 
 const MAX_PASSAGES = 8;
 const MAX_PER_DOCUMENT = 3;
@@ -136,11 +137,12 @@ export async function factsForAsset(pool: pg.Pool, asset: ScopedAsset): Promise<
     organization: string | null;
     as_of: string | null;
     has_conflict: boolean;
+    source_key: string;
     source: string;
     record_key: string;
   }>(
     `SELECT f.label, f.level, x.normalized_value, o.brand_name AS organization, x.as_of::text AS as_of,
-            x.has_conflict, s.name AS source, x.record_key
+            x.has_conflict, s.key AS source_key, s.name AS source, x.record_key
      FROM asset_subject sub
      JOIN fact x ON x.subject_ref = sub.subject_ref
      JOIN field f ON f.id = x.field_id
@@ -148,8 +150,9 @@ export async function factsForAsset(pool: pg.Pool, asset: ScopedAsset): Promise<
      LEFT JOIN organization o
        ON f.value_type = 'organization' AND o.id = (x.normalized_value ->> 'organization_id')::int
      WHERE sub.asset_id = $1 AND sub.level IN ('asset', 'organization') AND x.status = 'disclosed'
+       AND f.key <> ALL ($2::text[])
      ORDER BY f.sort_order, x.record_key`,
-    [asset.id],
+    [asset.id, INTERNAL_FIELD_KEYS],
   );
   const { rows: tokens } = await pool.query<{ network: string; address: string; issuance_type: string }>(
     `SELECT n.name AS network, t.address, t.issuance_type
@@ -162,10 +165,15 @@ export async function factsForAsset(pool: pg.Pool, asset: ScopedAsset): Promise<
   const lines = [`Facts about ${asset.ticker} (${asset.name}):`];
   for (const fact of facts) {
     const recordLabel = fact.record_key ? ` (${fact.record_key})` : "";
-    const asOf = fact.as_of ? `, as of ${fact.as_of}` : "";
+    // The primary source goes unnamed here, or the model repeats its name in chat replies.
+    const details = [
+      fact.source_key !== "rwa_xyz" && `from ${fact.source}`,
+      fact.as_of && `as of ${fact.as_of}`,
+    ].filter(Boolean);
+    const detailText = details.length > 0 ? ` (${details.join(", ")})` : "";
     const conflict = fact.has_conflict ? " [sources disagree on this]" : "";
     const value = displayValue(fact.normalized_value, fact.organization);
-    lines.push(`- ${fact.label}${recordLabel}: ${value} (from ${fact.source}${asOf})${conflict}`);
+    lines.push(`- ${fact.label}${recordLabel}: ${value}${detailText}${conflict}`);
   }
   if (tokens.length > 0) {
     lines.push(`Tokens of ${asset.ticker}:`);
@@ -174,7 +182,7 @@ export async function factsForAsset(pool: pg.Pool, asset: ScopedAsset): Promise<
   return lines.join("\n");
 }
 
-/** Which assets exist, with our classes and any issuer Fact, for questions across all assets. */
+/** Which assets exist, with their classes and any issuer Fact, for questions across all assets. */
 export async function assetCatalogText(pool: pg.Pool): Promise<string> {
   const { rows } = await pool.query<{ ticker: string; name: string; asset_class: string; issuer: string | null }>(
     `SELECT a.ticker, a.name, a.asset_class, o.brand_name AS issuer
@@ -184,7 +192,7 @@ export async function assetCatalogText(pool: pg.Pool): Promise<string> {
      LEFT JOIN organization o ON o.id = (x.normalized_value ->> 'organization_id')::int
      ORDER BY a.asset_class, a.ticker`,
   );
-  const lines = ["The assets we track (ticker | name | our asset class | issuer, where known):"];
+  const lines = ["The assets we track (ticker | name | asset class | issuer, where known):"];
   for (const row of rows) {
     lines.push(`- ${row.ticker} | ${row.name} | ${row.asset_class} | ${row.issuer ?? "unknown"}`);
   }

@@ -71,7 +71,6 @@ export async function seed(pool: pg.Pool): Promise<void> {
          ON CONFLICT (slug) DO UPDATE SET
            ticker = EXCLUDED.ticker,
            name = EXCLUDED.name,
-           asset_class = EXCLUDED.asset_class,
            asset_type = EXCLUDED.asset_type,
            listed_issuer = EXCLUDED.listed_issuer,
            review_note = EXCLUDED.review_note

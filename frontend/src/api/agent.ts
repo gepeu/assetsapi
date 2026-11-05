@@ -1,4 +1,5 @@
 // The frontend's only connection to the chat agent.
+import { mockSendMessage } from "./agentMock";
 import { notifySignedOut } from "./auth";
 
 export interface Citation {
@@ -30,7 +31,10 @@ export interface AgentReply {
   citations: Citation[];
 }
 
-export async function sendMessage(messages: ChatMessage[], context: AgentContext): Promise<AgentReply> {
+/** Mocked for now. Set this to requestReply to use the real agent again. */
+export const sendMessage = mockSendMessage;
+
+export async function requestReply(messages: ChatMessage[], context: AgentContext): Promise<AgentReply> {
   const response = await fetch("/api/agent/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

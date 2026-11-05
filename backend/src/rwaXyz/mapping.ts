@@ -1,8 +1,15 @@
 /**
  * RWA.xyz field to catalog field. This list is the only way a value reaches a Claim: any API
- * field not named here, including every financial metric, is ignored.
+ * field not named here is ignored by the claim load. Financial fields go to their own tables
+ * instead (see financials.ts).
  */
 import type { ApiRecord } from "./client.ts";
+
+const FINANCIAL_FIELD =
+  /price|net_asset|^nav|apy|yield|return|_fee|fee_|fees|supply|market_|^primary_markets$|_dollar|volume|concentration|holding_addresses|active_addresses|transactions|transfer_count|bridge|mints|burns|capacity|idle|cash_drag|principal|loan|interest|repo|collateral|issued|asset_value|minimum|m2_|sofr|overnight|performance|inflow|outflow|funded|drawndown|recovered|written_off|maturity|rebase|accounting|fair_value|hypothetical|rating|distribut|income|investable|outstanding|total_contracts|_token$|denomination/i;
+
+/** Whether a top-level field on an asset or token record is financial data. */
+export const isFinancialField = (name: string): boolean => FINANCIAL_FIELD.test(name);
 
 type Getter = (record: ApiRecord) => unknown;
 

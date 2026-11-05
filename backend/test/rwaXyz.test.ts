@@ -72,6 +72,7 @@ describe("loading a response", () => {
     slug: "onre-tokenized-reinsurance",
     ticker: "ONyc",
     name: "OnRe Tokenized Reinsurance",
+    asset_class_name: "Renamed Class",
     _updated_at: "2026-11-03T03:18:49",
     isin: null,
     website: "https://app.onre.finance",
@@ -145,6 +146,11 @@ describe("loading a response", () => {
     await migrate(pool);
     await seed(pool);
     assetId = (await pool.query<{ id: number }>(`SELECT id FROM asset WHERE slug = 'onyc'`)).rows[0].id;
+    // Every catalog asset has a known ID, so this one exercises the lookup that finds nothing.
+    await pool.query(
+      `INSERT INTO asset (slug, ticker, name, asset_class, asset_type)
+       VALUES ('near', 'NEAR', 'Near Protocol', 'cryptocurrency', 'native_crypto')`,
+    );
   });
 
   after(async () => {
@@ -167,6 +173,15 @@ describe("loading a response", () => {
     assert.deepEqual(summary.notFound.map((m) => m.ticker), ["NEAR"]);
     assert.equal(summary.matched[0].tokens, 2);
     assert.equal(summary.tokensSkipped.length, 2);
+  });
+
+  it("takes the asset class word for word, and seeding again doesn't change it", async () => {
+    const classOf = async (slug: string) =>
+      (await pool.query<{ asset_class: string }>(`SELECT asset_class FROM asset WHERE slug = $1`, [slug])).rows[0].asset_class;
+    assert.equal(await classOf("onyc"), "Renamed Class");
+    assert.equal(await classOf("near"), "cryptocurrency");
+    await seed(pool);
+    assert.equal(await classOf("onyc"), "Renamed Class");
   });
 
   it("adds no claim for a null, leaving the field never checked", async () => {

@@ -16,7 +16,9 @@ Decide which fields normally apply to an asset. A single asset can still mark a 
 | DF | defi_yield | sUSDe |
 | ST | stablecoin | AUSD, CASH, EURC, EUROP, FDUSD, PYUSD, tGBP, USD1, USDC, USDe, USDG, USDS, USDT, USX |
 
-Conflict order: **Token, per chain** and **Control and upgradeability** use chain, RWA.xyz, official documents. Everything else uses official documents, RWA.xyz, chain.
+Conflict order: RWA.xyz is always the primary source. After it, **Token, per chain** and **Control and upgradeability** use chain, official documents. Everything else uses official documents, chain.
+
+The frontend names RWA.xyz once, in the banner on every page, rather than beside each value. Fields that only describe its records (`identity.rwa_xyz_slug`, `identity.logo`, `issuer.logo`) aren't shown to users or given to the agent.
 
 ## Identity (17)
 

@@ -97,14 +97,14 @@ describe("asset views", () => {
 
   it("list every asset", async () => {
     const list = await loadAssetList(pool);
-    const buidl = list.find((asset) => asset.slug === "buidl");
-    assert.equal(list.length, 49);
-    assert.equal(buidl?.assetClass, "Treasuries");
-    assert.ok(buidl?.issuer);
+    const usdy = list.find((asset) => asset.slug === "usdy");
+    assert.equal(list.length, 107);
+    assert.equal(usdy?.assetClass, "US Treasury Debt");
+    assert.ok(usdy?.issuer);
   });
 
   it("shows every category, and a never-checked status for an asset with no data", async () => {
-    const view = await loadAssetDetail(pool, "ousg");
+    const view = await loadAssetDetail(pool, "dejtrsy");
     const names = new Set(FIELDS.map((field) => field.category));
     assert.deepEqual(new Set(view!.categories.map((c) => c.name)), names);
     assert.equal(view!.catalogFieldCount, FIELDS.length);
@@ -118,7 +118,7 @@ describe("asset views", () => {
   });
 
   it("picks the Fact by conflict order and keeps the disagreeing claim visible", async () => {
-    const id = await assetId("buidl");
+    const id = await assetId("usdy");
     await addClaim({ fieldKey: "legal.domicile", column: "asset_id", subjectId: id, sourceKey: "rwa_xyz", value: "Place B" });
     await addClaim({
       fieldKey: "legal.domicile",
@@ -128,21 +128,32 @@ describe("asset views", () => {
       value: "Place A",
     });
 
-    const field = findField(await loadAssetDetail(pool, "buidl"), "legal.domicile");
-    assert.equal(field.value, "Place A");
-    assert.equal(field.source, "Official documents");
+    const field = findField(await loadAssetDetail(pool, "usdy"), "legal.domicile");
+    assert.equal(field.value, "Place B");
+    assert.equal(field.source, "RWA.xyz");
     assert.equal(field.hasConflict, true);
     assert.deepEqual(
       field.claims.map((claim) => [claim.source, claim.value, claim.isFact]),
       [
-        ["Official documents", "Place A", true],
-        ["RWA.xyz", "Place B", false],
+        ["RWA.xyz", "Place B", true],
+        ["Official documents", "Place A", false],
       ],
     );
   });
 
+  it("leaves fields about RWA.xyz's own records out of the view", async () => {
+    const id = await assetId("usdy");
+    await addClaim({ fieldKey: "identity.rwa_xyz_slug", column: "asset_id", subjectId: id, sourceKey: "rwa_xyz", value: "usdy" });
+
+    const view = await loadAssetDetail(pool, "usdy");
+    const shown = view!.categories.flatMap((category) =>
+      category.blocks.flatMap((block) => (block.kind === "fields" ? block.fields : block.columns).map((field) => field.key)),
+    );
+    for (const key of ["identity.rwa_xyz_slug", "identity.logo", "issuer.logo"]) assert.equal(shown.includes(key), false, key);
+  });
+
   it("resolves organizations to names and shows subjective claims as attributed only", async () => {
-    const id = await assetId("usyc");
+    const id = await assetId("dejaaa");
     const { rows } = await pool.query<{ id: number }>(
       `INSERT INTO organization (slug, brand_name) VALUES ('view-test-org', 'View Test Org') RETURNING id`,
     );
@@ -161,7 +172,7 @@ describe("asset views", () => {
       value: "Trustless custody",
     });
 
-    const view = await loadAssetDetail(pool, "usyc");
+    const view = await loadAssetDetail(pool, "dejaaa");
     assert.equal(findField(view, "provider.custodian").value, "View Test Org");
     const attributed = findField(view, "holder.holdings_security");
     assert.equal(attributed.status, "attributed_only");
@@ -212,8 +223,8 @@ describe("asset views", () => {
   });
 
   it("agrees with the asset_coverage database view", async () => {
-    const id = await assetId("buidl");
-    const view = await loadAssetDetail(pool, "buidl");
+    const id = await assetId("usdy");
+    const view = await loadAssetDetail(pool, "usdy");
     const { rows } = await pool.query<{ category: string; disclosed: number; applicable: number; conflicts: number }>(
       `SELECT category, disclosed::int, applicable::int, conflicts::int FROM asset_coverage WHERE asset_id = $1`,
       [id],
@@ -228,7 +239,7 @@ describe("asset views", () => {
   });
 
   it("lists the asset's documents, official ones first, and only that asset's", async () => {
-    const id = await assetId("near");
+    const id = await assetId("usdg");
     const { rows } = await pool.query<{ id: number }>(
       `INSERT INTO document (url, title, category) VALUES
          ('https://example.com/third-party', 'A third-party page', 'website'),
@@ -242,7 +253,7 @@ describe("asset views", () => {
       [id, rows[0].id, rows[1].id, await assetId("usdc"), rows[2].id],
     );
 
-    const { documents } = (await loadAssetDetail(pool, "near"))!;
+    const { documents } = (await loadAssetDetail(pool, "usdg"))!;
     assert.deepEqual(
       documents.map((document) => [document.title, document.isOfficial, document.hasSavedCopy]),
       [

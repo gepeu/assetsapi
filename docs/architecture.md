@@ -14,7 +14,7 @@ The high-level structure of the project. `project.md` describes what we're build
 
 Layers 5, 6 and 7 all build on layer 4, so the UI, reports and chat show the same data in the same way. The API that connects the backend to the frontend is a thin layer between 4 and 5: `GET /api/views/<name>` serves any view registered in `backend/src/views/index.ts`.
 
-The first two views are `asset_list` and `asset_detail`. `asset_detail` is built from the field catalog rather than per category: single-value fields become a `fields` block and token, network or repeating fields become a `records` block. A catalog change therefore reaches the UI with no view or frontend change.
+The views are `asset_list`, `asset_detail`, `asset_financials` and `asset_financial_history`. `asset_detail` is built from the field catalog rather than per category: single-value fields become a `fields` block and token, network or repeating fields become a `records` block. A catalog change therefore reaches the UI with no view or frontend change.
 
 ## Decisions so far
 
@@ -23,6 +23,7 @@ The first two views are `asset_list` and `asset_detail`. `asset_detail` is built
 - **Updates:** the first version acquires data on demand. Scheduled updates come later.
 - **LLM account:** local development uses the developer's current Claude account, with file and shell tools turned off. Deployment will use a separate account.
 - **Facts:** `fact` is a database view over claims, so a Fact can't disagree with them, and withdrawing a claim takes effect immediately.
+- **Financial data:** prices, NAV, yields, supply, volumes, holders and fund terms sit beside claims, not in them, so they don't affect the field catalog or coverage. `financial_snapshot` holds every financial field on each asset and token record per load, and `financial_latest` shows each asset's most recent load. `financial_timeseries` holds daily history for each asset and its Solana tokens; other chains' token history isn't loaded. The `asset_financials` and `asset_financial_history` views serve these tables to the asset page; chat answers don't read them yet. Most of a view's figures cover all networks and most of its history covers only the Solana token, so each chart says which it is. The source adds up each token's holder share into the asset's, so holder shares are read from the Solana token, and any share above 100% is stored but not served.
 - **Chat answers:** they use stored documents and Facts only, with a citation for each statement. `POST /api/agent/messages` takes `{ messages, context }` and returns `{ question, answer, citations }`. `answer` is markdown with `[n]` markers, or `null` when our sources don't answer the question. The model only writes the answer's text; the backend builds the JSON around it. Each response from the document agent is saved in `agent_response`; the mock agent saves nothing, so it still runs without a database.
 
 ## Running locally
@@ -33,8 +34,11 @@ From the repo root, run `docker compose up -d`. Then, from `backend/`:
 2. `npm run documents:load`: fetches official documents. `--refresh` fetches them again.
 3. `npm run rwa:load`: loads RWA.xyz claims, using `RWA_XYZ_API_KEY` from the repo-root `.env`.
 4. `npm run documents:index`: extracts searchable text.
+5. `npm run rwa:financials`: loads financial data for assets that `rwa:load` has matched.
 
 Reports go to `.local/reports/`, and `npm run coverage` writes the coverage table. `npm test` runs the tests against throwaway databases. `npm run agent:check` runs the chat checks against the real model, which uses your model usage.
+
+The app's chat is currently mocked in `frontend/src/api/agent.ts`, so it doesn't call the backend. To use the real agent, point `sendMessage` there at `requestReply`.
 
 Set `AGENT_BACKEND=claude` in `backend/.env` to answer chat from documents. That uses your own Claude Code login, for your own use only. Set `ANTHROPIC_API_KEY` before anyone else uses the chat or it's deployed.
 

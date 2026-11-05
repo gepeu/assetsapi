@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
+import { PRIMARY_SOURCE } from "../api/assets";
 import { logout } from "../api/auth";
 import { AgentChat } from "./AgentChat";
 
@@ -68,6 +69,9 @@ export function Layout() {
           <main className="w-full px-4 pb-20 pt-8 md:px-20 md:pb-44">
             <Outlet />
           </main>
+          <footer className="sticky bottom-0 mt-auto border-t border-border bg-background px-4 py-2 text-center text-xs text-muted-foreground md:rounded-b-2xl md:px-8">
+            Data obtained from {PRIMARY_SOURCE}
+          </footer>
         </div>
       </div>
       <AgentChat open={chatOpen} onClose={closeChat} />

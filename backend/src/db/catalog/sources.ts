@@ -7,11 +7,17 @@ export const SOURCES = [
   { key: "manual_review", name: "Manual review", kind: "manual_review" },
 ] as const;
 
-/** First wins. AI claims verified against an official document rank as that document. */
+/**
+ * First wins, and RWA.xyz is always the primary source. AI claims verified against an official
+ * document rank as that document.
+ */
 export const CONFLICT_ORDER = {
-  chain_first: ["chain", "rwa_xyz", "official_documents", "ai_researcher", "manual_review"],
-  documents_first: ["official_documents", "rwa_xyz", "chain", "ai_researcher", "manual_review"],
+  chain_first: ["rwa_xyz", "chain", "official_documents", "ai_researcher", "manual_review"],
+  documents_first: ["rwa_xyz", "official_documents", "chain", "ai_researcher", "manual_review"],
 } as const;
+
+/** Fields that only describe RWA.xyz's own records, so they stay out of what users see. */
+export const INTERNAL_FIELD_KEYS = ["identity.rwa_xyz_slug", "identity.logo", "issuer.logo"] as const;
 
 /**
  * Case-insensitive Postgres patterns. A claim whose value matches stays an attributed Claim and

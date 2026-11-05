@@ -4,6 +4,12 @@ const PER_PAGE = 100;
 
 export type ApiRecord = Record<string, unknown>;
 
+export interface TimeseriesSeries {
+  measure?: { slug?: string; name?: string; unit?: string };
+  group?: { id?: number; type?: string; name?: string };
+  points?: [string, number | null][];
+}
+
 export interface RawResponse {
   path: string;
   status: number;
@@ -91,6 +97,30 @@ export class RwaXyzClient {
       `/tokens?address=${encodeURIComponent(address)}&per_page=${PER_PAGE}`,
     )) as { results?: ApiRecord[] };
     return results ?? [];
+  }
+
+  /**
+   * Daily history for every measure the filters match, one series per measure and entity. The
+   * grouping is explicit because the token endpoint otherwise groups by protocol.
+   */
+  async timeseries(
+    scope: "assets" | "tokens",
+    filters: readonly { field: string; value: number }[],
+  ): Promise<TimeseriesSeries[]> {
+    const series: TimeseriesSeries[] = [];
+    const conditions = filters.map(({ field, value }) => ({ operator: "equals", field, value: String(value) }));
+    for (let page = 1; ; page++) {
+      const query = JSON.stringify({
+        filter: { operator: "and", filters: conditions },
+        aggregate: { groupBy: scope === "assets" ? "asset" : "token", aggregateFunction: "sum", interval: "day", mode: "stock" },
+        pagination: { page, perPage: PER_PAGE },
+      });
+      const { results, pagination } = (await this.get(
+        `/${scope}/aggregates/timeseries?query=${encodeURIComponent(query)}`,
+      )) as { results?: TimeseriesSeries[]; pagination?: { pageCount?: number } };
+      series.push(...(results ?? []));
+      if (page >= (pagination?.pageCount ?? 1)) return series;
+    }
   }
 
   async listTokensForAsset(assetId: number): Promise<ApiRecord[]> {

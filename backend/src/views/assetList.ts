@@ -1,5 +1,4 @@
 import type pg from "pg";
-import { ASSET_CLASS_LABELS } from "./assetDetail.ts";
 
 export interface AssetListItem {
   slug: string;
@@ -34,6 +33,6 @@ export async function loadAssetList(pool: pg.Pool): Promise<AssetListItem[]> {
     ticker: row.ticker,
     name: row.name,
     issuer: row.issuer,
-    assetClass: ASSET_CLASS_LABELS[row.asset_class] ?? row.asset_class,
+    assetClass: row.asset_class,
   }));
 }

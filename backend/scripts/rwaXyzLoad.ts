@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { ASSETS } from "../src/db/catalog/assets.ts";
 import { createPool } from "../src/db/pool.ts";
 import { requireEnv } from "../src/env.ts";
 import { RwaXyzClient } from "../src/rwaXyz/client.ts";
@@ -23,7 +24,10 @@ try {
     apiKey: requireEnv("RWA_XYZ_API_KEY"),
     onResponse: keeper.onResponse,
   });
-  const summary = await loadRwaXyz(pool, client, runId, { rawResponsesKept: keeper.kept });
+  const summary = await loadRwaXyz(pool, client, runId, {
+    rawResponsesKept: keeper.kept,
+    onlySlugs: ASSETS.map((asset) => asset.slug),
+  });
 
   const { rows: never } = await pool.query<{ key: string; category: string }>(`
     SELECT f.key, f.category FROM field f
