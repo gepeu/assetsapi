@@ -1,7 +1,7 @@
 /** A fresh real Postgres database per test file, migrated by the same code production uses. */
 import { randomBytes } from "node:crypto";
 import pg from "pg";
-import { hashApiKey } from "../../src/api/auth.ts";
+import { hashApiKey, newApiKey } from "../../src/api/auth.ts";
 import { loadTestDatabaseUrl, settings } from "../../src/config.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { createPool } from "../../src/db/pool.ts";
@@ -62,7 +62,7 @@ export async function createTestKey(
   pool: pg.Pool,
   options: { clientName?: string; expiresAt?: Date } = {},
 ): Promise<string> {
-  const key = `rwa_${randomBytes(32).toString("base64url")}`;
+  const key = newApiKey();
   await insertKey(pool, {
     clientName: options.clientName ?? "test client",
     keyHash: hashApiKey(key),

@@ -7,7 +7,7 @@ import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, LogController } from "fastify";
-import { settings } from "../config.ts";
+import { settings, type UiLogin } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import { createAuthHook, getClientIp } from "./auth.ts";
 import { registerErrorHandling } from "./errors.ts";
@@ -25,6 +25,8 @@ interface AppOptions {
   now?: () => number;
   /** Serves the data routes with no API key, for the local frontend. Keys are required unless this is set. */
   authDisabled?: boolean;
+  /** A shared login for the frontend. It guards the frontend too, and the data routes accept it as well as keys. */
+  login?: UiLogin | null;
   /** The built frontend. Without it, the service is the API alone. */
   uiDir?: string;
 }
@@ -97,7 +99,10 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     timeWindow: settings.api.rateLimitWindowMs,
     // After authentication, so the limit is per key. Each replica counts separately.
     hook: "preValidation",
-    keyGenerator: (request) => (request.apiClient ? `key:${request.apiClient.id}` : `ip:${getClientIp(request)}`),
+    keyGenerator: (request) => {
+      const id = request.apiClient?.id ?? null;
+      return id === null ? `ip:${getClientIp(request)}` : `key:${id}`;
+    },
   });
 
   // After the rate limit, so it covers these pages too. They hold the contract and no data, so they need no key.
@@ -113,13 +118,21 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     },
   });
 
+  // One hook for both scopes, so they share the failure counts and the key cache.
+  const auth = createAuthHook({ db, login: options.login, maxFailures: options.failedAuthMax, now: options.now });
+
   registerHealthRoutes(app, db);
-  if (options.uiDir) registerUiRoutes(app, options.uiDir);
+  const { uiDir } = options;
+  if (uiDir) {
+    await app.register(async (scope) => {
+      // The pages hold no data, but asking here gets the browser's sign-in box up before the first API call.
+      if (options.login) scope.addHook("onRequest", auth);
+      registerUiRoutes(scope, uiDir);
+    });
+  }
 
   await app.register(async (scope) => {
-    if (!options.authDisabled) {
-      scope.addHook("onRequest", createAuthHook({ db, maxFailures: options.failedAuthMax, now: options.now }));
-    }
+    if (!options.authDisabled) scope.addHook("onRequest", auth);
     scope.addHook("onRequest", async (_request, reply) => {
       reply.header("cache-control", "private, no-cache");
     });

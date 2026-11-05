@@ -9,11 +9,19 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** One username and password shared by the people using the frontend. */
+export interface UiLogin {
+  username: string;
+  password: string;
+}
+
 interface ApiConfig {
   databaseUrl: string;
   port: number;
   host: string;
   authDisabled: boolean;
+  /** Null when `UI_USERNAME` and `UI_PASSWORD` are unset, and then only API keys get in. */
+  uiLogin: UiLogin | null;
 }
 
 /** Above this, a handful of replicas would use up a Postgres server's connections. */
@@ -132,11 +140,18 @@ export function loadSettings() {
       otherGroupLabel: readText("OTHER_GROUP_LABEL", "Other"),
       /** How much of a new key is stored in the clear, to tell keys apart. */
       keyPrefixLength: readWholeNumber("API_KEY_PREFIX_LENGTH", 12, { min: 4, max: 16 }),
+      /** What every key starts with, and its random part. The API refuses a key of any other shape. */
+      keyLead: readText("API_KEY_LEAD", "rwa_"),
+      keyRandomBytes: readWholeNumber("API_KEY_RANDOM_BYTES", 32, { min: 32 }),
       /** The built frontend. Without an index.html there, the service is the API alone. */
       uiDir: readPath("UI_DIR", "../../frontend/dist"),
       /** Files under this folder have a content hash in their names, so browsers may keep them. */
       uiHashedFilesPrefix: readText("UI_HASHED_FILES_PREFIX", "static/"),
       uiHashedFilesMaxAgeSeconds: readWholeNumber("UI_HASHED_FILES_MAX_AGE_SECONDS", 31_536_000, { min: 0 }),
+      /** The name of the login's protection space, which some browsers show in their sign-in box. */
+      uiLoginRealm: readText("UI_LOGIN_REALM", "RWA data"),
+      /** The login guards all the data on a public URL, so a shorter password stops the API starting. */
+      uiPasswordMinLength: readWholeNumber("UI_PASSWORD_MIN_LENGTH", 16),
       /** Where `npm run openapi` writes the contract. */
       openApiPath: readPath("OPENAPI_PATH", "../openapi.json"),
     },
@@ -147,6 +162,8 @@ export function loadSettings() {
       maxMeasureNameLength: readWholeNumber("MAX_MEASURE_NAME_LENGTH", 64),
     },
     db: {
+      /** Connections held by the key and OpenAPI scripts, which run one statement at a time. */
+      scriptPoolSize: readWholeNumber("DB_SCRIPT_POOL_SIZE", 1, { max: MAX_POOL_SIZE }),
       /**
        * The advisory lock shared by both jobs and the migrate step. Every service must use the same
        * number: one given a different number would run unprotected, without any error.
@@ -211,6 +228,17 @@ export function loadSettings() {
   if (settings.api.defaultPageSize > settings.api.maxPageSize) {
     throw new Error("DEFAULT_PAGE_SIZE can't be above MAX_PAGE_SIZE");
   }
+  // It becomes part of the pattern the API checks keys against.
+  if (!/^\w+$/.test(settings.api.keyLead)) {
+    throw new Error("API_KEY_LEAD can only hold letters, digits and underscores");
+  }
+  if (settings.api.keyLead.length >= settings.api.keyPrefixLength) {
+    throw new Error("API_KEY_LEAD must be shorter than API_KEY_PREFIX_LENGTH, or stored prefixes would all match");
+  }
+  // It goes inside a quoted string in the WWW-Authenticate header.
+  if (!/^[^"\\\r\n]+$/.test(settings.api.uiLoginRealm)) {
+    throw new Error("UI_LOGIN_REALM can't hold quotes, backslashes or line breaks");
+  }
   return settings;
 }
 
@@ -233,7 +261,23 @@ export function loadApiConfig(): ApiConfig {
     port: parsePort(process.env.PORT),
     host: process.env.HOST || "::",
     authDisabled,
+    uiLogin: loadUiLogin(),
   };
+}
+
+/** Kept out of `settings`, which the API logs at startup. */
+function loadUiLogin(): UiLogin | null {
+  const username = process.env.UI_USERNAME ?? "";
+  const password = process.env.UI_PASSWORD ?? "";
+  if (username === "" && password === "") return null;
+  if (username === "" || password === "") throw new Error("Set both UI_USERNAME and UI_PASSWORD, or neither");
+  // Basic auth splits the two at the first colon, so a username holding one could never sign in.
+  if (username.includes(":")) throw new Error("UI_USERNAME can't contain a colon");
+  const { uiPasswordMinLength } = settings.api;
+  if (password.length < uiPasswordMinLength) {
+    throw new Error(`UI_PASSWORD must be at least ${uiPasswordMinLength} characters`);
+  }
+  return { username, password };
 }
 
 export function loadJobConfig(): JobConfig {

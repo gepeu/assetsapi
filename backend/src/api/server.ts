@@ -30,15 +30,16 @@ const pool = createPool({
 });
 await checkConnection(pool);
 
-// The Docker image has no frontend, so there it's the API alone.
+// Without a built frontend, the service is the API alone.
 const uiDir = existsSync(join(settings.api.uiDir, "index.html")) ? settings.api.uiDir : undefined;
 
 if (config.authDisabled) logger.warn("API_AUTH_DISABLED is set: the data routes need no key");
 if (uiDir) logger.info({ uiDir }, "serving the frontend at /ui");
+if (config.uiLogin) logger.info("UI_USERNAME is set: the frontend asks for the login, and the data routes accept it");
 
 logger.info({ settings: settings.api }, "API settings");
 
-const app = await buildApp({ db: pool, logger, authDisabled: config.authDisabled, uiDir });
+const app = await buildApp({ db: pool, logger, authDisabled: config.authDisabled, login: config.uiLogin, uiDir });
 
 let shuttingDown = false;
 async function shutDown(signal: NodeJS.Signals): Promise<void> {

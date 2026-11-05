@@ -56,5 +56,7 @@ jobs:
         run: npm audit
       - name: Registry signatures
         run: npm audit signatures
+      # From the repository root, because the image also builds the frontend.
       - name: Docker build
+        working-directory: .
         run: docker build .

@@ -1,18 +1,9 @@
 import { useMemo, useState } from "react";
-import {
-  getAssetFinancials,
-  type AssetDetail,
-  type AssetFields,
-  type AssetToken,
-  type DataValue,
-  type FieldCategory,
-  type FieldValue,
-} from "../api/assets";
+import type { AssetDetail, AssetFields, AssetPage, AssetToken, DataValue, FieldCategory, FieldValue } from "../api/assets";
 import { formatValue } from "./financialFormat";
 import { displayText, humanize, TypedValue } from "./fieldValues";
 import { financialsMatch, FinancialsSection, hasFinancials } from "./FinancialsSection";
 import { SectionHeader } from "./SectionHeader";
-import { useAsync } from "./useAsync";
 
 const FINANCIALS = "Financials";
 const TOKENS = "Tokens";
@@ -141,30 +132,24 @@ function searchCategory(category: Category, query: string): Category {
 const hasContent = (category: Category) => category.fields.length > 0 || category.tables.length > 0;
 
 /** Renders one asset's available data. Knows value types, never specific categories. */
-export function AssetDataView({ asset, fields, tokens }: { asset: AssetDetail; fields: AssetFields; tokens: AssetToken[] }) {
+export function AssetDataView({ asset }: { asset: AssetPage }) {
   const [queryText, setQueryText] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const query = queryText.trim().toLowerCase();
 
-  const available = useMemo(() => availableCategories(asset, fields, tokens), [asset, fields, tokens]);
-  const { slug } = asset;
-  const financials = useAsync(() => getAssetFinancials(slug), slug);
-  const financialsView = financials.status === "ready" && hasFinancials(financials.data) ? financials.data : null;
-  const financialsFailed = financials.status === "error";
+  const available = useMemo(() => availableCategories(asset, asset.fields, asset.tokens), [asset]);
+  const financialsView = hasFinancials(asset) ? asset : null;
 
   const categories = available
     .filter((category) => selected === null || category.name === selected)
     .map((category) => (query ? searchCategory(category, query) : category))
     .filter(hasContent);
   const showFinancials =
-    (selected === null || selected === FINANCIALS) &&
-    (financialsFailed ? !query : financialsView !== null && (!query || financialsMatch(financialsView, query)));
+    (selected === null || selected === FINANCIALS) && financialsView !== null && (!query || financialsMatch(financialsView, query));
 
-  const nothingAtAll = available.length === 0 && !financialsView && !financialsFailed;
-  const railItems = [...(financialsView || financialsFailed ? [FINANCIALS] : []), ...available.map((category) => category.name)];
+  const railItems = [...(financialsView ? [FINANCIALS] : []), ...available.map((category) => category.name)];
 
-  if (nothingAtAll) {
-    if (financials.status === "loading") return null;
+  if (available.length === 0 && !financialsView) {
     return <p className="py-12 text-center text-sm text-muted-foreground">No data available for this asset yet.</p>;
   }
 
@@ -197,12 +182,7 @@ export function AssetDataView({ asset, fields, tokens }: { asset: AssetDetail; f
         {categories.length === 0 && !showFinancials && (
           <p className="py-12 text-center text-sm text-muted-foreground">Nothing matches your search.</p>
         )}
-        {showFinancials &&
-          (financialsView ? (
-            <FinancialsSection slug={slug} view={financialsView} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Couldn't load financial data.</p>
-          ))}
+        {showFinancials && financialsView && <FinancialsSection slug={asset.slug} view={financialsView} />}
         {categories.map((category) => (
           <CategorySection key={category.name} category={category} />
         ))}

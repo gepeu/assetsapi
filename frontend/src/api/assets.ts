@@ -105,12 +105,6 @@ export interface FinancialSeries {
   scope: FinancialScope;
 }
 
-/** The asset's core with the sections its asset page and financials area ask for. */
-export interface AssetPage extends AssetDetail {
-  fields: AssetFields;
-  tokens: AssetToken[];
-}
-
 export interface AssetFinancials extends AssetDetail {
   financials: FinancialMetric[];
   series: FinancialSeries[];
@@ -121,6 +115,14 @@ export interface AssetFinancials extends AssetDetail {
 export interface FinancialHistory {
   metric: string;
   points: [string, number][];
+}
+
+/** Everything the asset page shows, from one request. */
+export interface AssetPage extends AssetFinancials {
+  fields: AssetFields;
+  tokens: AssetToken[];
+  /** The series asked for up front, so the first chart needs no request of its own. */
+  history: FinancialHistory[];
 }
 
 const API_PATH = "/tokenized_assets";
@@ -148,12 +150,14 @@ export async function listAssets(): Promise<AssetListItem[]> {
   }
 }
 
-export function getAssetPage(slug: string): Promise<AssetPage | null> {
-  return fetchData(`${API_PATH}/${slug}?include=fields,tokens`);
-}
-
-export function getAssetFinancials(slug: string): Promise<AssetFinancials | null> {
-  return fetchData(`${API_PATH}/${slug}?include=financials,series,valueByNetwork,terms`);
+/** The whole asset page in one call, with the history of `historyMetrics` over `range`. */
+export function getAssetPage(slug: string, historyMetrics: readonly string[], range: FinancialRange): Promise<AssetPage | null> {
+  const params = new URLSearchParams({
+    include: "fields,tokens,financials,series,valueByNetwork,terms",
+    history: historyMetrics.join(","),
+    range,
+  });
+  return fetchData(`${API_PATH}/${slug}?${params}`);
 }
 
 export async function getFinancialHistory(slug: string, metric: string, range: FinancialRange): Promise<FinancialHistory | null> {

@@ -1,22 +1,35 @@
 /**
- * API key checks. Replicas cache a good key, for a minute by default, so a revoked key stops within one.
- * Failed attempts are limited per IP, and a valid key is never blocked by IP, so a neighbour behind
- * the same address can't lock anyone out.
+ * API key checks, and the optional shared login for the frontend. Replicas cache a good key, for a
+ * minute by default, so a revoked key stops within one. Failed attempts are limited per IP, and valid
+ * credentials are never blocked by IP, so a neighbour behind the same address can't lock anyone out.
+ *
+ * The login is HTTP Basic auth, so the browser asks for it and sends it with the page's API calls.
+ * There are no sessions or cookies.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyRequest, onRequestAsyncHookHandler } from "fastify";
-import { settings } from "../config.ts";
+import { settings, type UiLogin } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import { type ActiveKey, findActiveKey, touchKey } from "../db/queries/apiKeys.ts";
 import { ApiError } from "./errors.ts";
 
+const randomKeyPart = (): string => randomBytes(settings.api.keyRandomBytes).toString("base64url");
+
 /** The auth scheme's name is case-insensitive under HTTP's rules, and the key isn't. */
-const BEARER_KEY_PATTERN = /^bearer (rwa_[A-Za-z0-9_-]{43})$/i;
+const BEARER_KEY_PATTERN = new RegExp(
+  `^bearer (${settings.api.keyLead}[A-Za-z0-9_-]{${randomKeyPart().length}})$`,
+  "i",
+);
+
+const BASIC_PATTERN = /^basic ([A-Za-z0-9+/]+={0,2})$/i;
+
+export const newApiKey = (): string => `${settings.api.keyLead}${randomKeyPart()}`;
 
 export const hashApiKey = (key: string): string => createHash("sha256").update(key).digest("hex");
 
 interface ApiClient {
-  id: number;
+  /** The key's ID. Null for the login, which is rate limited per IP instead. */
+  id: number | null;
   name: string;
 }
 
@@ -34,6 +47,8 @@ export function getClientIp(request: FastifyRequest): string {
 
 interface AuthOptions {
   db: Queryable;
+  /** Accepted alongside keys when set. */
+  login?: UiLogin | null;
   maxFailures?: number;
   now?: () => number;
 }
@@ -43,12 +58,31 @@ interface CachedKey {
   cachedUntil: number;
 }
 
+/** Hashed first, so the comparison takes the same time whatever the lengths. */
+const digest = (text: string): Buffer => createHash("sha256").update(text).digest();
+
+function matchesLogin(header: string, username: Buffer, password: Buffer): boolean {
+  const encoded = BASIC_PATTERN.exec(header)?.[1];
+  if (!encoded) return false;
+  const decoded = Buffer.from(encoded, "base64").toString("utf8");
+  const colon = decoded.indexOf(":");
+  if (colon === -1) return false;
+  // Both compared every time, so the timing doesn't show whether the username was right.
+  const usernameMatches = timingSafeEqual(digest(decoded.slice(0, colon)), username);
+  const passwordMatches = timingSafeEqual(digest(decoded.slice(colon + 1)), password);
+  return usernameMatches && passwordMatches;
+}
+
 export function createAuthHook({
   db,
+  login = null,
   maxFailures = settings.api.failedAuthMax,
   now = Date.now,
 }: AuthOptions): onRequestAsyncHookHandler {
-  const { keyCacheMs, failedAuthTrackedIps, failedAuthWindowMs } = settings.api;
+  const { keyCacheMs, failedAuthTrackedIps, failedAuthWindowMs, uiLoginRealm } = settings.api;
+  const loginDigests = login && { username: digest(login.username), password: digest(login.password) };
+  // Tells the browser to ask for the login, and to send it again on the page's later API calls.
+  const challenge = `Basic realm="${uiLoginRealm}", charset="UTF-8"`;
   const cache = new Map<string, CachedKey>();
   const failures = new Map<string, { count: number; resetAt: number }>();
 
@@ -86,14 +120,22 @@ export function createAuthHook({
     return key;
   };
 
-  return async (request) => {
-    const presented = BEARER_KEY_PATTERN.exec(request.headers.authorization ?? "")?.[1];
+  return async (request, reply) => {
+    const header = request.headers.authorization ?? "";
+    const presented = BEARER_KEY_PATTERN.exec(header)?.[1];
     const key = presented ? await lookUp(hashApiKey(presented), request) : null;
     if (key) {
       request.apiClient = { id: key.id, name: key.clientName };
       return;
     }
-    recordFailure(request);
+    if (login && loginDigests && matchesLogin(header, loginDigests.username, loginDigests.password)) {
+      request.apiClient = { id: null, name: login.username };
+      return;
+    }
+    // A request with no credentials guesses nothing. Browsers send one before every login, and
+    // counting those would block a team behind one address.
+    if (header !== "") recordFailure(request);
+    if (login) reply.header("www-authenticate", challenge);
     throw new ApiError("unauthorized", "A valid API key is required");
   };
 }

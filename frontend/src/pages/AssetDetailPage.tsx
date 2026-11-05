@@ -2,11 +2,15 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getAssetPage, type AssetPage } from "../api/assets";
 import { AssetDataView } from "../components/AssetDataView";
+import { InvestorView, OVERVIEW_HISTORY, OVERVIEW_RANGE } from "../components/InvestorView";
 import { useAsync } from "../components/useAsync";
+
+/** The overview answers an investor's questions. All data lists every field the asset has. */
+const VIEWS = ["Overview", "All data"] as const;
 
 export function AssetDetailPage() {
   const { slug = "" } = useParams();
-  const state = useAsync(() => getAssetPage(slug), slug);
+  const state = useAsync(() => getAssetPage(slug, OVERVIEW_HISTORY, OVERVIEW_RANGE), slug);
 
   if (state.status === "loading") return <Status>Loading asset…</Status>;
   if (state.status === "error") return <Status>Couldn't load this asset.</Status>;
@@ -30,6 +34,8 @@ function Status({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({ asset }: { asset: AssetPage }) {
+  const [view, setView] = useState<(typeof VIEWS)[number]>("Overview");
+
   return (
     <article className="flex w-full flex-col gap-6">
       <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs">
@@ -53,7 +59,27 @@ function Detail({ asset }: { asset: AssetPage }) {
 
       <Description key={asset.slug} text={asset.description} />
 
-      <AssetDataView key={`data-${asset.slug}`} asset={asset} fields={asset.fields} tokens={asset.tokens} />
+      <div className="flex gap-1" role="group" aria-label="View">
+        {VIEWS.map((name) => (
+          <button
+            key={name}
+            type="button"
+            aria-pressed={view === name}
+            onClick={() => setView(name)}
+            className={`inline-flex h-7 cursor-pointer items-center whitespace-nowrap rounded-lg px-2.5 text-xs transition-colors hover:bg-canvas-hover ${
+              view === name ? "bg-canvas font-medium" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+
+      {view === "Overview" ? (
+        <InvestorView key={`overview-${asset.slug}`} asset={asset} />
+      ) : (
+        <AssetDataView key={`data-${asset.slug}`} asset={asset} />
+      )}
     </article>
   );
 }

@@ -1,4 +1,4 @@
-/** Tests for serving the built frontend, and for turning off the key check that it relies on. */
+/** Tests for serving the built frontend, its login, and turning off the key check locally. */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -83,6 +83,49 @@ describe("frontend", () => {
     const response = await get("/tokenized_assets");
     assert.equal(response.statusCode, 401);
     assert.equal(response.json().error.code, "unauthorized");
+  });
+});
+
+describe("frontend behind the login", () => {
+  const login = { username: "team", password: "a long shared password" };
+  const signedIn = { authorization: `Basic ${Buffer.from(`${login.username}:${login.password}`).toString("base64")}` };
+  let db: TestDb;
+  let app: FastifyInstance;
+  let uiDir: string;
+
+  const get = (url: string, headers: Record<string, string> = {}) => app.inject({ method: "GET", url, headers });
+
+  before(async () => {
+    db = await createTestDb();
+    uiDir = await mkdtemp(join(tmpdir(), "rwa-ui-"));
+    await writeFile(join(uiDir, "index.html"), "<!doctype html><title>page</title>");
+    app = await buildApp({ db: db.pool, logger: silentLogger, uiDir, login });
+  });
+  after(async () => {
+    await app.close();
+    await db.close();
+    await rm(uiDir, { recursive: true });
+  });
+
+  test("every frontend path asks for the login", async () => {
+    for (const url of ["/", "/ui", "/ui/assets", "/ui/static/app.js"]) {
+      const response = await get(url);
+      assert.equal(response.statusCode, 401, url);
+      assert.match(response.headers["www-authenticate"] as string, /^Basic realm=/, url);
+    }
+  });
+
+  test("signed in, the pages and the data load", async () => {
+    const page = await get("/ui/assets", signedIn);
+    assert.equal(page.statusCode, 200);
+    assert.equal(page.body, "<!doctype html><title>page</title>");
+    assert.equal((await get("/", signedIn)).statusCode, 302);
+    assert.equal((await get("/tokenized_assets", signedIn)).statusCode, 200);
+  });
+
+  test("the health check and the API docs stay open", async () => {
+    assert.equal((await get("/readyz")).statusCode, 200);
+    assert.equal((await get("/docs/json")).statusCode, 200);
   });
 });
 

@@ -25,7 +25,7 @@ const EXAMPLE_VALUES = new Map(
 );
 
 describe("config", () => {
-  const NAMES = ["DATABASE_URL", "NODE_ENV", "API_AUTH_DISABLED", ...SETTING_NAMES];
+  const NAMES = ["DATABASE_URL", "NODE_ENV", "API_AUTH_DISABLED", "UI_USERNAME", "UI_PASSWORD", ...SETTING_NAMES];
   let saved: Record<string, string | undefined>;
 
   beforeEach(() => {
@@ -62,6 +62,30 @@ describe("config", () => {
     assert.equal(loadApiConfig().authDisabled, false);
   });
 
+  test("the frontend login is off unless it's set", () => {
+    assert.equal(loadApiConfig().uiLogin, null);
+    process.env.UI_USERNAME = "team";
+    process.env.UI_PASSWORD = "a long: shared password";
+    assert.deepEqual(loadApiConfig().uiLogin, { username: "team", password: "a long: shared password" });
+  });
+
+  test("a half-set, short or unusable login stops the API", () => {
+    process.env.UI_USERNAME = "team";
+    assert.throws(() => loadApiConfig(), /Set both UI_USERNAME and UI_PASSWORD/);
+    process.env.UI_PASSWORD = "too short";
+    assert.throws(() => loadApiConfig(), /UI_PASSWORD must be at least/);
+    process.env.UI_USERNAME = "te:am";
+    process.env.UI_PASSWORD = "a long shared password";
+    assert.throws(() => loadApiConfig(), /UI_USERNAME can't contain a colon/);
+  });
+
+  test("the login's realm can't break out of its header", () => {
+    for (const realm of ['RWA "data"', "RWA\\data", "RWA\ndata"]) {
+      process.env.UI_LOGIN_REALM = realm;
+      assert.throws(() => loadSettings(), /UI_LOGIN_REALM/, realm);
+    }
+  });
+
   test("every setting has a default, which an empty variable keeps", () => {
     const defaults = loadSettings();
     assert.equal(defaults.api.poolSize, 5);
@@ -73,6 +97,13 @@ describe("config", () => {
     assert.equal(defaults.providers.rwaXyzBaseUrl, "https://api.rwa.xyz/v4");
     for (const name of SETTING_NAMES) process.env[name] = "";
     assert.deepEqual(loadSettings(), defaults);
+  });
+
+  test("a key's lead must be safe in the key pattern and shorter than the stored prefix", () => {
+    process.env.API_KEY_LEAD = "a.*";
+    assert.throws(() => loadSettings(), /API_KEY_LEAD can only hold/);
+    process.env.API_KEY_LEAD = "much_too_long_";
+    assert.throws(() => loadSettings(), /API_KEY_LEAD must be shorter/);
   });
 
   test(".env.example lists every setting, with the default as its value", () => {

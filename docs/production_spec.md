@@ -7,7 +7,7 @@ The service is a private, read-only API over a Postgres database that scheduled 
 | Topic | Decision |
 |---|---|
 | **Who uses it** | The frontend team, with API keys. It isn't public, and there are no outside clients for now |
-| **Access** | A normal Railway URL, with an API key required on every data request |
+| **Access** | A normal Railway URL, with an API key required on every data request. The frontend at `/ui` sits behind one shared login, which the data routes also accept |
 | **Data** | The token universe, reference fields, current financial values and daily history |
 | **Updates** | Scheduled jobs. Each update overwrites current values |
 | **Providers** | RWA.xyz for data and Kamino for the verified token list |
@@ -64,7 +64,9 @@ The frontend and backend are two apps, deployed separately. The API and both job
 ├── .github/
 │   ├── dependabot.yml                  # update PRs with a 7-day cooldown
 │   └── workflows/ci.yml
+├── .dockerignore                       # an allowlist: dumps, backups and .env files stay out
 ├── .gitignore
+├── Dockerfile                          # one image with the API, the jobs and the built frontend
 ├── README.md                           # how to run it locally
 ├── docker-compose.yml                  # local Postgres
 ├── docs/
@@ -72,10 +74,8 @@ The frontend and backend are two apps, deployed separately. The API and both job
 │   ├── production_spec.html
 │   └── production_spec.md
 └── backend/
-    ├── .dockerignore
     ├── .env.example
     ├── .npmrc                          # ignore-scripts=true, save-exact=true
-    ├── Dockerfile
     ├── openapi.json                    # generated and committed
     ├── package.json
     ├── package-lock.json

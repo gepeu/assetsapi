@@ -43,9 +43,8 @@ The same contract is committed as [backend/openapi.json](backend/openapi.json).
 
 ## Run the frontend
 
-The API serves a built frontend at `/ui`, so there's nothing else to start. The frontend has no
-sign-in yet, so this needs the data routes open: use it on your own machine only, never on a
-reachable host.
+The API serves a built frontend at `/ui`, so there's nothing else to start. Locally the simplest way
+is with the data routes open, so use this on your own machine only, never on a reachable host.
 
 ```sh
 cd frontend
@@ -57,9 +56,13 @@ API_AUTH_DISABLED=true HOST=127.0.0.1 npm run api
 ```
 
 Then open `http://127.0.0.1:<PORT>/ui`, where `PORT` is the one in `backend/.env`. Without
-`frontend/dist`, as in the Docker image, the service is the API alone. Keys are required unless
-`API_AUTH_DISABLED` is `true`, and with `NODE_ENV=production`, as in the Docker image, that value
-stops the API from starting.
+`frontend/dist`, the service is the API alone. Keys are required unless `API_AUTH_DISABLED` is
+`true`, and with `NODE_ENV=production`, as in the Docker image, that value stops the API from
+starting.
+
+**On Railway:** the Docker image builds the frontend in, and `UI_USERNAME` and `UI_PASSWORD` put it
+behind one shared login. The browser asks for it at `/ui` and sends it with the page's API calls,
+which accept it as well as API keys. To try that locally, set both instead of `API_AUTH_DISABLED`.
 
 ## Settings
 

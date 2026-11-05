@@ -5,11 +5,11 @@ How to run the service on Railway. The design and the reasons are in
 
 ## Railway services
 
-One image, built from `backend/`, runs as three services. Each holds only the variables it needs.
+One image, built by the `Dockerfile` at the repository root, runs as three services. Each holds only the variables it needs. Leave each service's root directory as the repository root, because the image builds the frontend too.
 
 | Service | Start command | Schedule | Variables |
 |---|---|---|---|
-| **API** | `node src/api/server.ts` | Always on, 2 replicas | `DATABASE_URL` as `rwa_api`, `MIGRATION_DATABASE_URL` as `rwa_owner` |
+| **API** | `node src/api/server.ts` | Always on, 2 replicas | `DATABASE_URL` as `rwa_api`, `MIGRATION_DATABASE_URL` as `rwa_owner`, `UI_USERNAME`, `UI_PASSWORD` |
 | **Universe job** | `node src/jobs/updateUniverse.ts` | `30 6 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
 | **Update job** | `node src/jobs/updateData.ts` | `0 7 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
 
@@ -114,6 +114,16 @@ Check this on staging first, because it hasn't been run on Railway yet. Use one 
 SELECT id, client_name, key_prefix, last_used_at FROM api_key WHERE revoked_at IS NULL;
 UPDATE api_key SET revoked_at = now() WHERE id = <id>;
 ```
+
+## Frontend login
+
+The API serves the frontend at `/ui`. Set `UI_USERNAME` and `UI_PASSWORD` on the API service, and the browser asks for them there. The page's API calls then send the same login, and the data routes accept it as well as API keys. Without both variables the frontend still loads, but it can't get any data.
+
+- **One login for everyone:** share it through the password manager, and seal `UI_PASSWORD` like the RWA.xyz key. The API won't start with a password under 16 characters (`UI_PASSWORD_MIN_LENGTH`) or with only one of the two set.
+- **Signing out:** there are no sessions. The browser keeps the login until it closes.
+- **Wrong passwords** count toward the same per-IP limit as bad keys. Opening the page without a login doesn't count, so a team behind one address can't block itself.
+- **Change it:** set the new password and redeploy. Everyone signs in again on their next visit.
+- **Check on staging:** open `/ui` in a private window. The browser should ask once, and the asset list should load.
 
 ## Rotate other secrets
 

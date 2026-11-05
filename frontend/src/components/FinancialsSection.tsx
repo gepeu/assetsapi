@@ -114,7 +114,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Cell({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
+export function Cell({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return (
     <div className={`flex min-w-0 flex-col gap-1 border-t border-border py-3 ${wide ? "col-span-full" : ""}`}>
       <span className="text-xs text-muted-foreground">{label}</span>

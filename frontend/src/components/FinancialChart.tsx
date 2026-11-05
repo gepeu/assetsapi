@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getFinancialHistory, type FinancialRange } from "../api/assets";
+import { getFinancialHistory, type FinancialHistory, type FinancialRange } from "../api/assets";
 import { changeBetween, dayToTime, formatChange, formatDay, formatValue, timeAxis, valueAxis, type ChartInfo } from "./financialFormat";
 import { useAsync } from "./useAsync";
 
@@ -41,19 +41,28 @@ export function FinancialChart({
   slug,
   charts,
   solanaOnlyNote,
+  initialRange = "3m",
+  preloaded = [],
 }: {
   slug: string;
   charts: ChartInfo[];
   /** Shown beside history that covers only the Solana token of an asset on other networks too. */
   solanaOnlyNote: string | null;
+  initialRange?: FinancialRange;
+  /** History already fetched over `initialRange`, used instead of asking again. */
+  preloaded?: FinancialHistory[];
 }) {
   const [metric, setMetric] = useState(charts[0].metric);
-  const [range, setRange] = useState<FinancialRange>("3m");
+  const [range, setRange] = useState<FinancialRange>(initialRange);
   const [asTable, setAsTable] = useState(false);
   const selected = charts.find((chart) => chart.metric === metric) ?? charts[0];
   const groups = [...new Set(charts.map((chart) => chart.group))];
+  const inGroup = charts.filter((chart) => chart.group === selected.group);
 
-  const state = useAsync(() => getFinancialHistory(slug, selected.metric, range), `${selected.metric}|${range}`);
+  const state = useAsync(() => {
+    const known = range === initialRange ? preloaded.find((history) => history.metric === selected.metric) : undefined;
+    return known ? Promise.resolve(known) : getFinancialHistory(slug, selected.metric, range);
+  }, `${selected.metric}|${range}`);
 
   // The last good render stays up, dimmed, while the next one loads.
   const [shown, setShown] = useState<Shown | null>(null);
@@ -67,28 +76,31 @@ export function FinancialChart({
 
   return (
     <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-border p-4">
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Chart group">
-        {groups.map((group) => (
-          <Choice
-            key={group}
-            active={selected.group === group}
-            onClick={() => setMetric(charts.find((chart) => chart.group === group)!.metric)}
-          >
-            {group}
-          </Choice>
-        ))}
-      </div>
+      {/* A choice of one is no choice, so a single group or metric shows no buttons. */}
+      {groups.length > 1 && (
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Chart group">
+          {groups.map((group) => (
+            <Choice
+              key={group}
+              active={selected.group === group}
+              onClick={() => setMetric(charts.find((chart) => chart.group === group)!.metric)}
+            >
+              {group}
+            </Choice>
+          ))}
+        </div>
+      )}
 
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-3">
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Metric">
-          {charts
-            .filter((chart) => chart.group === selected.group)
-            .map((chart) => (
+      <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 ${groups.length > 1 ? "border-t border-border pt-3" : ""}`}>
+        {inGroup.length > 1 && (
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Metric">
+            {inGroup.map((chart) => (
               <Choice key={chart.metric} active={chart.metric === selected.metric} onClick={() => setMetric(chart.metric)}>
                 {chart.label}
               </Choice>
             ))}
-        </div>
+          </div>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-1">
           <div className="flex gap-1" role="group" aria-label="Date range">
             {RANGES.map((option) => (

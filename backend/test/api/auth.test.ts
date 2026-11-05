@@ -1,12 +1,12 @@
-/** Tests for API key auth; per-key rate limit; request logs. */
+/** Tests for API key auth; the frontend login; per-key rate limit; request logs. */
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../../src/api/app.ts";
-import { hashApiKey } from "../../src/api/auth.ts";
+import { hashApiKey, newApiKey } from "../../src/api/auth.ts";
 import { createTestDb, createTestKey, silentLogger, type TestDb } from "../helpers/testDb.ts";
 
-const WELL_FORMED_BAD_KEY = `rwa_${"a".repeat(43)}`;
+const WELL_FORMED_BAD_KEY = newApiKey();
 
 describe("API key auth", () => {
   let db: TestDb;
@@ -52,6 +52,8 @@ describe("API key auth", () => {
       const response = await get(headers);
       assert.equal(response.statusCode, 401);
       assert.equal(response.json().error.code, "unauthorized");
+      // Without a login set, nothing invites a browser to ask for one.
+      assert.equal(response.headers["www-authenticate"], undefined);
     });
   }
 
@@ -148,6 +150,92 @@ describe("API key auth", () => {
     assert.equal((await get(headers)).statusCode, 429);
     time += 61_000;
     assert.equal((await get(headers)).statusCode, 401);
+  });
+});
+
+describe("frontend login", () => {
+  // The colon checks that only the first one separates the username.
+  const login = { username: "team", password: "a long: shared password" };
+  const CHALLENGE = 'Basic realm="RWA data", charset="UTF-8"';
+  let db: TestDb;
+  let app: FastifyInstance;
+  let time = 1_900_000_000_000;
+
+  before(async () => {
+    db = await createTestDb();
+    app = await buildApp({ db: db.pool, logger: silentLogger, login, now: () => time, failedAuthMax: 3 });
+  });
+  after(async () => {
+    await app.close();
+    await db.close();
+  });
+  beforeEach(() => {
+    time += 120_000;
+  });
+
+  const basic = (username: string, password: string) => ({
+    authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`,
+  });
+  const get = (headers: Record<string, string> = {}, url = "/tokenized_assets") =>
+    app.inject({ method: "GET", url, headers });
+
+  test("the login gets into the data routes", async () => {
+    assert.equal((await get(basic(login.username, login.password))).statusCode, 200);
+    assert.equal((await get(basic(login.username, login.password), "/tokenized_assets/catalog")).statusCode, 200);
+  });
+
+  test("keys still work alongside it", async () => {
+    const key = await createTestKey(db.pool);
+    assert.equal((await get({ authorization: `Bearer ${key}` })).statusCode, 200);
+  });
+
+  for (const [name, headers] of [
+    ["no credentials", {}],
+    ["a wrong password", basic(login.username, "a long: wrong password")],
+    ["a wrong username", basic("someone", login.password)],
+    ["the password alone", basic("", login.password)],
+    ["no colon", { authorization: `Basic ${Buffer.from(login.username).toString("base64")}` }],
+    ["a bad key", { authorization: `Bearer ${WELL_FORMED_BAD_KEY}` }],
+  ] as const) {
+    test(`${name} gets a 401 that asks the browser for the login`, async () => {
+      const response = await get(headers);
+      assert.equal(response.statusCode, 401);
+      assert.equal(response.json().error.code, "unauthorized");
+      assert.equal(response.headers["www-authenticate"], CHALLENGE);
+    });
+  }
+
+  test("wrong passwords count toward the limit per IP, like bad keys", async () => {
+    const headers = { ...basic(login.username, "a long: wrong password"), "x-real-ip": "203.0.113.20" };
+    for (let attempt = 0; attempt < 3; attempt++) assert.equal((await get(headers)).statusCode, 401);
+    const blocked = await get(headers);
+    assert.equal(blocked.statusCode, 429);
+    assert.equal(blocked.headers["www-authenticate"], undefined);
+    // The right login is never blocked by IP.
+    const right = await get({ ...basic(login.username, login.password), "x-real-ip": "203.0.113.20" });
+    assert.equal(right.statusCode, 200);
+  });
+
+  test("a request with no credentials isn't counted, so first visits can't block an address", async () => {
+    const ip = { "x-real-ip": "203.0.113.21" };
+    for (let attempt = 0; attempt < 10; attempt++) assert.equal((await get(ip)).statusCode, 401);
+  });
+
+  test("the login is rate limited per IP, not as one shared key", async () => {
+    const limited = await buildApp({ db: db.pool, logger: silentLogger, login, rateLimitMax: 2 });
+    const from = (ip: string) =>
+      limited.inject({
+        method: "GET",
+        url: "/tokenized_assets",
+        headers: { ...basic(login.username, login.password), "x-real-ip": ip },
+      });
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) assert.equal((await from("203.0.113.22")).statusCode, 200);
+      assert.equal((await from("203.0.113.22")).statusCode, 429);
+      assert.equal((await from("203.0.113.23")).statusCode, 200);
+    } finally {
+      await limited.close();
+    }
   });
 });
 

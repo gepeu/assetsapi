@@ -12,7 +12,7 @@ const OPENAPI_PATH = settings.api.openApiPath;
 
 /** The contract as JSON. The pool never connects, because no request is made. */
 export async function renderOpenApi(): Promise<string> {
-  const db = new pg.Pool({ max: 1 });
+  const db = new pg.Pool({ max: settings.db.scriptPoolSize });
   const app = await buildApp({ db, logger: createLogger("silent") });
   try {
     await app.ready();
