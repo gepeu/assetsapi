@@ -1,0 +1,1471 @@
+{
+ "results": [
+  {
+   "measure": {
+    "id": 2,
+    "slug": "total_asset_value_dollar",
+    "name": "Total Asset Value (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#E84142"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     180268066.29794726
+    ],
+    [
+     "2026-11-01",
+     180286249.96795765
+    ],
+    [
+     "2026-11-02",
+     142872672.19692147
+    ],
+    [
+     "2026-11-03",
+     142887081.743455
+    ],
+    [
+     "2026-11-04",
+     142901496.76535344
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 4,
+    "slug": "total_supply_token",
+    "name": "Total Supply (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#2762FF"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     156526383.8768708
+    ],
+    [
+     "2026-11-01",
+     156526383.87686682
+    ],
+    [
+     "2026-11-02",
+     124043479.29686682
+    ],
+    [
+     "2026-11-03",
+     124043479.28106882
+    ],
+    [
+     "2026-11-04",
+     124043479.28106882
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 13,
+    "slug": "daily_transfer_volume_token",
+    "name": "Daily Transfer Volume (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#FEF9C3"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     9675.992528
+    ],
+    [
+     "2026-11-01",
+     18436.211697000006
+    ],
+    [
+     "2026-11-02",
+     32555919.681777
+    ],
+    [
+     "2026-11-03",
+     26535.566226999996
+    ],
+    [
+     "2026-11-04",
+     82328542.89676401
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 14,
+    "slug": "daily_active_addresses_count",
+    "name": "Daily Active Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#E84142"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     86
+    ],
+    [
+     "2026-11-01",
+     64
+    ],
+    [
+     "2026-11-02",
+     137
+    ],
+    [
+     "2026-11-03",
+     73
+    ],
+    [
+     "2026-11-04",
+     87
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 15,
+    "slug": "holding_addresses_count",
+    "name": "Holding Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#11766A"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     8435
+    ],
+    [
+     "2026-11-01",
+     8456
+    ],
+    [
+     "2026-11-02",
+     8523
+    ],
+    [
+     "2026-11-03",
+     8533
+    ],
+    [
+     "2026-11-04",
+     8521
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 16,
+    "slug": "daily_mints_token",
+    "name": "Daily Mints (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#013220"
+   },
+   "points": [
+    [
+     "2026-10-08",
+     34.013272
+    ],
+    [
+     "2026-10-10",
+     47.517028
+    ],
+    [
+     "2026-10-13",
+     90.170509
+    ],
+    [
+     "2026-10-19",
+     60
+    ],
+    [
+     "2026-10-23",
+     0.000004
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 17,
+    "slug": "daily_burns_token",
+    "name": "Daily Burns (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#678479"
+   },
+   "points": [
+    [
+     "2026-10-29",
+     867.898573
+    ],
+    [
+     "2026-10-31",
+     0.0020039999999999997
+    ],
+    [
+     "2026-11-01",
+     0.000004
+    ],
+    [
+     "2026-11-02",
+     32482904.58
+    ],
+    [
+     "2026-11-03",
+     0.015798
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 18,
+    "slug": "daily_mints_dollar",
+    "name": "Daily Mints (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#FF7900"
+   },
+   "points": [
+    [
+     "2026-10-08",
+     39.06613499444501
+    ],
+    [
+     "2026-10-10",
+     54.56761058119573
+    ],
+    [
+     "2026-10-13",
+     103.26896635765547
+    ],
+    [
+     "2026-10-19",
+     69.00133279304583
+    ],
+    [
+     "2026-10-23",
+     0.000004596370206760226
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 19,
+    "slug": "daily_burns_dollar",
+    "name": "Daily Burns (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#FF7900"
+   },
+   "points": [
+    [
+     "2026-10-29",
+     999.3384791503298
+    ],
+    [
+     "2026-10-31",
+     0.00230796365388
+    ],
+    [
+     "2026-11-01",
+     0.00000460717856
+    ],
+    [
+     "2026-11-02",
+     37413650.47456745
+    ],
+    [
+     "2026-11-03",
+     0.018197894242132966
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 20,
+    "slug": "daily_transfer_volume_dollar",
+    "name": "Daily Transfer Volume (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#698DAF"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     11143.632270378472
+    ],
+    [
+     "2026-11-01",
+     21234.729814509905
+    ],
+    [
+     "2026-11-02",
+     37497748.911347374
+    ],
+    [
+     "2026-11-03",
+     30566.61779048369
+    ],
+    [
+     "2026-11-04",
+     94844743.75150575
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 40,
+    "slug": "market_value_dollar",
+    "name": "Market Value (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#2CF7E2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     179897503.64147732
+    ],
+    [
+     "2026-11-01",
+     180159590.67655298
+    ],
+    [
+     "2026-11-02",
+     142721178.66460818
+    ],
+    [
+     "2026-11-03",
+     142633948.48327944
+    ],
+    [
+     "2026-11-04",
+     142797451.73338994
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 42,
+    "slug": "weekly_active_addresses_count",
+    "name": "Weekly Active Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#666666"
+   },
+   "points": [
+    [
+     "2026-10-05",
+     377
+    ],
+    [
+     "2026-10-12",
+     262
+    ],
+    [
+     "2026-10-19",
+     484
+    ],
+    [
+     "2026-10-26",
+     365
+    ],
+    [
+     "2026-11-02",
+     231
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 43,
+    "slug": "monthly_active_addresses_count",
+    "name": "Monthly Active Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#49CCEE"
+   },
+   "points": [
+    [
+     "2026-07-01",
+     459
+    ],
+    [
+     "2026-08-01",
+     836
+    ],
+    [
+     "2026-09-01",
+     1142
+    ],
+    [
+     "2026-10-01",
+     1223
+    ],
+    [
+     "2026-11-01",
+     254
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 44,
+    "slug": "quarterly_active_addresses_count",
+    "name": "Quarterly Active Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#71ADA6"
+   },
+   "points": [
+    [
+     "2025-10-01",
+     5674
+    ],
+    [
+     "2026-01-01",
+     1928
+    ],
+    [
+     "2026-04-01",
+     1292
+    ],
+    [
+     "2026-07-01",
+     2268
+    ],
+    [
+     "2026-10-01",
+     1387
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 45,
+    "slug": "annually_active_addresses_count",
+    "name": "Annually Active Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#DAA520"
+   },
+   "points": [
+    [
+     "2023-01-01",
+     63
+    ],
+    [
+     "2024-01-01",
+     19769
+    ],
+    [
+     "2025-01-01",
+     19131
+    ],
+    [
+     "2026-01-01",
+     6689
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 46,
+    "slug": "number_of_daily_transactions_count",
+    "name": "Number of Daily Transactions (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#49CCEE"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     240
+    ],
+    [
+     "2026-11-01",
+     151
+    ],
+    [
+     "2026-11-02",
+     448
+    ],
+    [
+     "2026-11-03",
+     229
+    ],
+    [
+     "2026-11-04",
+     818
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 57,
+    "slug": "trailing_7_day_active_addresses_count",
+    "name": "Trailing 7-Day Active Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#71ADA6"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     349
+    ],
+    [
+     "2026-11-01",
+     365
+    ],
+    [
+     "2026-11-02",
+     442
+    ],
+    [
+     "2026-11-03",
+     440
+    ],
+    [
+     "2026-11-04",
+     435
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 58,
+    "slug": "trailing_30_day_active_addresses_count",
+    "name": "Trailing 30-Day Active Addresses (Count)",
+    "unit": "address"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#49CCEE"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     1115
+    ],
+    [
+     "2026-11-01",
+     1106
+    ],
+    [
+     "2026-11-02",
+     1191
+    ],
+    [
+     "2026-11-03",
+     1171
+    ],
+    [
+     "2026-11-04",
+     1161
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 61,
+    "slug": "circulating_supply_token",
+    "name": "Circulating Supply (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#DAA520"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     156526383.8768708
+    ],
+    [
+     "2026-11-01",
+     156526383.87686682
+    ],
+    [
+     "2026-11-02",
+     124043479.29686682
+    ],
+    [
+     "2026-11-03",
+     124043479.28106882
+    ],
+    [
+     "2026-11-04",
+     124043479.28106882
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 62,
+    "slug": "circulating_market_value_dollar",
+    "name": "Circulating Market Value (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#3730A3"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     179897503.64147732
+    ],
+    [
+     "2026-11-01",
+     180159590.67655298
+    ],
+    [
+     "2026-11-02",
+     142721178.66460818
+    ],
+    [
+     "2026-11-03",
+     142633948.48327944
+    ],
+    [
+     "2026-11-04",
+     142797451.73338994
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 63,
+    "slug": "circulating_asset_value_dollar",
+    "name": "Circulating Asset Value (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#698DAF"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     180268066.29794726
+    ],
+    [
+     "2026-11-01",
+     180286249.96795765
+    ],
+    [
+     "2026-11-02",
+     142872672.19692147
+    ],
+    [
+     "2026-11-03",
+     142887081.743455
+    ],
+    [
+     "2026-11-04",
+     142901496.76535344
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 68,
+    "slug": "raw_supply",
+    "name": "Raw Supply",
+    "unit": "shares"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#2CF7E2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     156526383.8768708
+    ],
+    [
+     "2026-11-01",
+     156526383.87686682
+    ],
+    [
+     "2026-11-02",
+     124043479.29686682
+    ],
+    [
+     "2026-11-03",
+     124043479.28106882
+    ],
+    [
+     "2026-11-04",
+     124043479.28106882
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 69,
+    "slug": "bridged_token_supply_token",
+    "name": "Bridged Token Supply (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#E84142"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     156526383.8768708
+    ],
+    [
+     "2026-11-01",
+     156526383.87686682
+    ],
+    [
+     "2026-11-02",
+     124043479.29686682
+    ],
+    [
+     "2026-11-03",
+     124043479.28106882
+    ],
+    [
+     "2026-11-04",
+     124043479.28106882
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 70,
+    "slug": "bridged_token_market_cap_dollar",
+    "name": "Bridged Token Market Cap (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#FF7900"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     179897503.64147732
+    ],
+    [
+     "2026-11-01",
+     180159590.67655298
+    ],
+    [
+     "2026-11-02",
+     142721178.66460818
+    ],
+    [
+     "2026-11-03",
+     142633948.48327944
+    ],
+    [
+     "2026-11-04",
+     142797451.73338994
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 71,
+    "slug": "bridged_token_value_dollar",
+    "name": "Bridged Token Value (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#11766A"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     180268066.29794726
+    ],
+    [
+     "2026-11-01",
+     180286249.96795765
+    ],
+    [
+     "2026-11-02",
+     142872672.19692147
+    ],
+    [
+     "2026-11-03",
+     142887081.743455
+    ],
+    [
+     "2026-11-04",
+     142901496.76535344
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 72,
+    "slug": "top_holder_concentration",
+    "name": "Top holder concentration",
+    "unit": "percent"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#013220"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     20.75235099378019
+    ],
+    [
+     "2026-11-01",
+     20.752350993780723
+    ],
+    [
+     "2026-11-02",
+     22.978734683653755
+    ],
+    [
+     "2026-11-03",
+     22.978734686580292
+    ],
+    [
+     "2026-11-04",
+     66.25471342205073
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 73,
+    "slug": "top_5_holder_concentration",
+    "name": "Top 5 holder concentration",
+    "unit": "percent"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#71ADA6"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     80.92721338189864
+    ],
+    [
+     "2026-11-01",
+     80.9272133819007
+    ],
+    [
+     "2026-11-02",
+     84.80053663059574
+    ],
+    [
+     "2026-11-03",
+     84.80053664139582
+    ],
+    [
+     "2026-11-04",
+     94.0495867655598
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 74,
+    "slug": "top_10_holder_concentration",
+    "name": "Top 10 holder concentration",
+    "unit": "percent"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#222222"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     96.4859432718272
+    ],
+    [
+     "2026-11-01",
+     96.48132442853183
+    ],
+    [
+     "2026-11-02",
+     95.98187455534737
+    ],
+    [
+     "2026-11-03",
+     95.97552851176218
+    ],
+    [
+     "2026-11-04",
+     96.6947619543944
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 85,
+    "slug": "adjusted_daily_mints_token",
+    "name": "Adjusted Daily Mints (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#9588FA"
+   },
+   "points": [
+    [
+     "2026-10-08",
+     34.013272
+    ],
+    [
+     "2026-10-10",
+     47.517028
+    ],
+    [
+     "2026-10-13",
+     90.170509
+    ],
+    [
+     "2026-10-19",
+     60
+    ],
+    [
+     "2026-10-23",
+     0.000004
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 86,
+    "slug": "adjusted_daily_burns_token",
+    "name": "Adjusted Daily Burns (Token)",
+    "unit": "token"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#DAA520"
+   },
+   "points": [
+    [
+     "2026-10-29",
+     867.898573
+    ],
+    [
+     "2026-10-31",
+     0.0020039999999999997
+    ],
+    [
+     "2026-11-01",
+     0.000004
+    ],
+    [
+     "2026-11-02",
+     32482904.58
+    ],
+    [
+     "2026-11-03",
+     0.015798
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 87,
+    "slug": "adjusted_daily_mints_dollar",
+    "name": "Adjusted Daily Mints (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#71ADA6"
+   },
+   "points": [
+    [
+     "2026-10-08",
+     39.06613499444501
+    ],
+    [
+     "2026-10-10",
+     54.56761058119573
+    ],
+    [
+     "2026-10-13",
+     103.26896635765547
+    ],
+    [
+     "2026-10-19",
+     69.00133279304583
+    ],
+    [
+     "2026-10-23",
+     0.000004596370206760226
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 88,
+    "slug": "adjusted_daily_burns_dollar",
+    "name": "Adjusted Daily Burns (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#2CF7E2"
+   },
+   "points": [
+    [
+     "2026-10-29",
+     999.3384791503298
+    ],
+    [
+     "2026-10-31",
+     0.00230796365388
+    ],
+    [
+     "2026-11-01",
+     0.00000460717856
+    ],
+    [
+     "2026-11-02",
+     37413650.47456745
+    ],
+    [
+     "2026-11-03",
+     0.018197894242132966
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1000,
+    "slug": "weekly_transfer_count",
+    "name": "Weekly Transfer Count",
+    "unit": "Transfers"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#2CF7E2"
+   },
+   "points": [
+    [
+     "2026-10-05",
+     35136
+    ],
+    [
+     "2026-10-12",
+     39860
+    ],
+    [
+     "2026-10-19",
+     41255
+    ],
+    [
+     "2026-10-26",
+     28625
+    ],
+    [
+     "2026-11-02",
+     1495
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1001,
+    "slug": "weekly_transfer_volume",
+    "name": "Weekly Transfer Volume",
+    "unit": "Dollars"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#DAA520"
+   },
+   "points": [
+    [
+     "2026-10-05",
+     557005.5460844784
+    ],
+    [
+     "2026-10-12",
+     357192.74173672486
+    ],
+    [
+     "2026-10-19",
+     220675.94805717524
+    ],
+    [
+     "2026-10-26",
+     162592.16902429442
+    ],
+    [
+     "2026-11-02",
+     132373059.28064361
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1002,
+    "slug": "monthly_transfer_count",
+    "name": "Monthly Transfer Count",
+    "unit": "Transfers"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#49CCEE"
+   },
+   "points": [
+    [
+     "2026-07-01",
+     18487
+    ],
+    [
+     "2026-08-01",
+     25344
+    ],
+    [
+     "2026-09-01",
+     19173
+    ],
+    [
+     "2026-10-01",
+     146239
+    ],
+    [
+     "2026-11-01",
+     1646
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1003,
+    "slug": "monthly_transfer_volume",
+    "name": "Monthly Transfer Volume",
+    "unit": "Dollars"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#2762FF"
+   },
+   "points": [
+    [
+     "2026-07-01",
+     4337675.210662108
+    ],
+    [
+     "2026-08-01",
+     4953052.2694942225
+    ],
+    [
+     "2026-09-01",
+     10831757.818949504
+    ],
+    [
+     "2026-10-01",
+     1774296.261090987
+    ],
+    [
+     "2026-11-01",
+     132394294.01045813
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1004,
+    "slug": "trailing_7_day_transfer_count",
+    "name": "Trailing 7-Day Transfer Count",
+    "unit": "Transfers"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#4F38F7"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     40439
+    ],
+    [
+     "2026-11-01",
+     34082
+    ],
+    [
+     "2026-11-02",
+     29073
+    ],
+    [
+     "2026-11-03",
+     23755
+    ],
+    [
+     "2026-11-04",
+     19033
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1005,
+    "slug": "trailing_7_day_transfer_volume",
+    "name": "Trailing 7-Day Transfer Volume",
+    "unit": "Dollars"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#FF7900"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     191162.685141236
+    ],
+    [
+     "2026-11-01",
+     195046.5039331981
+    ],
+    [
+     "2026-11-02",
+     37660341.08037167
+    ],
+    [
+     "2026-11-03",
+     37677842.229098275
+    ],
+    [
+     "2026-11-04",
+     132519506.13257873
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1006,
+    "slug": "trailing_30_day_transfer_count",
+    "name": "Trailing 30-Day Transfer Count",
+    "unit": "Transfers"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#013220"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     146239
+    ],
+    [
+     "2026-11-01",
+     146100
+    ],
+    [
+     "2026-11-02",
+     146124
+    ],
+    [
+     "2026-11-03",
+     146124
+    ],
+    [
+     "2026-11-04",
+     146371
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1007,
+    "slug": "trailing_30_day_transfer_volume",
+    "name": "Trailing 30-Day Transfer Volume",
+    "unit": "Dollars"
+   },
+   "group": {
+    "id": 785,
+    "type": "token",
+    "name": "Solana USDY",
+    "color": "#0B0B0B"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     1774296.2610909864
+    ],
+    [
+     "2026-11-01",
+     1770472.6530117756
+    ],
+    [
+     "2026-11-02",
+     38911019.247096755
+    ],
+    [
+     "2026-11-03",
+     38858721.41839729
+    ],
+    [
+     "2026-11-04",
+     133670525.68554628
+    ]
+   ]
+  }
+ ],
+ "filter": {
+  "operator": "and",
+  "filters": [
+   {
+    "operator": "equals",
+    "field": "asset_id",
+    "value": "60"
+   },
+   {
+    "operator": "equals",
+    "field": "network_id",
+    "value": "2"
+   }
+  ]
+ },
+ "sort": {
+  "direction": "asc",
+  "field": "date"
+ },
+ "pagination": {
+  "page": 1,
+  "perPage": 100,
+  "resultCount": 40,
+  "pageCount": 1
+ },
+ "aggregate": {
+  "groupBy": "token",
+  "aggregateFunction": "sum",
+  "interval": "day",
+  "mode": "stock"
+ }
+}

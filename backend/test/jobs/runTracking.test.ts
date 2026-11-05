@@ -1,0 +1,190 @@
+/** Tests for runTrackedJob. */
+import assert from "node:assert/strict";
+import { after, before, describe, test } from "node:test";
+import { tryAcquireLock } from "../../src/db/lock.ts";
+import { type JobDeps, type JobOutcome, runTrackedJob, toExitCode } from "../../src/jobs/runTracking.ts";
+import { createTestDb, silentLogger, type TestDb } from "../helpers/testDb.ts";
+
+describe("runTrackedJob", () => {
+  let db: TestDb;
+  before(async () => {
+    db = await createTestDb();
+  });
+  after(() => db.close());
+
+  const deps = (overrides: Partial<JobDeps> = {}): JobDeps => ({
+    connectionString: db.url,
+    pool: db.pool,
+    logger: silentLogger,
+    monitorUrl: null,
+    stop: { isStopping: () => false },
+    ...overrides,
+  });
+
+  const succeed = async () => ({ status: "succeeded" as const, severity: "none" as const, summary: { done: 1 } });
+
+  async function runRecord(runId: number) {
+    const { rows } = await db.pool.query<{ status: string; job: string; summary: unknown; finished_at: Date | null }>(
+      "SELECT status, job, summary, finished_at FROM ingestion_run WHERE id = $1",
+      [runId],
+    );
+    return rows[0];
+  }
+
+  function recordingMonitor() {
+    const pings: { url: string; body: string }[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      pings.push({ url, body: String(init?.body) });
+      return new Response("OK");
+    }) as typeof fetch;
+    return { pings, fetchImpl };
+  }
+
+  test("records the run and its summary", async () => {
+    const outcome = await runTrackedJob(deps(), "update", "rwa_xyz", succeed);
+    assert.equal(outcome.kind, "finished");
+    if (outcome.kind !== "finished") return;
+    const record = await runRecord(outcome.runId);
+    assert.equal(record?.status, "succeeded");
+    assert.equal(record?.job, "update");
+    assert.deepEqual(record?.summary, { done: 1 });
+    assert.ok(record?.finished_at);
+  });
+
+  test("a stale running record gets marked as failed", async () => {
+    const { rows } = await db.pool.query<{ id: number }>(
+      `INSERT INTO ingestion_run (source_id, job) SELECT id, 'update' FROM source WHERE key = 'rwa_xyz' RETURNING id`,
+    );
+    const staleId = rows[0]?.id ?? 0;
+    await runTrackedJob(deps(), "update", "rwa_xyz", succeed);
+    const record = await runRecord(staleId);
+    assert.equal(record?.status, "failed");
+    assert.ok(record?.finished_at);
+  });
+
+  test("a held lock makes a second job exit straight away, without a run record", async () => {
+    const lock = await tryAcquireLock(db.url);
+    assert.ok(lock);
+    try {
+      const { rows: before } = await db.pool.query<{ count: number }>(
+        "SELECT count(*)::int AS count FROM ingestion_run",
+      );
+      let worked = false;
+      const outcome = await runTrackedJob(deps(), "update", "rwa_xyz", async () => {
+        worked = true;
+        return succeed();
+      });
+      assert.equal(outcome.kind, "locked");
+      assert.equal(worked, false);
+      const { rows: after } = await db.pool.query<{ count: number }>(
+        "SELECT count(*)::int AS count FROM ingestion_run",
+      );
+      assert.equal(after[0]?.count, before[0]?.count);
+    } finally {
+      await lock.release();
+    }
+  });
+
+  test("the lock is free again after a job ends, even a failed one", async () => {
+    await runTrackedJob(deps(), "update", "rwa_xyz", async () => {
+      throw new Error("boom");
+    });
+    const lock = await tryAcquireLock(db.url);
+    assert.ok(lock);
+    await lock.release();
+  });
+
+  test("a lost lock connection is noticed", async () => {
+    const lock = await tryAcquireLock(db.url);
+    assert.ok(lock);
+    assert.equal(lock.isHeld(), true);
+    await lock.client.end();
+    assert.equal(lock.isHeld(), false);
+    await lock.release();
+  });
+
+  test("a job exits if the schema is older than it needs", async () => {
+    await db.pool.query("DELETE FROM schema_migration WHERE filename = '002_catalog_seed.sql'");
+    try {
+      const { pings, fetchImpl } = recordingMonitor();
+      let worked = false;
+      const outcome = await runTrackedJob(
+        deps({ monitorUrl: "https://monitor.test/abc", fetchImpl }),
+        "update",
+        "rwa_xyz",
+        async () => {
+          worked = true;
+          return succeed();
+        },
+      );
+      assert.equal(outcome.kind, "schema_behind");
+      assert.equal(worked, false);
+      assert.equal(toExitCode(outcome), 1);
+      assert.equal(pings[0]?.url, "https://monitor.test/abc/fail");
+    } finally {
+      await db.pool.query("INSERT INTO schema_migration (filename) VALUES ('002_catalog_seed.sql')");
+    }
+  });
+
+  test("a thrown error ends the run as failed, with the message in its summary", async () => {
+    const outcome = await runTrackedJob(deps(), "update", "rwa_xyz", async () => {
+      throw new Error("boom");
+    });
+    assert.equal(outcome.kind, "finished");
+    if (outcome.kind !== "finished") return;
+    assert.equal(outcome.status, "failed");
+    assert.match(String(outcome.summary.error), /boom/);
+    assert.equal(toExitCode(outcome), 1);
+  });
+
+  test("the monitor gets a success ping for a clean run", async () => {
+    const { pings, fetchImpl } = recordingMonitor();
+    await runTrackedJob(deps({ monitorUrl: "https://monitor.test/abc", fetchImpl }), "update", "rwa_xyz", succeed);
+    assert.equal(pings[0]?.url, "https://monitor.test/abc");
+  });
+
+  test("the monitor gets a failure ping with the summary when something needs attention", async () => {
+    const { pings, fetchImpl } = recordingMonitor();
+    await runTrackedJob(
+      deps({ monitorUrl: "https://monitor.test/abc/", fetchImpl }),
+      "update",
+      "rwa_xyz",
+      async () => ({
+        status: "partial",
+        severity: "normal",
+        summary: { failed: [{ slug: "x" }] },
+      }),
+    );
+    assert.equal(pings[0]?.url, "https://monitor.test/abc/fail");
+    assert.match(pings[0]?.body ?? "", /"slug":"x"/);
+    assert.match(pings[0]?.body ?? "", /"severity":"normal"/);
+  });
+
+  test("a monitor that can't be reached doesn't fail the job", async () => {
+    const fetchImpl = (async () => {
+      throw new Error("down");
+    }) as typeof fetch;
+    const outcome = await runTrackedJob(
+      deps({ monitorUrl: "https://monitor.test/abc", fetchImpl }),
+      "update",
+      "rwa_xyz",
+      succeed,
+    );
+    assert.equal(outcome.kind, "finished");
+  });
+
+  test("exit codes: only failures and a schema mismatch are non-zero", () => {
+    const finished = (status: "succeeded" | "partial" | "failed" | "interrupted"): JobOutcome => ({
+      kind: "finished",
+      runId: 1,
+      status,
+      summary: {},
+    });
+    assert.equal(toExitCode(finished("succeeded")), 0);
+    assert.equal(toExitCode(finished("partial")), 0);
+    assert.equal(toExitCode(finished("interrupted")), 0);
+    assert.equal(toExitCode(finished("failed")), 1);
+    assert.equal(toExitCode({ kind: "locked" }), 0);
+    assert.equal(toExitCode({ kind: "schema_behind", pending: ["x"] }), 1);
+  });
+});

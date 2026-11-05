@@ -1,0 +1,60 @@
+# Actions are pinned by commit, for the same reason dependencies are pinned by version.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [production]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: rwa
+          POSTGRES_PASSWORD: rwa_local
+        ports:
+          - 54331:5432
+        options: >-
+          --health-cmd "pg_isready -U rwa"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      # No secrets in this step: a malicious package would have nothing to steal.
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Format and lint
+        run: npx biome ci .
+      - name: Type check
+        run: npx tsc
+      - name: Migrations on an empty database
+        env:
+          MIGRATION_DATABASE_URL: postgres://rwa:rwa_local@127.0.0.1:54331/postgres
+        run: node src/db/migrate.ts
+      - name: Tests
+        env:
+          TEST_DATABASE_URL: postgres://rwa:rwa_local@127.0.0.1:54331/postgres
+        run: npm test
+      - name: OpenAPI is up to date
+        run: npm run openapi:check
+      - name: Known vulnerabilities
+        run: npm audit
+      - name: Registry signatures
+        run: npm audit signatures
+      - name: Docker build
+        run: docker build .
