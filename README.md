@@ -62,7 +62,7 @@ stops the API from starting.
 
 ## Settings
 
-Every timeout, limit, threshold and provider address is an optional environment variable. They're
+Every timeout, limit, threshold, size, label, path and provider address is an optional environment variable. They're
 listed with their defaults in `backend/.env.example`, and `backend/src/config.ts` is the only file
 that reads them. A value that doesn't parse stops the process when it starts.
 

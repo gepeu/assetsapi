@@ -2,9 +2,12 @@
  * Environment variables, checked at startup. This is the only file that reads process.env, so each
  * process states exactly what it needs and a missing value stops it before it does anything.
  *
- * Every tunable value is in `loadSettings` below, with the default used when its variable is unset.
- * `.env.example` lists the same variables, and no other file holds a timeout, limit or address.
+ * Every value that could differ is in `loadSettings` below, with the default used when its variable
+ * is unset. `.env.example` lists the same variables, and no other file holds a timeout, limit,
+ * size, label, path or address.
  */
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 interface ApiConfig {
   databaseUrl: string;
@@ -15,6 +18,10 @@ interface ApiConfig {
 
 /** Above this, a handful of replicas would use up a Postgres server's connections. */
 const MAX_POOL_SIZE = 50;
+/** The database's own check on `asset.slug`. A longer slug could never be stored. */
+const SCHEMA_SLUG_LENGTH = 64;
+/** The largest OFFSET Postgres takes, which would otherwise read as a 500. */
+const POSTGRES_MAX_OFFSET = 2_147_483_647;
 
 export interface JobConfig {
   databaseUrl: string;
@@ -78,6 +85,17 @@ function readUrl(name: string, fallback: string): string {
   return value.replace(/\/+$/, "");
 }
 
+/** A short piece of text, such as a label. */
+function readText(name: string, fallback: string): string {
+  return process.env[name] || fallback;
+}
+
+/** A file or folder. The fallback is relative to this file, so it doesn't depend on where a command runs. */
+function readPath(name: string, fallbackFromHere: string): string {
+  const value = process.env[name];
+  return value ? resolve(value) : fileURLToPath(new URL(fallbackFromHere, import.meta.url));
+}
+
 export function loadSettings() {
   const settings = {
     api: {
@@ -87,10 +105,12 @@ export function loadSettings() {
       poolWaitMs: readWholeNumber("DB_POOL_WAIT_MS", 2000),
       /** How long to wait for a query's answer before giving up on its connection. */
       queryTimeoutMs: readWholeNumber("DB_QUERY_TIMEOUT_MS", 7000),
-      /** Requests a key may make per minute, counted separately on each replica. */
-      rateLimitPerMinute: readWholeNumber("RATE_LIMIT_PER_MINUTE", 600),
+      /** Requests a key may make in one window, counted separately on each replica. */
+      rateLimitMax: readWholeNumber("RATE_LIMIT_MAX", 600),
+      rateLimitWindowMs: readWholeNumber("RATE_LIMIT_WINDOW_MS", 60_000),
       /** Enough for a misconfigured client to be seen as one, not enough to guess a key. */
-      failedAuthPerMinute: readWholeNumber("FAILED_AUTH_PER_MINUTE", 20),
+      failedAuthMax: readWholeNumber("FAILED_AUTH_MAX", 20),
+      failedAuthWindowMs: readWholeNumber("FAILED_AUTH_WINDOW_MS", 60_000),
       /** Addresses remembered for the failed-key limit, which bounds its memory. */
       failedAuthTrackedIps: readWholeNumber("FAILED_AUTH_TRACKED_IPS", 10_000),
       /** How long a replica trusts a key it has checked, so also how long a revoked key keeps working. */
@@ -98,8 +118,37 @@ export function loadSettings() {
       requestTimeoutMs: readWholeNumber("REQUEST_TIMEOUT_MS", 30_000),
       /** How long in-flight requests get to finish after a stop signal. */
       shutdownTimeoutMs: readWholeNumber("SHUTDOWN_TIMEOUT_MS", 20_000),
+      /** The asset list's page size when a request gives none, and the largest it may ask for. */
+      defaultPageSize: readWholeNumber("DEFAULT_PAGE_SIZE", 50),
+      maxPageSize: readWholeNumber("MAX_PAGE_SIZE", 200),
+      maxPageOffset: readWholeNumber("MAX_PAGE_OFFSET", POSTGRES_MAX_OFFSET, { max: POSTGRES_MAX_OFFSET }),
+      /** The longest search text and asset class filter a request may send. */
+      maxFilterLength: readWholeNumber("MAX_FILTER_LENGTH", 64),
+      /** The group shown for a measure that has none of its own. */
+      otherGroupLabel: readText("OTHER_GROUP_LABEL", "Other"),
+      /** How much of a new key is stored in the clear, to tell keys apart. */
+      keyPrefixLength: readWholeNumber("API_KEY_PREFIX_LENGTH", 12, { min: 4, max: 16 }),
+      /** The built frontend. Without an index.html there, the service is the API alone. */
+      uiDir: readPath("UI_DIR", "../../frontend/dist"),
+      /** Files under this folder have a content hash in their names, so browsers may keep them. */
+      uiHashedFilesPrefix: readText("UI_HASHED_FILES_PREFIX", "static/"),
+      uiHashedFilesMaxAgeSeconds: readWholeNumber("UI_HASHED_FILES_MAX_AGE_SECONDS", 31_536_000, { min: 0 }),
+      /** Where `npm run openapi` writes the contract. */
+      openApiPath: readPath("OPENAPI_PATH", "../openapi.json"),
+    },
+    limits: {
+      /** The longest slug we give an asset. The database refuses anything longer than its own check. */
+      maxSlugLength: readWholeNumber("MAX_SLUG_LENGTH", SCHEMA_SLUG_LENGTH, { max: SCHEMA_SLUG_LENGTH }),
+      /** The longest measure name stored or asked for. */
+      maxMeasureNameLength: readWholeNumber("MAX_MEASURE_NAME_LENGTH", 64),
     },
     db: {
+      /**
+       * The advisory lock shared by both jobs and the migrate step. Every service must use the same
+       * number: one given a different number would run unprotected, without any error.
+       */
+      lockId: readWholeNumber("JOB_LOCK_ID", 7_315_204),
+      migrationsDir: readPath("MIGRATIONS_DIR", "../db/migrations"),
       /** Without a delay, keepalive waits for the OS default before its first probe, often two hours. */
       keepaliveDelayMs: readWholeNumber("DB_KEEPALIVE_DELAY_MS", 30_000),
       /** The server's own keepalive on the job lock's connection, which sits idle for a whole run. */
@@ -154,6 +203,9 @@ export function loadSettings() {
     throw new Error(
       "DB_QUERY_TIMEOUT_MS must be above API_STATEMENT_TIMEOUT_MS, so a slow query gets the server's answer",
     );
+  }
+  if (settings.api.defaultPageSize > settings.api.maxPageSize) {
+    throw new Error("DEFAULT_PAGE_SIZE can't be above MAX_PAGE_SIZE");
   }
   return settings;
 }

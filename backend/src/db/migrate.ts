@@ -11,10 +11,8 @@ import { createLogger } from "../logger.ts";
 import { type JobLock, tryAcquireLock } from "./lock.ts";
 import type { Queryable } from "./pool.ts";
 
-const MIGRATIONS_DIR = join(import.meta.dirname, "../../db/migrations");
-
 async function listMigrationFiles(): Promise<string[]> {
-  return (await readdir(MIGRATIONS_DIR)).filter((file) => file.endsWith(".sql")).sort();
+  return (await readdir(settings.db.migrationsDir)).filter((file) => file.endsWith(".sql")).sort();
 }
 
 /**
@@ -41,7 +39,7 @@ async function waitForLock(connectionString: string, timeoutMs: number, pollMs: 
 }
 
 async function applyMigration(client: pg.Client, file: string): Promise<void> {
-  const sql = await readFile(join(MIGRATIONS_DIR, file), "utf8");
+  const sql = await readFile(join(settings.db.migrationsDir, file), "utf8");
   await client.query("BEGIN");
   try {
     await client.query(sql);

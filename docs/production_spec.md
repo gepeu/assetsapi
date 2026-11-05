@@ -659,7 +659,7 @@ The frontend team receives `backend/openapi.json` and an API key. There's no hos
 | **SQL** | Parameterised queries only |
 | **Logs** | `Authorization` headers and keys are redacted. Errors never contain the RWA.xyz key |
 | **Errors** | Clients get a generic message and request ID, with no stack traces or SQL |
-| **Rate limits** | Starting at 600 requests per minute per key on each replica, and 20 failed authentications per minute per IP. Both are settings, `RATE_LIMIT_PER_MINUTE` and `FAILED_AUTH_PER_MINUTE`. The client IP comes from Railway's proxy header, and a valid key is never blocked by IP |
+| **Rate limits** | Starting at 600 requests per minute per key on each replica, and 20 failed authentications per minute per IP. Both are settings, `RATE_LIMIT_MAX` and `FAILED_AUTH_MAX`, each with its own window. The client IP comes from Railway's proxy header, and a valid key is never blocked by IP |
 | **Transport** | HTTPS through Railway's proxy, plus Fastify's security headers plugin |
 
 **Left out:** per-request audit logs, a WAF, and encryption beyond Railway's defaults.
@@ -733,7 +733,7 @@ Alerts go by email to start with. A job that stops, ends `partial` or holds some
 - **Statement timeout:** set on `rwa_api` only, because jobs and migrations run longer statements.
 - **Query timeout:** set in each process's pool, for a connection that died silently, which a server-side timeout can't see. It's 7 seconds on the API, above the 5-second statement timeout, and 5 minutes on the jobs. The connection is then thrown away, so it can't hold a pool slot. Railway checks health only at deploy, so nothing would restart a stuck replica.
 - **Connections:** the API uses 5 per replica and the jobs use 3. Local Postgres allows 100, and we'd confirm Railway's limit at setup.
-- **Settings:** every timeout, limit, threshold and provider address is an optional variable with a default. `backend/.env.example` lists them, and `src/config.ts` is the only file that reads them.
+- **Settings:** every timeout, limit, threshold, size, label, path and provider address is an optional variable with a default. `backend/.env.example` lists them, and `src/config.ts` is the only file that reads them.
 - **Backups:** Railway's daily (kept 6 days) and weekly (kept 27 days). Our own nightly dump is optional.
 - **Test restore:** done at setup, then occasionally. Railway backups restore only into the same project and environment, and wiping a volume deletes them, so risky migrations get a manual off-Railway dump first.
 - **Recovery targets:** at most 24 hours of data loss, and about 2 hours to recover.

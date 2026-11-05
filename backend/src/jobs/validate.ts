@@ -20,7 +20,8 @@ export interface AssetData {
   history: HistoryData;
 }
 
-const MEASURE_PATTERN = /^[a-z0-9_]{1,64}$/;
+const MEASURE_PATTERN = new RegExp(`^[a-z0-9_]{1,${settings.limits.maxMeasureNameLength}}$`);
+const SLUG_PATTERN = new RegExp(`^[a-z0-9-]{1,${settings.limits.maxSlugLength}}$`);
 
 function fail(slug: string, message: string): never {
   throw new ContractBrokenError(`${slug}: ${message}`);
@@ -93,7 +94,7 @@ function checkNumber(slug: string, value: number | null, what: string): void {
 export function validateAssetData(data: AssetData, catalog: Catalog, today: string): void {
   const { reference, current, history } = data;
   const slug = reference.slug;
-  if (!/^[a-z0-9-]{1,64}$/.test(slug)) fail(slug, "the slug doesn't fit our rule");
+  if (!SLUG_PATTERN.test(slug)) fail(slug, "the slug doesn't fit our rule");
   // Every asset here has a mint on the provider's list, so an empty list is a bad response. Taken at
   // face value, it would deactivate every token and start the missing clock on all their values.
   if (reference.tokens.length === 0) fail(slug, "the provider listed no tokens");

@@ -4,6 +4,7 @@
  * which is why an asset can never appear without data.
  */
 import type pg from "pg";
+import { settings } from "../config.ts";
 import { inTransaction, type Queryable } from "../db/pool.ts";
 import { insertAsset, isSlugTaken, refreshAssetIdentity } from "../db/queries/assets.ts";
 import {
@@ -31,7 +32,6 @@ import {
   type FieldContent,
   type FieldInput,
   type FinancialProvider,
-  MAX_SLUG_LENGTH,
   type ProviderRef,
   type ReferenceData,
   type ReferenceProvider,
@@ -357,7 +357,7 @@ async function findFreeSlug(db: Queryable, base: string): Promise<string> {
   if (!(await isSlugTaken(db, base))) return base;
   for (let suffix = 2; ; suffix++) {
     const ending = `-${suffix}`;
-    const candidate = `${base.slice(0, MAX_SLUG_LENGTH - ending.length)}${ending}`;
+    const candidate = `${base.slice(0, settings.limits.maxSlugLength - ending.length)}${ending}`;
     if (!(await isSlugTaken(db, candidate))) return candidate;
   }
 }

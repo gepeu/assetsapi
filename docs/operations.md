@@ -20,20 +20,21 @@ One image, built from `backend/`, runs as three services. Each holds only the va
 
 ## Settings
 
-Every timeout, limit, threshold and provider address is an optional variable. `backend/.env.example` lists them all with their defaults, and `backend/src/config.ts` is the only file that reads them. Set a variable only on the service that uses it, and only to change its default. A value that isn't a sensible number or address stops the process when it starts, so a typo shows up as a failed deploy.
+Every timeout, limit, threshold, size, label, path and provider address is an optional variable. `backend/.env.example` lists them all with their defaults, and `backend/src/config.ts` is the only file that reads them. Set a variable only on the service that uses it, and only to change its default. A value that isn't a sensible number or address stops the process when it starts, so a typo shows up as a failed deploy.
 
 The ones most likely to change:
 
 | Variable | Service | Default | When to change it |
 |---|---|---|---|
-| `RATE_LIMIT_PER_MINUTE` | API | `600` | A caller with many visitors behind one backend API key. `6000` covers about 200 requests a second across two replicas |
+| `RATE_LIMIT_MAX` | API | `600` | Requests per key in each window, a minute by default. Raise it for a caller with many visitors behind one backend API key: `6000` covers about 200 requests a second across two replicas |
 | `DB_POOL_SIZE` | API | `5` | More replicas or a lower connection limit. Replicas times this, plus 4, has to stay under the Postgres limit |
 | `PROVIDER_REQUEST_INTERVAL_MS` | Jobs | `250` | RWA.xyz starts answering `429` |
 | `JOB_MAX_FAILED_SHARE` | Update job | `0.1` | Runs stop too early or too late when assets fail |
 
 - **Each replica counts separately:** the rate limit is kept in memory, so two replicas allow about twice the number.
 - **Two that go together:** `API_STATEMENT_TIMEOUT_MS` is applied to the `rwa_api` role by `npm run setup-roles`, so set it in the shell that runs that script. `DB_QUERY_TIMEOUT_MS` on the API must stay above it, and the API won't start otherwise.
-- **Not a setting:** the job lock's number, in `src/db/lock.ts`. Every job and the migrate step must use the same one, and a service given a different one would run unprotected without any error.
+- **One that must match everywhere:** `JOB_LOCK_ID` is the lock that keeps the jobs and the migrate step from running at once. Leave it unset. If it ever has to change, set it as one shared variable on the API service and both jobs, because a service with a different number would run unprotected without any error.
+- **Part of the API contract:** `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE`, `MAX_PAGE_OFFSET`, `MAX_FILTER_LENGTH`, `MAX_SLUG_LENGTH` and `MAX_MEASURE_NAME_LENGTH` change what requests the API accepts. `openapi.json` is generated with the defaults, so after changing one, run `npm run openapi` with the same value and tell the callers.
 
 **Why these times:** RWA.xyz refreshes more than once a day. On the day this was checked, records were stamped 05:35 and then 15:54 UTC, and its API caches responses for up to an hour. The 07:00 run picks up the morning refresh, and a later refresh waits for the next day's run. Check the times again after a week, using `_updated_at`. More runs give fresher current values, but not finer charts, because history is stored per day.
 

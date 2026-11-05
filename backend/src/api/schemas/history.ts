@@ -1,6 +1,6 @@
 /** `GET /assets/{slug}/history`. */
 import type { FromSchema } from "json-schema-to-ts";
-import { errorResponses, nullableString, scopeSchema, slugParams } from "./shared.ts";
+import { errorResponses, MEASURE_NAME_PATTERN, nullableString, scopeSchema, slugParams } from "./shared.ts";
 
 const HISTORY_RANGES = ["7d", "30d", "3m", "1y", "all"] as const;
 
@@ -9,7 +9,7 @@ const historyQuery = {
   additionalProperties: false,
   required: ["measure"],
   properties: {
-    measure: { type: "string", pattern: "^[a-z0-9_]{1,64}$" },
+    measure: { type: "string", pattern: MEASURE_NAME_PATTERN },
     range: { type: "string", enum: HISTORY_RANGES, default: "all" },
   },
 } as const;

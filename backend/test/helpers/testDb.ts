@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import pg from "pg";
 import { hashApiKey } from "../../src/api/auth.ts";
-import { loadTestDatabaseUrl } from "../../src/config.ts";
+import { loadTestDatabaseUrl, settings } from "../../src/config.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { createPool } from "../../src/db/pool.ts";
 import { insertKey } from "../../src/db/queries/apiKeys.ts";
@@ -66,7 +66,7 @@ export async function createTestKey(
   await insertKey(pool, {
     clientName: options.clientName ?? "test client",
     keyHash: hashApiKey(key),
-    keyPrefix: key.slice(0, 12),
+    keyPrefix: key.slice(0, settings.api.keyPrefixLength),
     expiresAt: options.expiresAt ?? null,
   });
   return key;

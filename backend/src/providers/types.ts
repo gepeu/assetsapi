@@ -9,8 +9,6 @@ export type ProviderRef = string;
 /** The chain the universe is defined on. */
 export const SOLANA_NETWORK = "solana";
 
-export const MAX_SLUG_LENGTH = 64;
-
 /** Whether text is a calendar day in the form every date here uses. */
 export const isDay = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value);
 

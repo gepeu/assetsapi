@@ -3,8 +3,10 @@
  * contract: Fastify validates and serialises with them, and TypeScript types are derived from them.
  */
 import type { FromSchema } from "json-schema-to-ts";
+import { settings } from "../../config.ts";
 
-export const SLUG_PATTERN = "^[a-z0-9-]{1,64}$";
+export const SLUG_PATTERN = `^[a-z0-9-]{1,${settings.limits.maxSlugLength}}$`;
+export const MEASURE_NAME_PATTERN = `^[a-z0-9_]{1,${settings.limits.maxMeasureNameLength}}$`;
 const DAY_PATTERN = "^\\d{4}-\\d{2}-\\d{2}$";
 
 export const ASSET_TYPES = [

@@ -4,7 +4,6 @@
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { loadApiConfig, settings } from "../config.ts";
 import { checkConnection, createPool } from "../db/pool.ts";
 import { createLogger } from "../logger.ts";
@@ -32,8 +31,7 @@ const pool = createPool({
 await checkConnection(pool);
 
 // The Docker image has no frontend, so there it's the API alone.
-const builtUi = fileURLToPath(new URL("../../../frontend/dist", import.meta.url));
-const uiDir = existsSync(join(builtUi, "index.html")) ? builtUi : undefined;
+const uiDir = existsSync(join(settings.api.uiDir, "index.html")) ? settings.api.uiDir : undefined;
 
 if (config.authDisabled) logger.warn("API_AUTH_DISABLED is set: the data routes need no key");
 if (uiDir) logger.info({ uiDir }, "serving the frontend at /ui");

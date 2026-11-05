@@ -4,6 +4,7 @@
  */
 import type { FinancialsResponse } from "../api/schemas/financials.ts";
 import type { FieldValue } from "../api/schemas/shared.ts";
+import { settings } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import { findActiveAssetBySlug } from "../db/queries/assets.ts";
 import {
@@ -15,7 +16,7 @@ import {
 import { listAvailableSeries } from "../db/queries/history.ts";
 import { chooseSeriesScope, HOLDER_SHARE_MEASURES } from "./history.ts";
 
-const OTHER_GROUP = "Other";
+const OTHER_GROUP = settings.api.otherGroupLabel;
 
 /** A share above 100% can't be true. */
 const toServableShare = (value: number | null): number | null => (value !== null && value > 100 ? null : value);

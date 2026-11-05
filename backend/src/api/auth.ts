@@ -10,8 +10,6 @@ import type { Queryable } from "../db/pool.ts";
 import { type ActiveKey, findActiveKey, touchKey } from "../db/queries/apiKeys.ts";
 import { ApiError } from "./errors.ts";
 
-/** The window the failed-attempts-per-minute setting counts over. */
-const FAILURE_WINDOW_MS = 60_000;
 /** The auth scheme's name is case-insensitive under HTTP's rules, and the key isn't. */
 const BEARER_KEY_PATTERN = /^bearer (rwa_[A-Za-z0-9_-]{43})$/i;
 
@@ -47,10 +45,10 @@ interface CachedKey {
 
 export function createAuthHook({
   db,
-  maxFailures = settings.api.failedAuthPerMinute,
+  maxFailures = settings.api.failedAuthMax,
   now = Date.now,
 }: AuthOptions): onRequestAsyncHookHandler {
-  const { keyCacheMs, failedAuthTrackedIps } = settings.api;
+  const { keyCacheMs, failedAuthTrackedIps, failedAuthWindowMs } = settings.api;
   const cache = new Map<string, CachedKey>();
   const failures = new Map<string, { count: number; resetAt: number }>();
 
@@ -64,7 +62,7 @@ export function createAuthHook({
       if (failures.size >= failedAuthTrackedIps) failures.clear();
     }
     const current = failures.get(ip);
-    const entry = current && current.resetAt > time ? current : { count: 0, resetAt: time + FAILURE_WINDOW_MS };
+    const entry = current && current.resetAt > time ? current : { count: 0, resetAt: time + failedAuthWindowMs };
     entry.count++;
     failures.set(ip, entry);
     if (entry.count > maxFailures) throw new ApiError("rate_limited", "Too many failed attempts");

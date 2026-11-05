@@ -3,6 +3,7 @@
  * records, so one asset is loaded once and shared between them. Network records are kept for the
  * whole run, because they rarely change and one can reach 1 MB.
  */
+import { settings } from "../../config.ts";
 import { ContractBrokenError } from "../errors.ts";
 import {
   type AddressResolver,
@@ -13,7 +14,6 @@ import {
   type HistoryData,
   type HistorySeries,
   isDay,
-  MAX_SLUG_LENGTH,
   type NetworkInput,
   type OrganizationInput,
   type ProviderRef,
@@ -181,7 +181,7 @@ function toReferenceData(loaded: LoadedAsset): ReferenceData {
   const assetClass = requireString(record, "asset_class_name", "asset");
   return {
     slug: slugify(requireString(record, "slug", "asset"))
-      .slice(0, MAX_SLUG_LENGTH)
+      .slice(0, settings.limits.maxSlugLength)
       .replace(/-$/, ""),
     ticker: requireString(record, "ticker", "asset"),
     name: requireString(record, "name", "asset"),

@@ -9,7 +9,9 @@ const BACKEND_DIR = join(import.meta.dirname, "..");
 
 /** Every variable loadSettings reads, taken from its source so a new one can't be missed. */
 const SETTING_NAMES = [
-  ...readFileSync(join(BACKEND_DIR, "src/config.ts"), "utf8").matchAll(/read(?:WholeNumber|Share|Url)\("([A-Z_]+)"/g),
+  ...readFileSync(join(BACKEND_DIR, "src/config.ts"), "utf8").matchAll(
+    /read(?:WholeNumber|Share|Url|Text|Path)\("([A-Z_]+)"/g,
+  ),
 ].map((match) => match[1] ?? "");
 
 /** The uncommented `NAME=value` lines of .env.example. */
@@ -63,7 +65,10 @@ describe("config", () => {
   test("every setting has a default, which an empty variable keeps", () => {
     const defaults = loadSettings();
     assert.equal(defaults.api.poolSize, 5);
-    assert.equal(defaults.api.rateLimitPerMinute, 600);
+    assert.equal(defaults.api.rateLimitMax, 600);
+    assert.equal(defaults.api.rateLimitWindowMs, 60_000);
+    assert.equal(defaults.db.lockId, 7_315_204);
+    assert.equal(defaults.limits.maxSlugLength, 64);
     assert.equal(defaults.jobs.maxFailedShare, 0.1);
     assert.equal(defaults.providers.rwaXyzBaseUrl, "https://api.rwa.xyz/v4");
     for (const name of SETTING_NAMES) process.env[name] = "";
@@ -71,7 +76,7 @@ describe("config", () => {
   });
 
   test(".env.example lists every setting, with the default as its value", () => {
-    assert.ok(SETTING_NAMES.length > 30);
+    assert.ok(SETTING_NAMES.length > 45);
     for (const name of SETTING_NAMES) assert.ok(EXAMPLE_VALUES.has(name), `${name} is missing from .env.example`);
     const defaults = loadSettings();
     for (const name of SETTING_NAMES) process.env[name] = EXAMPLE_VALUES.get(name);
@@ -80,14 +85,14 @@ describe("config", () => {
 
   test("settings can be changed, each from its own variable", () => {
     process.env.DB_POOL_SIZE = "8";
-    process.env.RATE_LIMIT_PER_MINUTE = "6000";
+    process.env.RATE_LIMIT_MAX = "6000";
     process.env.JOB_MAX_FAILED_SHARE = "0.25";
     process.env.LARGE_SWING_SHARE = "1.5";
     process.env.PROVIDER_MAX_RETRIES = "0";
     process.env.RWA_XYZ_BASE_URL = "https://staging.example.test/v4/";
     const settings = loadSettings();
     assert.equal(settings.api.poolSize, 8);
-    assert.equal(settings.api.rateLimitPerMinute, 6000);
+    assert.equal(settings.api.rateLimitMax, 6000);
     assert.equal(settings.jobs.maxFailedShare, 0.25);
     assert.equal(settings.jobs.largeSwingShare, 1.5);
     assert.equal(settings.providers.maxRetries, 0);
@@ -97,7 +102,9 @@ describe("config", () => {
   test("a value that isn't a sensible number or address stops the process", () => {
     const bad: [string, string[]][] = [
       ["DB_POOL_SIZE", ["0", "-1", "2.5", "many", "51"]],
-      ["RATE_LIMIT_PER_MINUTE", ["0", "-5", "1.5", "unlimited"]],
+      ["RATE_LIMIT_MAX", ["0", "-5", "1.5", "unlimited"]],
+      ["MAX_SLUG_LENGTH", ["0", "65"]],
+      ["MAX_PAGE_OFFSET", ["2147483648"]],
       ["PROVIDER_MAX_RETRIES", ["-1", "0.5"]],
       ["JOB_MAX_FAILED_SHARE", ["0", "1.5", "-0.1", "half"]],
       ["UNIVERSE_MIN_REMAINING_SHARE", ["0", "80"]],
@@ -117,6 +124,20 @@ describe("config", () => {
     assert.throws(() => loadSettings(), /DB_QUERY_TIMEOUT_MS must be above API_STATEMENT_TIMEOUT_MS/);
     process.env.API_STATEMENT_TIMEOUT_MS = "3000";
     assert.equal(loadSettings().api.queryTimeoutMs, 4000);
+  });
+
+  test("the default page size can't be above the largest", () => {
+    process.env.DEFAULT_PAGE_SIZE = "300";
+    assert.throws(() => loadSettings(), /DEFAULT_PAGE_SIZE can't be above MAX_PAGE_SIZE/);
+    process.env.MAX_PAGE_SIZE = "500";
+    assert.equal(loadSettings().api.defaultPageSize, 300);
+  });
+
+  test("a path setting is used as given, and its default sits inside the repository", () => {
+    assert.match(loadSettings().db.migrationsDir, /backend[\\/]db[\\/]migrations$/);
+    assert.match(loadSettings().api.openApiPath, /backend[\\/]openapi\.json$/);
+    process.env.MIGRATIONS_DIR = "/tmp/other-migrations";
+    assert.equal(loadSettings().db.migrationsDir, "/tmp/other-migrations");
   });
 
   test("shares read as percentages in messages", () => {

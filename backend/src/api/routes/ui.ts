@@ -6,6 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import type { FastifyInstance } from "fastify";
+import { settings } from "../../config.ts";
 import { ApiError } from "../errors.ts";
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -15,9 +16,6 @@ const CONTENT_TYPES: Record<string, string> = {
   ".woff": "font/woff",
   ".woff2": "font/woff2",
 };
-
-/** Vite puts a content hash in these filenames, so a changed file always gets a new URL. */
-const HASHED_FILES_PREFIX = "static/";
 
 /** Null for anything that would land outside the root, such as an encoded "../". */
 function resolveInsideRoot(root: string, relativePath: string): string | null {
@@ -39,6 +37,7 @@ async function readFileIfPresent(path: string): Promise<Buffer | null> {
 export function registerUiRoutes(app: FastifyInstance, uiDir: string): void {
   const root = resolve(uiDir);
   const hidden = { schema: { hide: true } };
+  const { uiHashedFilesPrefix, uiHashedFilesMaxAgeSeconds } = settings.api;
 
   app.get("/", hidden, (_request, reply) => reply.redirect("/ui/assets"));
 
@@ -49,9 +48,10 @@ export function registerUiRoutes(app: FastifyInstance, uiDir: string): void {
     const path = resolveInsideRoot(root, relativePath);
     const file = path && (await readFileIfPresent(path));
     if (path && file) {
-      const isHashed = relativePath.startsWith(HASHED_FILES_PREFIX);
+      // Vite puts a content hash in these filenames, so a changed file always gets a new URL.
+      const isHashed = relativePath.startsWith(uiHashedFilesPrefix);
       return reply
-        .header("cache-control", isHashed ? "public, max-age=31536000, immutable" : "no-cache")
+        .header("cache-control", isHashed ? `public, max-age=${uiHashedFilesMaxAgeSeconds}, immutable` : "no-cache")
         .type(CONTENT_TYPES[extname(path)] ?? "application/octet-stream")
         .send(file);
     }

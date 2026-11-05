@@ -14,9 +14,6 @@ import { registerAssetRoutes } from "./routes/assets.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerUiRoutes } from "./routes/ui.ts";
 
-/** The window the per-minute settings count over. */
-const RATE_LIMIT_WINDOW = "1 minute";
-
 interface AppOptions {
   db: Queryable;
   logger: FastifyBaseLogger;
@@ -89,8 +86,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(etag, { algorithm: "sha256", weak: true });
   await app.register(compress);
   await app.register(rateLimit, {
-    max: options.rateLimitMax ?? settings.api.rateLimitPerMinute,
-    timeWindow: RATE_LIMIT_WINDOW,
+    max: options.rateLimitMax ?? settings.api.rateLimitMax,
+    timeWindow: settings.api.rateLimitWindowMs,
     // After authentication, so the limit is per key. Each replica counts separately.
     hook: "preValidation",
     keyGenerator: (request) => (request.apiClient ? `key:${request.apiClient.id}` : `ip:${getClientIp(request)}`),

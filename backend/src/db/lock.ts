@@ -6,10 +6,6 @@
 import pg from "pg";
 import { settings } from "../config.ts";
 
-// Not a setting: every holder has to use the same number, and a service given a different one would
-// run unprotected without any error.
-const LOCK_ID = 7_315_204;
-
 // This connection sits idle for a whole run, so a silent network drop would otherwise go unnoticed
 // on both ends: the job would carry on unprotected, and the server would hold the lock for hours.
 // The values are whole numbers checked in config.ts, and SET takes no parameters.
@@ -43,7 +39,8 @@ export async function tryAcquireLock(connectionString: string): Promise<JobLock 
   client.on("end", markLost);
 
   await client.query(SERVER_KEEPALIVE_SETTINGS);
-  const { rows } = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_lock($1) AS locked", [LOCK_ID]);
+  const { lockId } = settings.db;
+  const { rows } = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_lock($1) AS locked", [lockId]);
   if (!rows[0]?.locked) {
     await client.end();
     return null;
@@ -54,7 +51,7 @@ export async function tryAcquireLock(connectionString: string): Promise<JobLock 
     isHeld: () => held,
     release: async () => {
       if (!held) return;
-      await client.query("SELECT pg_advisory_unlock($1)", [LOCK_ID]).catch(() => undefined);
+      await client.query("SELECT pg_advisory_unlock($1)", [lockId]).catch(() => undefined);
       await client.end().catch(() => undefined);
     },
   };

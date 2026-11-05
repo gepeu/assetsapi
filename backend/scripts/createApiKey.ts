@@ -7,11 +7,9 @@
 import { randomBytes } from "node:crypto";
 import { parseArgs } from "node:util";
 import { hashApiKey } from "../src/api/auth.ts";
-import { loadMigrationDatabaseUrl } from "../src/config.ts";
+import { loadMigrationDatabaseUrl, settings } from "../src/config.ts";
 import { createPool } from "../src/db/pool.ts";
 import { insertKey } from "../src/db/queries/apiKeys.ts";
-
-const PREFIX_LENGTH = 12;
 
 const { values } = parseArgs({
   options: { client: { type: "string" }, "expires-days": { type: "string" } },
@@ -34,7 +32,7 @@ try {
   await insertKey(pool, {
     clientName: values.client,
     keyHash: hashApiKey(key),
-    keyPrefix: key.slice(0, PREFIX_LENGTH),
+    keyPrefix: key.slice(0, settings.api.keyPrefixLength),
     expiresAt: days === null ? null : new Date(Date.now() + days * 24 * 60 * 60 * 1000),
   });
   process.stdout.write(`${key}\n`);

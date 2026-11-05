@@ -1,5 +1,6 @@
 /** `GET /assets` and `GET /assets/{slug}`. */
 import type { FromSchema } from "json-schema-to-ts";
+import { settings } from "../../config.ts";
 import {
   ASSET_TYPES,
   dayOrNull,
@@ -11,9 +12,9 @@ import {
   slugParams,
 } from "./shared.ts";
 
-// Postgres rejects a NUL byte in text and an offset this large, which would otherwise read as a 500.
+// Postgres rejects a NUL byte in text, which would otherwise read as a 500.
 const NO_NUL_PATTERN = "^[^\\u0000]*$";
-const MAX_OFFSET = 2_147_483_647;
+const { defaultPageSize, maxPageSize, maxPageOffset, maxFilterLength } = settings.api;
 
 const SORT_VALUES = [
   "ticker",
@@ -34,13 +35,13 @@ const assetListQuery = {
   type: "object",
   additionalProperties: false,
   properties: {
-    assetClass: { type: "string", minLength: 1, maxLength: 64, pattern: NO_NUL_PATTERN },
+    assetClass: { type: "string", minLength: 1, maxLength: maxFilterLength, pattern: NO_NUL_PATTERN },
     assetType: { type: "string", enum: ASSET_TYPES },
     network: { type: "string", pattern: SLUG_PATTERN },
-    q: { type: "string", minLength: 1, maxLength: 64, pattern: NO_NUL_PATTERN },
+    q: { type: "string", minLength: 1, maxLength: maxFilterLength, pattern: NO_NUL_PATTERN },
     sort: { type: "string", enum: SORT_VALUES, default: "ticker" },
-    limit: { type: "integer", minimum: 1, maximum: 200, default: 50 },
-    offset: { type: "integer", minimum: 0, maximum: MAX_OFFSET, default: 0 },
+    limit: { type: "integer", minimum: 1, maximum: maxPageSize, default: defaultPageSize },
+    offset: { type: "integer", minimum: 0, maximum: maxPageOffset, default: 0 },
   },
 } as const;
 export type AssetListQuery = FromSchema<typeof assetListQuery>;

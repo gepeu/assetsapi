@@ -1,6 +1,7 @@
 /** Turns rows into `/assets` and `/assets/{slug}`. */
 import type { AssetDetailResponse, AssetListQuery, AssetListResponse } from "../api/schemas/assets.ts";
 import type { Figures } from "../api/schemas/shared.ts";
+import { settings } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import {
   type AssetListRow,
@@ -45,7 +46,7 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
     network: query.network ?? null,
     q: query.q ?? null,
   };
-  const limit = query.limit ?? 50;
+  const limit = query.limit ?? settings.api.defaultPageSize;
   const offset = query.offset ?? 0;
 
   const [rows, total, options] = await Promise.all([
