@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production data service: final spec</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --surface: #f6f7f8;
+  --text: #1c2024;
+  --muted: #5d6670;
+  --line: #dde1e5;
+  --accent: #1f5fbf;
+  --code-bg: #eef0f2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171a;
+    --surface: #1c2024;
+    --text: #e6e8ea;
+    --muted: #9aa3ab;
+    --line: #30363c;
+    --accent: #7fb0f5;
+    --code-bg: #262b30;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  max-width: 1240px;
+  margin: 0 auto;
+}
+nav {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 32px 16px 32px 24px;
+  border-right: 1px solid var(--line);
+  font-size: 14px;
+}
+nav .toc-title { margin: 0 0 12px; font-weight: 600; }
+nav a { display: block; padding: 3px 0; color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--accent); }
+nav .toc-2 { margin-top: 8px; color: var(--text); font-weight: 600; }
+nav .toc-3 { padding-left: 12px; }
+main { min-width: 0; padding: 32px 48px 80px; }
+h1 { margin: 0 0 16px; font-size: 32px; line-height: 1.2; }
+h2 { margin: 0 0 16px; padding-top: 8px; font-size: 24px; line-height: 1.25; }
+h3 { margin: 32px 0 12px; font-size: 18px; line-height: 1.3; }
+section { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+p { margin: 0 0 16px; max-width: 75ch; }
+ul, ol { margin: 0 0 16px; padding-left: 24px; max-width: 75ch; }
+li { margin: 4px 0; }
+li > ul, li > ol { margin: 4px 0 0; }
+a { color: var(--accent); }
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--code-bg);
+  font: 0.88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: break-word;
+}
+pre {
+  margin: 0 0 20px;
+  padding: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  line-height: 1.45;
+}
+pre code { padding: 0; background: none; font-size: 13.5px; overflow-wrap: normal; }
+.table-wrap { margin: 0 0 20px; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+th, td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { background: var(--surface); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+@media (max-width: 860px) {
+  .layout { display: block; }
+  nav {
+    position: static;
+    max-height: none;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  nav .toc-3 { display: none; }
+  main { padding: 24px 16px 64px; }
+  h1 { font-size: 26px; }
+}
+@media print {
+  nav { display: none; }
+  .layout { display: block; }
+  main { padding: 0; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav aria-label="Contents">
+<p class="toc-title">Contents</p>
+<a class="toc-2" href="#1-architecture">1. Architecture</a>
+<a class="toc-3" href="#railway-services">Railway services</a>
+<a class="toc-3" href="#directory-structure">Directory structure</a>
+<a class="toc-2" href="#2-token-universe">2. Token universe</a>
+<a class="toc-2" href="#3-providers">3. Providers</a>
+<a class="toc-2" href="#4-database-schema">4. Database schema</a>
+<a class="toc-3" href="#universe">Universe</a>
+<a class="toc-3" href="#reference-data">Reference data</a>
+<a class="toc-3" href="#financials">Financials</a>
+<a class="toc-3" href="#served-measures">Served measures</a>
+<a class="toc-3" href="#operations">Operations</a>
+<a class="toc-3" href="#views">Views</a>
+<a class="toc-3" href="#migrations-and-starting-data">Migrations and starting data</a>
+<a class="toc-2" href="#5-jobs">5. Jobs</a>
+<a class="toc-3" href="#universe-job">Universe job</a>
+<a class="toc-3" href="#update-job">Update job</a>
+<a class="toc-2" href="#6-api">6. API</a>
+<a class="toc-3" href="#endpoints">Endpoints</a>
+<a class="toc-3" href="#input">Input</a>
+<a class="toc-3" href="#responses">Responses</a>
+<a class="toc-3" href="#access">Access</a>
+<a class="toc-3" href="#for-the-frontend-team">For the frontend team</a>
+<a class="toc-3" href="#caching">Caching</a>
+<a class="toc-3" href="#where-the-contract-lives">Where the contract lives</a>
+<a class="toc-2" href="#7-production-operations">7. Production operations</a>
+<a class="toc-3" href="#security">Security</a>
+<a class="toc-3" href="#dependencies">Dependencies</a>
+<a class="toc-3" href="#observability">Observability</a>
+<a class="toc-3" href="#service-lifecycle">Service lifecycle</a>
+<a class="toc-3" href="#database-operations">Database operations</a>
+<a class="toc-3" href="#delivery">Delivery</a>
+<a class="toc-3" href="#tests">Tests</a>
+<a class="toc-2" href="#8-coding-standards">8. Coding standards</a>
+<a class="toc-3" href="#tools">Tools</a>
+<a class="toc-3" href="#code-rules">Code rules</a>
+<a class="toc-3" href="#naming">Naming</a>
+<a class="toc-3" href="#comments">Comments</a>
+<a class="toc-3" href="#errors-logs-sql-and-config">Errors, logs, SQL and config</a>
+<a class="toc-3" href="#tests-and-commits">Tests and commits</a>
+<a class="toc-2" href="#9-cutover">9. Cutover</a>
+<a class="toc-2" href="#10-build-order">10. Build order</a>
+<a class="toc-2" href="#11-still-to-confirm">11. Still to confirm</a>
+<a class="toc-2" href="#sources">Sources</a>
+</nav>
+<main>
+<h1>Production data service: final spec</h1>
+<p><strong>Status:</strong> reviewed on 2026-11-05, with the review's fixes applied. Nothing here is built yet.</p>
+<p>The service is a private, read-only API over a Postgres database that scheduled jobs keep current from RWA.xyz and Kamino. It runs on Railway, in the existing project, which it replaces. This spec covers the backend. The frontend is a separate service owned by the frontend team.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Topic</th><th scope="col">Decision</th></tr></thead><tbody><tr><td><strong>Who uses it</strong></td><td>The frontend team, with API keys. It isn't public, and there are no outside clients for now</td></tr><tr><td><strong>Access</strong></td><td>A normal Railway URL, with an API key required on every data request</td></tr><tr><td><strong>Data</strong></td><td>The token universe, reference fields, current financial values and daily history</td></tr><tr><td><strong>Updates</strong></td><td>Scheduled jobs. Each update overwrites current values</td></tr><tr><td><strong>Providers</strong></td><td>RWA.xyz for data and Kamino for the verified token list</td></tr><tr><td><strong>Scale</strong></td><td>Two API replicas. Add more if traffic requires it</td></tr></tbody></table></div>
+<p><strong>Out of scope for now:</strong> the chat agent, document storage and search, document links, AI-sourced values, public access, the frontend itself, market-wide totals and bulk export. <code>main</code> and the local <code>rwa</code> database still hold the old system and data.</p>
+<section>
+<h2 id="1-architecture">1. Architecture</h2>
+<p>The code has five parts. Two entry points, the jobs and the API, meet only at the database, so a failed job can't take the API down.</p>
+<pre><code>Write path:  Jobs → Providers → RWA.xyz, Kamino
+             Jobs → Database → Postgres
+
+Read path:   API → Read logic → Database → Postgres</code></pre>
+<div class="table-wrap"><table><thead><tr><th scope="col">Part</th><th scope="col">Folder</th><th scope="col">Does</th><th scope="col">Never does</th></tr></thead><tbody><tr><td><strong>Providers</strong></td><td><code>providers/</code></td><td>Fetch external data and convert it to our types</td><td>Touch the database</td></tr><tr><td><strong>Jobs</strong></td><td><code>jobs/</code></td><td>Maintain the universe and update data</td><td>Serve requests, contain SQL or know provider field names</td></tr><tr><td><strong>Database</strong></td><td><code>db/</code></td><td>Connections, migrations and all SQL</td><td>Call providers or build API responses</td></tr><tr><td><strong>Read logic</strong></td><td><code>services/</code></td><td>Turn rows into API responses</td><td>Handle HTTP or contain SQL</td></tr><tr><td><strong>API</strong></td><td><code>api/</code></td><td>HTTP, authentication and errors</td><td>Call providers or run SQL directly</td></tr></tbody></table></div>
+<p><strong>Import rules:</strong> <code>api</code> and <code>jobs</code> never import each other, <code>api</code> never imports <code>providers</code>, and only <code>db/queries/</code> contains SQL.</p>
+<p><strong>Processes:</strong> one Docker image runs four commands.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Command</th><th scope="col">Runs as</th><th scope="col">Behaviour</th></tr></thead><tbody><tr><td><code>api</code></td><td>Long-running service, 2 replicas</td><td>Serves requests</td></tr><tr><td><code>update-universe</code></td><td>Cron service</td><td>One run, then exits</td></tr><tr><td><code>update-data</code></td><td>Cron service</td><td>One run, then exits</td></tr><tr><td><code>migrate</code></td><td>Railway pre-deploy step</td><td>Applies migrations, then exits</td></tr></tbody></table></div>
+<h3 id="railway-services">Railway services</h3>
+<p>The frontend and backend are two apps, deployed separately. The API and both jobs come from the same backend code and Docker image.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Service</th><th scope="col">What it is</th><th scope="col">Owner</th></tr></thead><tbody><tr><td><strong>Frontend</strong></td><td>The website and its small server</td><td>Frontend team</td></tr><tr><td><strong>API</strong></td><td>Always running, with 2 replicas</td><td>Backend</td></tr><tr><td><strong>Universe job</strong></td><td>Runs on a schedule and exits</td><td>Backend</td></tr><tr><td><strong>Update job</strong></td><td>Runs on a schedule and exits</td><td>Backend</td></tr><tr><td><strong>Postgres</strong></td><td>The database, on the private network</td><td>Backend</td></tr></tbody></table></div>
+<h3 id="directory-structure">Directory structure</h3>
+<pre><code>.
+├── .github/
+│   ├── dependabot.yml                  # update PRs with a 7-day cooldown
+│   └── workflows/ci.yml
+├── .gitignore
+├── README.md                           # how to run it locally
+├── docker-compose.yml                  # local Postgres
+├── docs/
+│   ├── operations.md                   # key rotation, restore, manual corrections
+│   ├── production_spec.html
+│   └── production_spec.md
+└── backend/
+    ├── .dockerignore
+    ├── .env.example
+    ├── .npmrc                          # ignore-scripts=true, save-exact=true
+    ├── Dockerfile
+    ├── openapi.json                    # generated and committed
+    ├── package.json
+    ├── package-lock.json
+    ├── tsconfig.json
+    ├── db/migrations/
+    │   ├── 001_baseline.sql            # the final schema
+    │   └── 002_catalog_seed.sql        # fields, sources and measures
+    ├── scripts/
+    │   ├── createApiKey.ts
+    │   ├── generateOpenApi.ts
+    │   └── setupRoles.ts               # database roles and grants, safe to re-run
+    ├── src/
+    │   ├── config.ts                   # environment variables, checked at startup
+    │   ├── logger.ts                   # JSON logs with secrets redacted
+    │   ├── providers/
+    │   │   ├── types.ts                # interfaces and shared data types
+    │   │   ├── errors.ts               # NotFound, Transient, ContractBroken, AuthOrQuota
+    │   │   ├── http.ts                 # pacing, timeouts, retries, rate-limit headers
+    │   │   ├── kamino/
+    │   │   │   └── provider.ts
+    │   │   └── rwaXyz/
+    │   │       ├── client.ts           # HTTP calls and the API key
+    │   │       ├── mapping.ts          # RWA.xyz fields → our catalog fields
+    │   │       ├── measures.ts         # unit fixes and measure conversion
+    │   │       └── provider.ts         # puts these behind the interfaces
+    │   ├── jobs/
+    │   │   ├── updateUniverse.ts       # entry point
+    │   │   ├── universeRules.ts        # the exact-mint rule, no I/O
+    │   │   ├── updateData.ts           # entry point
+    │   │   ├── updateAsset.ts          # one asset: fetch, validate, write
+    │   │   ├── validate.ts             # checks converted data, no I/O
+    │   │   └── runTracking.ts          # stale runs, run record, summary, monitor ping
+    │   ├── db/
+    │   │   ├── pool.ts
+    │   │   ├── lock.ts                 # the shared advisory lock
+    │   │   ├── migrate.ts              # entry point
+    │   │   └── queries/
+    │   │       ├── apiKeys.ts
+    │   │       ├── assets.ts
+    │   │       ├── fieldValues.ts
+    │   │       ├── financials.ts
+    │   │       ├── organizations.ts
+    │   │       ├── runs.ts
+    │   │       └── tokens.ts
+    │   ├── services/
+    │   │   ├── assets.ts
+    │   │   ├── fields.ts
+    │   │   ├── financials.ts
+    │   │   ├── history.ts
+    │   │   └── tokens.ts
+    │   └── api/
+    │       ├── server.ts               # entry point: listens and shuts down cleanly
+    │       ├── app.ts                  # builds the Fastify app
+    │       ├── auth.ts
+    │       ├── errors.ts               # the standard error response
+    │       ├── routes/
+    │       │   ├── assets.ts
+    │       │   └── health.ts
+    │       └── schemas/
+    │           ├── shared.ts
+    │           ├── assets.ts
+    │           ├── fields.ts
+    │           ├── financials.ts
+    │           ├── history.ts
+    │           └── tokens.ts
+    └── test/
+        ├── helpers/
+        │   ├── fakeProvider.ts
+        │   └── testDb.ts
+        ├── fixtures/                   # recorded real responses
+        │   ├── kamino/
+        │   │   └── tokens.json
+        │   └── rwaXyz/
+        │       ├── asset.json
+        │       ├── assetTimeseries.json
+        │       ├── tokenSearch.json
+        │       ├── tokenTimeseries.json
+        │       └── tokens.json
+        ├── providers/
+        │   ├── http.test.ts
+        │   ├── kamino.test.ts
+        │   └── rwaXyz.test.ts
+        ├── jobs/
+        │   ├── runTracking.test.ts
+        │   ├── universeRules.test.ts
+        │   ├── updateAsset.test.ts
+        │   ├── updateData.test.ts
+        │   ├── updateUniverse.test.ts
+        │   └── validate.test.ts
+        ├── db/
+        │   ├── migrations.test.ts
+        │   └── roles.test.ts
+        ├── services/
+        │   ├── assets.test.ts
+        │   ├── fields.test.ts
+        │   ├── financials.test.ts
+        │   ├── history.test.ts
+        │   └── tokens.test.ts
+        └── api/
+            ├── assets.test.ts
+            ├── auth.test.ts
+            ├── fields.test.ts
+            ├── financials.test.ts
+            ├── health.test.ts
+            ├── history.test.ts
+            ├── openapi.test.ts
+            └── tokens.test.ts</code></pre>
+<p><code>assets.ts</code> appears in <code>queries/</code>, <code>services/</code>, <code>routes/</code> and <code>schemas/</code>, one for each layer of the same resource. The folder tells you the layer.</p>
+<p><strong>Taken from <code>main</code>:</strong></p>
+<ul><li><strong>Copied and adapted:</strong> the RWA.xyz client and mapping, the pool, the migration runner, and the tests that still apply.</li><li><strong>Reworked:</strong> <code>load.ts</code> and <code>financials.ts</code> split across <code>providers/</code>, <code>jobs/</code> and <code>db/queries/</code>. The views become <code>services/</code> and <code>db/queries/</code>.</li><li><strong>Left behind:</strong> the chat agent, document code, bucket storage code, sessions, the login limiter, <code>db/catalog/</code>, <code>seed.ts</code>, migrations <code>001</code> to <code>006</code>, and the other files in <code>docs/</code>.</li></ul>
+</section>
+<section>
+<h2 id="2-token-universe">2. Token universe</h2>
+<p><strong>Rule:</strong> a token qualifies if its exact Solana mint is in both Kamino's verified list and RWA.xyz. Tickers are never used for matching, because they collide.</p>
+<ul><li>The <code>asset</code> table is the only list. There's no hard-coded catalog.</li><li>New qualifying tokens join automatically.</li><li>An asset is active while one of its Solana mints is in both lists. Otherwise it gets <code>deactivated_at</code>, and its history stays. If it qualifies again, that date is cleared.</li><li>Today's universe is 107 assets, each with exactly one Solana token, and 1,513 token rows across 27 networks.</li></ul>
+<p><strong><code>asset_type</code> for new assets</strong> comes from a mapping of RWA.xyz's class. Existing assets keep their type, because &quot;Active Strategies&quot; currently covers both <code>defi_yield</code> and <code>tokenized_fund</code>. An asset with an unmapped class is held back and reported until the mapping is added.</p>
+<p><strong>Slugs:</strong> new assets use RWA.xyz's slug, with a number added if it's taken. Existing slugs don't change.</p>
+</section>
+<section>
+<h2 id="3-providers">3. Providers</h2>
+<p>Each adapter implements only the interfaces it supplies, and works with the provider's IDs.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Interface</th><th scope="col">Function</th><th scope="col">Returns</th><th scope="col">Kamino</th><th scope="col">RWA.xyz</th></tr></thead><tbody><tr><td><code>UniverseProvider</code></td><td><code>listTokens()</code></td><td>Each verified token's network and address</td><td>Yes</td><td>No</td></tr><tr><td><code>AddressResolver</code></td><td><code>resolve(network, address)</code></td><td>The provider's ID, or nothing</td><td>No</td><td>Yes</td></tr><tr><td><code>ReferenceProvider</code></td><td><code>getReference(ref)</code></td><td>Field values for the asset and its tokens</td><td>No</td><td>Yes</td></tr><tr><td><code>FinancialProvider</code></td><td><code>getCurrent(ref)</code></td><td>Current values, marked asset or token level</td><td>No</td><td>Yes</td></tr><tr><td></td><td><code>getHistory(ref, since)</code></td><td>Daily series for each measure</td><td>No</td><td>Yes</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th scope="col">Error</th><th scope="col">Example</th><th scope="col">What the job does</th></tr></thead><tbody><tr><td><code>NotFound</code></td><td>Asset delisted</td><td>Fails that asset and keeps its last good data. The next universe run deactivates it if RWA.xyz no longer lists its mint</td></tr><tr><td><code>Transient</code></td><td>Timeout, 429 or 5xx</td><td>Retries with backoff, honouring <code>X-RateLimit-*</code> headers</td></tr><tr><td><code>ContractBroken</code></td><td>Response format changed</td><td>Fails that asset. The run stops only at its failure limit (section 5)</td></tr><tr><td><code>AuthOrQuota</code></td><td>Key rejected or quota used up</td><td>Stops that provider's run and alerts</td></tr></tbody></table></div>
+<p><strong>Ownership:</strong> each data type and asset has one provider. Providers never compete for a value, so no winner rules are needed. With one data provider, the job uses the RWA.xyz adapter directly. A <code>data_owner</code> table can be added when a real second provider appears.</p>
+<p><strong>Kamino:</strong> the list URL needs <code>limit=1000</code>, because it otherwise returns only 20 tokens. No key is needed.</p>
+</section>
+<section>
+<h2 id="4-database-schema">4. Database schema</h2>
+<p>There are 15 tables, down from 27, and 2 views, down from 9.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Group</th><th scope="col">Tables</th></tr></thead><tbody><tr><td><strong>Universe</strong></td><td><code>asset</code>, <code>token</code>, <code>network</code>, <code>asset_alias</code>, <code>organization</code>, <code>asset_organization</code></td></tr><tr><td><strong>Reference data</strong></td><td><code>field</code>, <code>field_value</code>, <code>source</code></td></tr><tr><td><strong>Financials</strong></td><td><code>financial_current</code>, <code>financial_timeseries</code>, <code>financial_measure</code></td></tr><tr><td><strong>Operations</strong></td><td><code>ingestion_run</code>, <code>api_key</code>, <code>schema_migration</code></td></tr></tbody></table></div>
+<p><strong>Removed tables:</strong> <code>claim</code>, <code>claim_citation</code>, <code>fact_override</code>, <code>source_priority</code>, <code>subjective_term</code>, <code>document</code>, <code>asset_document</code>, <code>stored_file</code>, <code>document_text</code>, <code>document_chunk</code>, <code>contract</code>, <code>token_contract</code>, <code>raw_response</code>, <code>agent_response</code> and <code>financial_snapshot</code>.</p>
+<p><strong>Removed views:</strong> <code>eligible_claim</code>, <code>current_claim</code>, <code>fact</code>, <code>asset_coverage</code>, <code>financial_latest</code>, <code>searchable_file</code> and <code>searchable_chunk</code>.</p>
+<h3 id="universe">Universe</h3>
+<p><strong><code>asset</code></strong></p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>id</code></td><td><code>integer</code></td><td>Primary key</td></tr><tr><td><code>slug</code></td><td><code>text</code>, unique</td><td>Public ID in the API</td></tr><tr><td><code>ticker</code></td><td><code>text</code></td><td><strong>No longer unique.</strong> Indexed for lookup</td></tr><tr><td><code>name</code>, <code>asset_class</code>, <code>asset_type</code></td><td><code>text</code></td><td><code>asset_class</code> is RWA.xyz's name word for word</td></tr><tr><td><code>deactivated_at</code></td><td><code>timestamptz</code></td><td><strong>New.</strong> Empty means active</td></tr><tr><td><code>created_at</code></td><td><code>timestamptz</code></td><td></td></tr></tbody></table></div>
+<p>Removed: <code>listed_issuer</code> (all 107 have an issuer organization) and <code>review_note</code> (empty).</p>
+<p><strong><code>token</code></strong></p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>id</code></td><td><code>integer</code></td><td>Primary key</td></tr><tr><td><code>asset_id</code>, <code>network_id</code></td><td><code>integer</code></td><td>Foreign keys</td></tr><tr><td><code>address</code></td><td><code>text</code></td><td>Unique with <code>network_id</code>. The address-normalising trigger stays</td></tr><tr><td><code>issuance_type</code></td><td><code>text</code></td><td><code>native</code>, <code>bridged</code>, <code>wrapper</code> or <code>unknown</code></td></tr><tr><td><code>deactivated_at</code></td><td><code>timestamptz</code></td><td><strong>New.</strong> Set when RWA.xyz stops listing the token</td></tr><tr><td><code>created_at</code></td><td><code>timestamptz</code></td><td></td></tr></tbody></table></div>
+<p>Removed: <code>symbol</code> (empty on all 1,513 tokens).</p>
+<p><strong><code>asset_alias</code>:</strong> <code>asset_id</code>, <code>namespace</code>, <code>value</code>. Only the <code>rwa_xyz_id</code> namespace remains. Removed: <code>verified</code>, and the <code>catalog_slug</code> and <code>rwa_xyz_slug</code> rows.</p>
+<p><strong><code>network</code>:</strong> unchanged. <strong><code>organization</code>:</strong> unchanged.</p>
+<p><strong><code>asset_organization</code>:</strong> the columns are unchanged. The update job replaces an asset's rows on each update, so a role RWA.xyz removes doesn't stay forever.</p>
+<h3 id="reference-data">Reference data</h3>
+<p><strong><code>field</code>:</strong> the catalog goes from 144 to 135 fields, because the 9 <code>control.*</code> fields are removed. Removed: <code>conflict_policy</code>. <code>level</code> loses the <code>contract</code> option. 78 fields have data today, and the other 57 stay in the catalog without a value.</p>
+<p><strong><code>source</code>:</strong> <code>id</code>, <code>key</code>, <code>name</code>. Removed: <code>kind</code>. It has three rows: <code>rwa_xyz</code>, <code>kamino</code> and <code>manual</code>.</p>
+<p><strong><code>field_value</code></strong> (new, replaces <code>claim</code>)</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>id</code></td><td><code>bigint</code></td><td>Primary key</td></tr><tr><td><code>field_id</code></td><td><code>integer</code>, required</td><td>Catalog field</td></tr><tr><td><code>asset_id</code>, <code>token_id</code>, <code>organization_id</code>, <code>network_id</code></td><td><code>integer</code></td><td>The subject. Exactly one is set</td></tr><tr><td><code>subject_ref</code></td><td>generated <code>text</code></td><td>Such as <code>token:123</code></td></tr><tr><td><code>record_key</code></td><td><code>text</code>, default empty</td><td>Identifies one repeating record, such as an audit</td></tr><tr><td><code>value</code></td><td><code>jsonb</code>, required</td><td>The cleaned value. Can't be JSON <code>null</code></td></tr><tr><td><code>raw_value</code></td><td><code>jsonb</code></td><td>The value as received, for audit</td></tr><tr><td><code>as_of</code></td><td><code>date</code></td><td>When the source says it's true</td></tr><tr><td><code>source_id</code></td><td><code>smallint</code>, required</td><td>Provider, or <code>manual</code></td></tr><tr><td><code>ingestion_run_id</code></td><td><code>bigint</code></td><td>Empty for manual edits</td></tr><tr><td><code>missing_since</code></td><td><code>timestamptz</code></td><td>Set when the provider first stops reporting the value, and cleared when it returns</td></tr><tr><td><code>updated_at</code></td><td><code>timestamptz</code>, required</td><td>Last time the value changed</td></tr><tr><td><code>locked_reason</code></td><td><code>text</code></td><td>If set, the job won't overwrite the row</td></tr></tbody></table></div>
+<p>Unique on <code>field_id</code>, <code>subject_ref</code> and <code>record_key</code>. Value type checks move from the old database trigger to <code>validate.ts</code>.</p>
+<p><strong>Removing values:</strong> asset and token rows are deleted once they've been missing for 7 days, unless locked. A value only counts as missing when its asset loads successfully without it, so an outage never starts the clock, and an unchanged run writes nothing. Organization and network rows are only overwritten, because 27 of the 85 organizations are shared across assets, one of them by 64.</p>
+<p><strong>Correcting a value:</strong> edit the row and set <code>locked_reason</code>.</p>
+<h3 id="financials">Financials</h3>
+<p><strong><code>financial_measure</code></strong></p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>slug</code></td><td><code>text</code></td><td>Primary key, such as <code>price_dollar</code></td></tr><tr><td><code>label</code></td><td><code>text</code>, required</td><td>Renamed from <code>name</code></td></tr><tr><td><code>unit</code></td><td><code>text</code></td><td>Standardised</td></tr><tr><td><code>measure_group</code></td><td><code>text</code></td><td>Such as Value, Yield, Supply and holders, or Activity</td></tr><tr><td><code>kind</code></td><td><code>text</code></td><td><code>figure</code> or <code>term</code></td></tr><tr><td><code>served</code></td><td><code>boolean</code>, required</td><td>Whether the API may return it</td></tr><tr><td><code>definition</code></td><td><code>text</code></td><td>What the measure means</td></tr><tr><td><code>sort_order</code></td><td><code>integer</code></td><td></td></tr></tbody></table></div>
+<p>It now also covers snapshot-only names. A new name from a provider is added automatically with <code>served = false</code> and reported, so the data is kept but not exposed until someone approves it.</p>
+<p><strong><code>financial_current</code></strong> (new, replaces <code>financial_snapshot</code>)</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>asset_id</code></td><td><code>integer</code>, required</td><td></td></tr><tr><td><code>token_id</code></td><td><code>integer</code></td><td>Empty means the whole asset</td></tr><tr><td><code>metric</code></td><td><code>text</code>, required</td><td>Foreign key to <code>financial_measure</code></td></tr><tr><td><code>value</code>, <code>value_7d</code>, <code>value_30d</code>, <code>value_90d</code></td><td><code>double precision</code></td><td>Empty for text, yes/no and list values</td></tr><tr><td><code>raw</code></td><td><code>jsonb</code>, required</td><td>The value as received</td></tr><tr><td><code>as_of</code></td><td><code>date</code>, required</td><td></td></tr><tr><td><code>ingestion_run_id</code></td><td><code>bigint</code>, required</td><td></td></tr><tr><td><code>missing_since</code></td><td><code>timestamptz</code></td><td>Same meaning as in <code>field_value</code></td></tr><tr><td><code>updated_at</code></td><td><code>timestamptz</code>, required</td><td>Last time the value changed</td></tr></tbody></table></div>
+<p>Unique on asset, token and metric, with empty tokens treated as equal. There's one row per value and no snapshot history. Rows are deleted once they've been missing for 7 days.</p>
+<p><strong><code>financial_timeseries</code>:</strong> the columns are unchanged. Writes change: only new or changed days are written, which stops each run rewriting 1.79M rows.</p>
+<h3 id="served-measures">Served measures</h3>
+<p>Local data has 90 distinct names, and 77 are served.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Treatment</th><th scope="col">Count</th><th scope="col">Names</th></tr></thead><tbody><tr><td><strong>Served</strong></td><td>77</td><td>Everything not listed below. <code>yield_to_maturity</code> waits until its units are confirmed, so 76 at first</td></tr><tr><td><strong>Not served: provider IDs and objects</strong></td><td>6</td><td><code>accounting_frequency_type_id</code>, <code>denomination_asset_id</code>, <code>primary_market__kyc_provider_id</code>, <code>primary_market_non_pegged_asset</code>, <code>primary_market_pegged_asset</code>, <code>primary_markets</code></td></tr><tr><td><strong>Not served: technical or covered elsewhere</strong></td><td>3</td><td><code>raw_supply</code>, <code>rebase_transfer_unit</code>, <code>ratings</code></td></tr><tr><td><strong>Not served: exact duplicates</strong></td><td>3</td><td><code>bridged_token_value_dollar</code>, <code>bridged_token_market_cap_dollar</code>, <code>bridged_token_supply_token</code></td></tr><tr><td><strong>Merged</strong></td><td>1</td><td><code>yield_to_maturity_percent</code> into <code>yield_to_maturity</code></td></tr></tbody></table></div>
+<p>The adapter also cleans up units, such as <code>Dollars</code> becoming <code>dollar</code>, and the wrong <code>address</code> unit on <code>number_of_daily_transactions_count</code>.</p>
+<p>Rules carried over from <code>main</code>: holder shares are read from the Solana token, and a share above 100% is stored but not served.</p>
+<h3 id="operations">Operations</h3>
+<p><strong><code>ingestion_run</code></strong></p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>id</code></td><td><code>bigint</code></td><td>Primary key</td></tr><tr><td><code>source_id</code></td><td><code>smallint</code>, required</td><td><code>kamino</code> or <code>rwa_xyz</code></td></tr><tr><td><code>job</code></td><td><code>text</code>, required</td><td><strong>New.</strong> <code>universe</code> or <code>update</code>. Replaces <code>parameters</code></td></tr><tr><td><code>started_at</code>, <code>finished_at</code></td><td><code>timestamptz</code></td><td></td></tr><tr><td><code>status</code></td><td><code>text</code></td><td><code>running</code>, <code>succeeded</code>, <code>partial</code>, <code>failed</code> or <strong><code>interrupted</code></strong> (new)</td></tr><tr><td><code>summary</code></td><td><code>jsonb</code></td><td>Counts, failed assets, and held-back and new items</td></tr></tbody></table></div>
+<p><strong><code>api_key</code></strong> (new)</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>id</code></td><td><code>bigint</code></td><td>Primary key</td></tr><tr><td><code>client_name</code></td><td><code>text</code>, required</td><td>Who holds the key</td></tr><tr><td><code>key_hash</code></td><td><code>text</code>, unique, required</td><td>SHA-256. The key itself is never stored</td></tr><tr><td><code>key_prefix</code></td><td><code>text</code>, required</td><td>Visible start of the key, for identifying it</td></tr><tr><td><code>expires_at</code>, <code>revoked_at</code>, <code>last_used_at</code></td><td><code>timestamptz</code></td><td></td></tr><tr><td><code>created_at</code></td><td><code>timestamptz</code>, required</td><td></td></tr></tbody></table></div>
+<p><strong><code>schema_migration</code>:</strong> unchanged.</p>
+<h3 id="views">Views</h3>
+<ul><li><strong><code>asset_subject</code>:</strong> every subject that counts towards an asset, without contracts.</li><li><strong><code>asset_field_status</code>:</strong> one row per asset and field: <code>with_data</code>, <code>no_data</code> or <code>not_applicable</code>. <code>/fields</code> counts coverage from it.</li></ul>
+<h3 id="migrations-and-starting-data">Migrations and starting data</h3>
+<p>The schema starts fresh from where we are now, and the old migrations stay on <code>main</code> as history.</p>
+<ul><li><strong><code>001_baseline.sql</code>:</strong> the final 15 tables, 2 views, indexes and triggers.</li><li><strong><code>002_catalog_seed.sql</code>:</strong> the 135 fields, 3 sources and the measure list.</li><li><strong>Later changes:</strong> start at <code>003</code>.</li></ul>
+<p><strong>Starting data:</strong> the new database is filled from main's <code>rwa</code> database, not rebuilt by the jobs. A one-off conversion runs once, outside the migration system:</p>
+<ol><li>Restore a copy of <code>rwa</code> into a scratch database, and move its tables into a separate schema.</li><li>Build the new schema beside it by running <code>001</code> and <code>002</code>, so it matches a fresh database by construction.</li><li>Run a one-off script that copies the data across:<ul><li>the universe tables, keeping their IDs</li><li>the 16,703 current facts into <code>field_value</code>, matched to fields by key</li><li>the latest snapshot rows into <code>financial_current</code></li><li>the daily history and run records</li></ul></li><li>Reset the ID sequences and drop the old schema.</li><li>Check the row counts against <code>rwa</code>.</li><li>Save it as <code>.local/backups/rwa_baseline.dump</code> and in a private bucket.</li></ol>
+<p>The script and dump stay out of git, and each environment restores this dump. CI still tests <code>001</code> and <code>002</code> on an empty database, which the jobs can fill by themselves.</p>
+<p>A database at <code>006</code>, like <code>rwa</code>, can't be upgraded by the new migrations. Nothing needs that after cutover.</p>
+<p><strong>Safe copy of main's data:</strong> a full dump of <code>rwa</code>, including documents, and the original files in <code>.local/documents/</code> are kept in <code>.local/backups/</code> and the private bucket. The new service never reads them. The private bucket can be the existing Railway bucket, once we've checked what it already holds.</p>
+</section>
+<section>
+<h2 id="5-jobs">5. Jobs</h2>
+<p>Both jobs run on cron, do one run and exit.</p>
+<ul><li><strong>Lock:</strong> they share one Postgres advisory lock, held on a dedicated connection. If it's taken, a job exits straight away, so the two are scheduled apart. If that connection drops, the lock is gone, so the job stops.</li><li><strong>Schema check:</strong> each job first checks that the schema is at the version its code needs, and exits if it isn't. Cron services deploy separately from the migration step, so new job code could otherwise run on the old schema.</li></ul>
+<p><strong>Schedule (default):</strong> both once a day, universe first and update 30 minutes later, after RWA.xyz's daily refresh. Frequency is a cron setting, not code. More runs don't give finer charts, because history is stored per day.</p>
+<h3 id="universe-job">Universe job</h3>
+<ol><li>Take the lock and mark stale <code>running</code> runs as <code>failed</code>.</li><li>Fetch Kamino's verified list (531 tokens at last check).</li><li>Call <code>resolve</code> on RWA.xyz for every mint in the list, by exact address, so both halves of the rule are checked on each run. At 4 requests per second, 531 mints take a little over 2 minutes.</li><li><strong>Check the result.</strong> If either provider's calls fail, or fewer than 80% of active assets would remain, change nothing and alert.</li><li>For a new match, create the asset, alias and Solana token and load its data <strong>in one transaction</strong>. If the load fails, nothing is created, and the next run retries. An asset therefore never appears without data.</li><li>Deactivate assets whose mint is no longer in both lists, and reactivate any that qualify again.</li><li>Record the summary and ping the job monitor.</li></ol>
+<p>If RWA.xyz moves a mint to a new asset ID, that asset is skipped and reported for a manual fix.</p>
+<h3 id="update-job">Update job</h3>
+<ol><li>Take the lock and mark stale <code>running</code> runs as <code>failed</code>.</li><li>Read the active assets.</li><li>Run <code>updateAsset</code> for each one:<ul><li><strong>Fetch</strong> reference data, current values and history, outside any transaction.</li><li><strong>Validate:</strong> format, known fields, finite numbers and <code>as_of</code> dates that aren't in the future.</li><li><strong>Write in one transaction:</strong> asset class, tokens, organizations, field values, current values and changed history days. Skip locked rows, set or clear <code>missing_since</code>, and delete rows that have been missing for 7 days.</li></ul></li><li>Record the summary and ping the job monitor.</li></ol>
+<div class="table-wrap"><table><thead><tr><th scope="col">Failure</th><th scope="col">Result</th></tr></thead><tbody><tr><td>One asset fails, including a format error in its data</td><td>It rolls back and keeps its last good data. The run ends as <code>partial</code></td></tr><tr><td>5 assets fail in a row, or more than 10% of active assets fail</td><td>The run stops and sends an urgent alert</td></tr><tr><td>Rejected key or used-up quota</td><td>The run stops straight away and sends an urgent alert. Assets already written were valid</td></tr><tr><td>Stop signal</td><td>Finishes the current asset, marks the run <code>interrupted</code> and exits</td></tr><tr><td>Crash</td><td>Finished assets stay updated. The next run marks the stale record and does the rest</td></tr><tr><td>Large value swing</td><td>Written and noted in the run summary, since real values can jump</td></tr></tbody></table></div>
+<p>Assets update one by one, so for a few minutes some have new data while others still have old. Each carries its own <code>as_of</code>.</p>
+</section>
+<section>
+<h2 id="6-api">6. API</h2>
+<h3 id="endpoints">Endpoints</h3>
+<p>All are <code>GET</code>, and all require a key.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Endpoint</th><th scope="col">Returns</th></tr></thead><tbody><tr><td><code>/assets</code></td><td>Active assets with key figures, plus filter options</td></tr><tr><td><code>/assets/{slug}</code></td><td>Identity, issuer, organizations, networks and key figures</td></tr><tr><td><code>/assets/{slug}/fields</code></td><td>Catalog values by category, with coverage. Excludes token-level fields</td></tr><tr><td><code>/assets/{slug}/tokens</code></td><td>One row per chain: address, issuance type, token fields and figures</td></tr><tr><td><code>/assets/{slug}/financials</code></td><td>Figures, fund terms, value by network and available history</td></tr><tr><td><code>/assets/{slug}/history</code></td><td>Daily points for one measure</td></tr></tbody></table></div>
+<p>One operational route needs no key: <code>/readyz</code> reports whether the database is reachable and the schema is new enough. Railway's deploy check and the uptime monitor call it.</p>
+<h3 id="input">Input</h3>
+<p>Every input schema uses <code>additionalProperties: false</code>, in the style of Kamino's API. An unknown parameter returns a <code>400</code>. Fastify strips unknown properties by default, so that setting is turned off.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Endpoint</th><th scope="col">Parameter</th><th scope="col">Rule</th></tr></thead><tbody><tr><td>All <code>{slug}</code> routes</td><td><code>slug</code></td><td><code>^[a-z0-9-]{1,64}$</code></td></tr><tr><td><code>/assets</code></td><td><code>assetClass</code></td><td>String, 1 to 64 characters</td></tr><tr><td></td><td><code>assetType</code></td><td>Enum of our asset types</td></tr><tr><td></td><td><code>network</code></td><td><code>^[a-z0-9-]{1,64}$</code></td></tr><tr><td></td><td><code>q</code></td><td>String, 1 to 64 characters. Searches ticker, name and issuer</td></tr><tr><td></td><td><code>sort</code></td><td>Default <code>ticker</code>. Also <code>price_dollar</code>, <code>net_asset_value_dollar</code>, <code>total_asset_value_dollar</code>, <code>apy_30_day</code> and <code>holding_addresses_count</code>. A leading <code>-</code> sorts descending. Ties break by <code>slug</code>, so paging stays stable</td></tr><tr><td></td><td><code>limit</code></td><td>Integer, 1 to 200, default 50</td></tr><tr><td></td><td><code>offset</code></td><td>Integer, at least 0, default 0</td></tr><tr><td><code>/assets/{slug}/tokens</code></td><td><code>network</code></td><td>Optional, same rule</td></tr><tr><td><code>/assets/{slug}/history</code></td><td><code>measure</code></td><td>Required, <code>^[a-z0-9_]{1,64}$</code>. An unknown or unserved measure returns a <code>404</code></td></tr><tr><td></td><td><code>range</code></td><td><code>7d</code>, <code>30d</code>, <code>3m</code>, <code>1y</code> or <code>all</code>, default <code>all</code></td></tr></tbody></table></div>
+<h3 id="responses">Responses</h3>
+<p>These are the shapes. The strict JSON Schemas live in <code>backend/src/api/schemas/</code>. Every declared property is always present, with <code>null</code> when there's no value.</p>
+<pre><code>Figures {
+  price_dollar, net_asset_value_dollar, total_asset_value_dollar,
+  apy_30_day, holding_addresses_count: number | null
+}
+FieldValue {
+  key, label, valueType: string
+  value: string | number | boolean | string[] | null
+  asOf: date | null
+}
+Coverage { withData, applicable: integer }
+
+// GET /assets
+{
+  data: [{
+    slug, ticker, name, assetClass, assetType: string
+    issuer: string | null
+    asOf: date | null
+    figures: Figures
+  }],
+  meta: {
+    total, limit, offset: integer
+    filters: { assetClasses, assetTypes, networks: string[] }
+  }
+}
+
+// GET /assets/{slug}
+{
+  data: {
+    slug, ticker, name, assetClass, assetType: string
+    description, issuer: string | null
+    organizations: [{ slug, name, role: string, legalName: string | null }]
+    networks: [{ key, name: string }]
+    asOf: date | null
+    figures: Figures
+  }
+}
+
+// GET /assets/{slug}/fields
+{
+  data: {
+    coverage: Coverage
+    categories: [{
+      name: string
+      coverage: Coverage
+      fields: FieldValue[]
+      records: [{ group, key: string, fields: FieldValue[] }]
+    }]
+  }
+}
+
+// GET /assets/{slug}/tokens
+{
+  data: [{
+    network: { key, name: string }
+    address: string
+    issuanceType: &quot;native&quot; | &quot;bridged&quot; | &quot;wrapper&quot; | &quot;unknown&quot;
+    fields: FieldValue[]
+    figures: {
+      total_asset_value_dollar, market_value_dollar,
+      total_supply_token, holding_addresses_count: number | null
+    }
+    asOf: date | null
+  }]
+}
+
+// GET /assets/{slug}/financials
+{
+  data: {
+    asOf: date | null
+    figures: [{
+      measure, label, group: string
+      unit: string | null
+      scope: &quot;asset&quot; | &quot;solana&quot;
+      value: number
+      value7d, value30d, value90d: number | null
+      asOf: date | null
+    }]
+    terms: FieldValue[]
+    networks: [{ key, name: string, value, share: number }]
+    history: [{ measure, label, group: string, unit: string | null, scope: &quot;asset&quot; | &quot;solana&quot; }]
+  }
+}
+
+// GET /assets/{slug}/history
+{
+  data: {
+    measure, label: string
+    unit: string | null
+    scope: &quot;asset&quot; | &quot;solana&quot;
+    points: [day, value][]   // oldest first; empty for a valid measure with no data
+  }
+}
+
+// Any error
+{
+  error: {
+    code: &quot;bad_request&quot; | &quot;unauthorized&quot; | &quot;not_found&quot; | &quot;rate_limited&quot; | &quot;unavailable&quot; | &quot;internal&quot;
+    message, requestId: string
+  }
+}</code></pre>
+<div class="table-wrap"><table><thead><tr><th scope="col">Status</th><th scope="col">When</th></tr></thead><tbody><tr><td><code>200</code></td><td>Success</td></tr><tr><td><code>304</code></td><td>The <code>ETag</code> matches, so there's no body</td></tr><tr><td><code>400</code></td><td>Invalid or unknown parameter</td></tr><tr><td><code>401</code></td><td>Missing, revoked or expired key</td></tr><tr><td><code>404</code></td><td>Unknown or deactivated asset, or an unknown measure</td></tr><tr><td><code>429</code></td><td>Rate limited</td></tr><tr><td><code>503</code></td><td>Database unavailable</td></tr></tbody></table></div>
+<p><strong>Not returned:</strong> section layouts, chart types, per-value sources, conflicts and documents. The frontend team needs to keep the &quot;Data obtained from RWA.xyz&quot; banner.</p>
+<p><strong>Missing data:</strong> missing figures are <code>null</code> and sort last. <code>apy_30_day</code> exists for only 11 assets and price for 101.</p>
+<p><strong>Changing the contract:</strong> with no version prefix, we add to responses, and a real break gets a new path. That's manageable while there's one client.</p>
+<h3 id="access">Access</h3>
+<ul><li><strong>Exposure:</strong> the API has a normal Railway URL. Anyone can find it, but every data route returns a <code>401</code> without a key, and Postgres stays private.</li><li><strong>Format:</strong> <code>Authorization: Bearer &lt;key&gt;</code>, with one key per person or app.</li><li><strong>Creating keys:</strong> <code>scripts/createApiKey.ts</code> shows a key once. There's no dashboard.</li><li><strong>Rotating:</strong> a client can hold two active keys while it switches.</li><li><strong>Revoking:</strong> replicas cache key checks for up to 60 seconds, so a revoked key stops within a minute.</li></ul>
+<h3 id="for-the-frontend-team">For the frontend team</h3>
+<p>The frontend team receives <code>backend/openapi.json</code> and an API key. There's no hosted docs page, because a browser can't send the key when it opens one.</p>
+<ul><li><strong>Store the key as a Railway variable</strong> on the frontend service, and use it only in server code. A static build variable, such as <code>VITE_</code>, ends up in the browser's JavaScript.</li><li><strong>Add a small server route</strong> that adds the key to each API call. Browsers then only talk to the frontend's own domain, so the API needs no CORS.</li><li><strong>Protect private viewing.</strong> The key only protects the API, so anyone with the frontend's URL could see the data through that server. The simplest fix is HTTP Basic Auth on the frontend server, with the shared password stored in Railway.</li><li><strong>Keep the banner:</strong> &quot;Data obtained from RWA.xyz&quot;.</li></ul>
+<h3 id="caching">Caching</h3>
+<ul><li><strong><code>ETag</code>:</strong> a hash of the response body, with <code>Cache-Control: private, no-cache</code>. A client gets a <code>304</code> when nothing has changed.</li><li><strong>Compression:</strong> enabled for long history responses.</li><li><strong>In-memory cache, CDN and Redis:</strong> left out until the load check shows a need.</li></ul>
+<h3 id="where-the-contract-lives">Where the contract lives</h3>
+<ul><li><strong>Source of truth:</strong> <code>backend/src/api/schemas/</code>, as JSON Schema in <code>.ts</code> files. Fastify validates against them, and TypeScript types are derived from them.</li><li><strong><code>backend/openapi.json</code>:</strong> generated and committed, so contract changes show up as a diff. CI fails if it's out of date.</li><li><strong>Frontend types:</strong> the team generates them with <code>openapi-typescript</code>.</li></ul>
+</section>
+<section>
+<h2 id="7-production-operations">7. Production operations</h2>
+<h3 id="security">Security</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">Area</th><th scope="col">Design</th></tr></thead><tbody><tr><td><strong>Database access</strong></td><td>Railway private network only, with no public address on the new Postgres service</td></tr><tr><td><strong>API exposure</strong></td><td>Railway's public URL. Every data route requires a key</td></tr><tr><td><strong>Secrets</strong></td><td>Railway variables, with each service holding only what it needs. Only the jobs have the RWA.xyz key</td></tr><tr><td><strong>Rotation</strong></td><td>A short written procedure for the RWA.xyz key, database passwords and API keys</td></tr><tr><td><strong>SQL</strong></td><td>Parameterised queries only</td></tr><tr><td><strong>Logs</strong></td><td><code>Authorization</code> headers and keys are redacted. Errors never contain the RWA.xyz key</td></tr><tr><td><strong>Errors</strong></td><td>Clients get a generic message and request ID, with no stack traces or SQL</td></tr><tr><td><strong>Rate limits</strong></td><td>Starting at 600 requests per minute per key on each replica, and 20 failed authentications per minute per IP. The client IP comes from Railway's proxy header, and a valid key is never blocked by IP</td></tr><tr><td><strong>Transport</strong></td><td>HTTPS through Railway's proxy, plus Fastify's security headers plugin</td></tr></tbody></table></div>
+<p><strong>Left out:</strong> per-request audit logs, a WAF, and encryption beyond Railway's defaults.</p>
+<h3 id="dependencies">Dependencies</h3>
+<p>Several npm supply-chain compromises were reported in 2026, some running code at install time and some spreading through stolen maintainer credentials. These rules apply to <code>backend/</code>, and the frontend team should follow them too:</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Rule</th><th scope="col">Why</th></tr></thead><tbody><tr><td><strong>Smaller tree</strong></td><td>Remove <code>@anthropic-ai/claude-agent-sdk</code>, <code>@aws-sdk/*</code> and <code>pdfjs-dist</code>. Fewer packages means less exposure</td></tr><tr><td><strong>Exact versions and a committed lockfile</strong></td><td>Every install gets exactly what was reviewed</td></tr><tr><td><strong><code>npm ci --ignore-scripts</code> everywhere</strong></td><td>Install scripts don't run, which blocks the install-time attacks. Never use <code>npm install</code> in CI or Docker</td></tr><tr><td><strong>7-day minimum package age</strong></td><td>Most malicious versions are found and pulled quickly, so new releases wait. The lockfile is created and changed with <code>npm install --before=&lt;7 days ago&gt;</code>, because npm 10 has no minimum-age setting. Critical security fixes can skip this after review</td></tr><tr><td><strong><code>npm audit</code> and <code>npm audit signatures</code> in CI</strong></td><td>Catch known vulnerabilities and bad registry signatures</td></tr><tr><td><strong>Automated update PRs with a 7-day cooldown</strong></td><td>Updates stay regular and reviewable, with no auto-merge</td></tr><tr><td><strong>Lockfile diffs get reviewed</strong></td><td>New or changed packages must be visible in the pull request</td></tr><tr><td><strong>No secrets during install</strong></td><td>A malicious package has nothing to steal in that CI step</td></tr><tr><td><strong>Production image holds production packages only</strong></td><td>Built with <code>--omit=dev</code>, on a Node 22 base image pinned by digest</td></tr></tbody></table></div>
+<p><strong>Production packages:</strong> <code>fastify</code>, <code>@fastify/swagger</code>, <code>@fastify/helmet</code>, <code>@fastify/rate-limit</code>, <code>@fastify/compress</code>, <code>@fastify/etag</code>, <code>pg</code> and <code>pino</code>. With their own dependencies, that's 78 packages, none with install scripts. Sentry and a hosted docs page would have added 54 more.</p>
+<p><strong>Dev packages:</strong> <code>typescript</code>, <code>@biomejs/biome</code>, <code>@types/node</code>, <code>@types/pg</code> and <code>json-schema-to-ts</code>.</p>
+<p><strong>Checked 2026-11-05:</strong> <code>npm audit</code> on <code>main</code>'s backend lockfile reports 0 known vulnerabilities, and the lockfile lists no packages with install scripts. The new lockfile gets the same checks when it's created. On that date, 4 of the 13 planned packages had a latest version under 7 days old, including <code>fastify</code>, so the <code>--before</code> rule matters from the first install.</p>
+<h3 id="observability">Observability</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">Piece</th><th scope="col">Tool</th><th scope="col">Does</th></tr></thead><tbody><tr><td><strong>Logs</strong></td><td>Fastify's logger, viewed in Railway</td><td>One JSON line per request, with request ID, route, status, duration and key name. Errors are logged in full</td></tr><tr><td><strong>Job monitor</strong></td><td>Healthchecks.io or similar</td><td>Alerts when a job reports a failure, or when its success ping doesn't arrive, even if the cron never started</td></tr><tr><td><strong>Uptime check</strong></td><td>Any uptime monitor</td><td>Calls <code>/readyz</code> every minute</td></tr></tbody></table></div>
+<p>Alerts go by email to start with. A job that stops, ends <code>partial</code> or holds something back reports a failure to the job monitor, with its run summary. API errors don't alert by themselves: they're in the logs with a request ID, and the uptime monitor catches an API that's down.</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Event</th><th scope="col">Severity</th></tr></thead><tbody><tr><td>API down</td><td>Urgent</td></tr><tr><td>No successful update for about two intervals</td><td>Urgent</td></tr><tr><td>A run stopped by a rejected key, used-up quota or its failure limit</td><td>Urgent</td></tr><tr><td>Disk use above 80%</td><td>Urgent</td></tr><tr><td>A run ended <code>partial</code>, or held back a new asset or measure</td><td>Normal</td></tr><tr><td>Large swings and universe changes</td><td>Info, in the run summary</td></tr></tbody></table></div>
+<p><strong>Left out:</strong> error tracking such as Sentry, Prometheus, Grafana, distributed tracing and on-call rotations.</p>
+<h3 id="service-lifecycle">Service lifecycle</h3>
+<ul><li><strong>Startup:</strong> check the config, connect to the database, and take traffic once <code>/readyz</code> passes.</li><li><strong>Health:</strong> Railway checks <code>/readyz</code> only while a deploy starts, not afterwards. After that, the uptime monitor is what notices an unhealthy API.</li><li><strong>Shutdown:</strong> on a stop signal, stop accepting connections, finish in-flight requests for up to 20 seconds, close the pool and exit.</li><li><strong>Crashes:</strong> log the exception, then exit so Railway restarts the replica.</li></ul>
+<div class="table-wrap"><table><thead><tr><th scope="col">Timeout</th><th scope="col">Starting value</th></tr></thead><tbody><tr><td>Database statement, for the API role</td><td>5 seconds</td></tr><tr><td>Request</td><td>30 seconds</td></tr><tr><td>Waiting for a pool connection</td><td>2 seconds, then a <code>503</code></td></tr><tr><td>Migration waiting for the job lock</td><td>10 minutes, then it fails cleanly</td></tr></tbody></table></div>
+<h3 id="database-operations">Database operations</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">Role</th><th scope="col">Used by</th><th scope="col">Can do</th></tr></thead><tbody><tr><td><code>rwa_owner</code></td><td>Migrations and the key script</td><td>Change the schema and manage keys</td></tr><tr><td><code>rwa_job</code></td><td>Jobs</td><td>Read and write data tables, with no access to <code>api_key</code></td></tr><tr><td><code>rwa_api</code></td><td>API</td><td>Read data tables and <code>api_key</code>, and update only <code>last_used_at</code></td></tr></tbody></table></div>
+<ul><li><strong>Creating roles:</strong> <code>scripts/setupRoles.ts</code> creates the three roles and their grants, with passwords from environment variables. It's safe to re-run, and it runs once per environment and in CI. Default privileges cover tables that later migrations add, and dumps are restored as <code>rwa_owner</code>.</li><li><strong>Statement timeout:</strong> set on <code>rwa_api</code> only, because jobs and migrations run longer statements.</li><li><strong>Connections:</strong> the API uses 5 per replica and the jobs use 3. Local Postgres allows 100, and we'd confirm Railway's limit at setup.</li><li><strong>Backups:</strong> Railway's daily (kept 6 days) and weekly (kept 27 days). Our own nightly dump is optional.</li><li><strong>Test restore:</strong> done at setup, then occasionally. Railway backups restore only into the same project and environment, and wiping a volume deletes them, so risky migrations get a manual off-Railway dump first.</li><li><strong>Recovery targets:</strong> at most 24 hours of data loss, and about 2 hours to recover.</li><li><strong>Upkeep:</strong> log queries over 500 ms, turn on <code>pg_stat_statements</code>, and stay on Postgres 18 until a deliberate upgrade.</li><li><strong>Growth:</strong> history adds at most about 10,000 rows a day, very roughly 500 MB a year.</li></ul>
+<p><strong>Left out:</strong> read replicas, PgBouncer, automatic failover and point-in-time recovery.</p>
+<h3 id="delivery">Delivery</h3>
+<pre><code>Pull request → CI → merge to production → staging → manual promotion → production</code></pre>
+<ul><li><strong>CI (GitHub Actions):</strong> Biome format and lint, type check, tests with real Postgres, migrations on an empty database, OpenAPI freshness, <code>npm audit</code> and signatures, and a Docker build.</li><li><strong>Environments:</strong> staging and production in the existing Railway project, each with its own database, secrets and API keys. Staging runs jobs less often, to save RWA.xyz quota.</li><li><strong>Deploy order:</strong> migrations as a pre-deploy step, then the API once <code>/readyz</code> passes. Jobs use the new image on their next run, and exit early if the schema is older than they need. A failed migration stops the deploy.</li><li><strong>Rollback:</strong> redeploy the previous image. Migrations move forward only, and each must work with both old and new code.</li><li><strong>Branches:</strong> <code>production</code> is this service's main branch, with short-lived branches merged by pull request and branch protection once code exists.</li></ul>
+<p><strong>Left out:</strong> canary releases, blue-green deployments and infrastructure as code.</p>
+<h3 id="tests">Tests</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">Kind</th><th scope="col">Covers</th><th scope="col">How</th></tr></thead><tbody><tr><td><strong>Logic</strong></td><td><code>validate.ts</code>, <code>universeRules.ts</code> and measure conversion</td><td>Plain inputs and outputs</td></tr><tr><td><strong>Providers</strong></td><td>RWA.xyz and Kamino adapters, and each error type</td><td>Recorded real responses</td></tr><tr><td><strong>Jobs</strong></td><td>Full universe and update runs</td><td>Fake provider and real Postgres</td></tr><tr><td><strong>Queries and responses</strong></td><td><code>db/queries</code> and <code>services</code></td><td>Real Postgres</td></tr><tr><td><strong>API</strong></td><td>Auth, validation, <code>ETag</code>s and error shapes</td><td>Fastify's test client and real Postgres</td></tr><tr><td><strong>Database roles</strong></td><td>Each role's permissions</td><td>Connecting as each role</td></tr></tbody></table></div>
+<p><strong>Job cases that must pass:</strong></p>
+<ul><li>A failed asset keeps its last good data and rolls back.</li><li>A format error fails only that asset, and the run continues.</li><li>Five failures in a row stop the run.</li><li>A second run with the same data writes nothing.</li><li>A value missing from one load is kept, and it's deleted once it's been missing for 7 days.</li><li>A locked value isn't overwritten.</li><li>A held lock makes a second job exit straight away.</li><li>A job exits if the schema is older than it needs.</li><li>A stale <code>running</code> record gets marked as failed.</li><li>A failed or suspiciously short Kamino list changes nothing.</li><li>An asset whose mint leaves either list becomes inactive and keeps its history.</li><li>A new asset's failed first load creates nothing.</li></ul>
+<p><strong>Before production:</strong> the baseline dump restored in staging, live provider calls from staging's jobs, and a short load check that includes the longest history responses.</p>
+<p><strong>Left out:</strong> coverage percentage targets, browser tests and mocked databases.</p>
+</section>
+<section>
+<h2 id="8-coding-standards">8. Coding standards</h2>
+<p>The code keeps the style already on <code>main</code> and adds tooling to enforce it, because <code>main</code> has no lint or format config.</p>
+<h3 id="tools">Tools</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">Tool</th><th scope="col">Setup</th><th scope="col">Why</th></tr></thead><tbody><tr><td><strong>TypeScript</strong></td><td><code>main</code>'s strict config, plus <code>noUncheckedIndexedAccess</code> and <code>verbatimModuleSyntax</code></td><td>Catches missing array and map values, and keeps imports explicit</td></tr><tr><td><strong>Biome</strong></td><td>One package for formatting and linting, failing in CI</td><td>Replaces ESLint and Prettier and their many dependencies</td></tr><tr><td><strong>Line width</strong></td><td>120</td><td>Keeps lines readable</td></tr></tbody></table></div>
+<h3 id="code-rules">Code rules</h3>
+<ul><li><strong>Modules:</strong> ES modules with <code>.ts</code> in import paths, and named exports only.</li><li><strong>TypeScript syntax:</strong> erasable syntax only, so no <code>enum</code>, because Node runs the <code>.ts</code> files directly.</li><li><strong>Types:</strong> no <code>any</code> and no <code>as unknown as</code>. External data starts as <code>unknown</code> and gets validated.</li><li><strong>Style:</strong> <code>interface</code> for object shapes, and <code>const</code> unless a value must change.</li><li><strong>Functions over classes:</strong> use classes only for real state, like the RWA.xyz client's pacing.</li><li><strong>Async:</strong> always <code>async</code>/<code>await</code>, and never leave a promise unhandled.</li><li><strong>Size:</strong> keep functions small, and split a file once it does more than one job.</li></ul>
+<h3 id="naming">Naming</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">Thing</th><th scope="col">Style</th><th scope="col">Example</th></tr></thead><tbody><tr><td>Files</td><td>camelCase</td><td><code>updateAsset.ts</code></td></tr><tr><td>Functions and variables</td><td>camelCase, starting with a verb for functions</td><td><code>loadAssetList</code></td></tr><tr><td>Types</td><td>PascalCase, no <code>I</code> prefix</td><td><code>FieldValue</code></td></tr><tr><td>Constants</td><td>UPPER_SNAKE</td><td><code>MAX_RETRIES</code></td></tr><tr><td>Database</td><td>snake_case</td><td><code>field_value</code></td></tr><tr><td>API properties</td><td>camelCase</td><td><code>assetClass</code></td></tr></tbody></table></div>
+<h3 id="comments">Comments</h3>
+<p>Every source file starts with a short header saying what it's for and any boundary it must respect. Beyond that, comments explain why, never what the code already says.</p>
+<pre><code>/**
+ * Writes one asset's data in a single transaction.
+ * A failure rolls back that asset only, so it keeps its last good data.
+ */</code></pre>
+<pre><code>// Good: explains a reason the code can't show
+// The token endpoint otherwise groups by protocol, so the grouping is explicit.
+
+// Bad: repeats the code
+// Loop over the assets.</code></pre>
+<ul><li><strong>Exported functions:</strong> a one-line doc comment only when the name and types don't already make it clear.</li><li><strong>SQL:</strong> migrations get a comment on anything non-obvious.</li><li><strong>No leftovers:</strong> no commented-out code, and no <code>TODO</code> without a linked issue.</li></ul>
+<h3 id="errors-logs-sql-and-config">Errors, logs, SQL and config</h3>
+<ul><li><strong>Errors:</strong> throw typed errors, handle them at the boundaries, and never swallow one silently.</li><li><strong>Logs:</strong> use the shared logger, never <code>console.log</code>, and never log secrets.</li><li><strong>SQL:</strong> plain parameterised SQL in <code>db/queries/</code>, with no ORM.</li><li><strong>Config:</strong> only <code>config.ts</code> reads <code>process.env</code>.</li></ul>
+<h3 id="tests-and-commits">Tests and commits</h3>
+<ul><li><strong>Tests:</strong> Node's built-in test runner, named by behaviour, such as <code>&quot;a failed asset keeps its last good data&quot;</code>.</li><li><strong>Commits:</strong> short imperative subject, such as &quot;Add update job retries&quot;, with a body only when the reason isn't obvious.</li></ul>
+</section>
+<section>
+<h2 id="9-cutover">9. Cutover</h2>
+<p>The new service replaces the old one in the same Railway project, using a new Postgres service. The old database stays untouched until the new service is confirmed.</p>
+<ol><li><strong>Build and test</strong> on the <code>production</code> branch. When the first code lands, copy <code>rwa.dump</code> to <code>.local/backups/</code> and remove it from the branch's git history before any push.</li><li><strong>Save main's data:</strong> put the safe copy from section 4 in the private bucket.</li><li><strong>Run the one-off conversion</strong> from section 4 to create the baseline dump.</li><li><strong>Create staging</strong> in the existing project, with its own Postgres service restored from the baseline dump, and run the jobs there.</li><li><strong>Prove staging:</strong> a load check, a test restore and the frontend team trying the API.</li><li><strong>Create the production Postgres service,</strong> restored from the baseline dump.</li><li><strong>Deploy:</strong> the new API and jobs replace the old service, and the first update job brings the data up to date. The old frontend and login stop working here, until the frontend team deploys theirs.</li><li><strong>Confirm, then clean up:</strong> check data and alerts, and turn on backups for the new database. Take a final off-Railway dump of the old database, then remove it and its unused variables.</li></ol>
+<p><strong>Rollback:</strong> until the old database is removed, restore the old service's variables, including its database URL, and redeploy the old image. The cutover doesn't change that database.</p>
+</section>
+<section>
+<h2 id="10-build-order">10. Build order</h2>
+<ol><li>Set up the project, safe dependency rules, config, the pool and CI.</li><li>Write migrations <code>001</code> and <code>002</code>, then run and check the one-off conversion.</li><li>Build the providers, with recorded responses.</li><li>Build the jobs, with failure tests.</li><li>Build the read logic and queries.</li><li>Build the API: schemas, routes, auth, <code>ETag</code>s, health checks and OpenAPI.</li><li>Add observability and database roles.</li><li>Set up staging and run the load check.</li><li>Cut over.</li></ol>
+</section>
+<section>
+<h2 id="11-still-to-confirm">11. Still to confirm</h2>
+<p><strong>Checks I'll do during the build:</strong></p>
+<ul><li>What time RWA.xyz's daily refresh happens, which sets the job schedule.</li><li>Whether same-day history points are incomplete. In the last load, 250 series ended on the run's own day and 3,115 on the day before. If confirmed, history stops at the last complete UTC day.</li><li>The units of <code>yield_to_maturity</code>. Values of 0.037 to 0.0535 are labelled percent, and are probably fractions.</li><li>Whether RWA.xyz's history endpoint can filter by date. If it can't, the job fetches the full series and writes only changes.</li><li>Railway's connection limit, private networking and deploy settings.</li><li>That Railway's Postgres version can restore a Postgres 18 dump.</li><li>That the chosen job monitor includes the run summary in its failure emails.</li></ul>
+<p><strong>Needed from you at setup:</strong></p>
+<ul><li>The alert email address.</li><li>Job monitor and uptime monitor accounts.</li><li>The RWA.xyz API key from your subscription, and its usage limits if you know them.</li></ul>
+</section>
+<section>
+<h2 id="sources">Sources</h2>
+<ul><li><a href="https://docs.railway.com/reference/backups">Railway backups</a>, for schedules, retention and limits.</li><li><a href="https://docs.railway.com/reference/healthchecks">Railway healthchecks</a>, for checks that only run while a deploy starts.</li><li><a href="https://docs.rwa.xyz/api/overview">RWA.xyz API overview</a>, for rate-limit headers.</li><li><a href="https://kamino.com/docs/llms.txt">Kamino documentation index</a>, for public access without a key.</li><li>2026 npm incidents, from search summaries only and not independently verified: <a href="https://www.techradar.com/pro/security/mini-shai-halud-hackers-publish-over-600-compromised-npm-packages-developers-warned-to-be-on-their-guard">TechRadar</a>, <a href="https://www.rescana.com/post/active-exploitation-alert-jscrambler-npm-packages-compromised-in-coordinated-supply-chain-attack-july-2026">Rescana</a>, <a href="https://www.gigazine.net/gsc_news/en/20260805-npm-supply-chain-attack">Gigazine</a>.</li></ul>
+</section>
+</main>
+</div>
+</body>
+</html>
