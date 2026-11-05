@@ -7,11 +7,13 @@ How to run the service on Railway. The design and the reasons are in
 
 One image, built by the `Dockerfile` at the repository root, runs as three services. Each holds only the variables it needs. Leave each service's root directory as the repository root, because the image builds the frontend too.
 
+**The jobs are off for now.** Deploy only the API. It serves the data restored from the baseline dump, which stays as it is until the jobs run. `/readyz` checks only the database and the migrations, so the API runs fine without them. To turn the jobs on, create the two job services below with their schedules. Until then, the RWA.xyz key and the job monitor aren't needed.
+
 | Service | Start command | Schedule | Variables |
 |---|---|---|---|
 | **API** | `node src/api/server.ts` | Always on, 2 replicas | `DATABASE_URL` as `rwa_api`, `MIGRATION_DATABASE_URL` as `rwa_owner`, `UI_USERNAME`, `UI_PASSWORD` |
-| **Universe job** | `node src/jobs/updateUniverse.ts` | `30 6 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
-| **Update job** | `node src/jobs/updateData.ts` | `0 7 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
+| **Universe job** (off) | `node src/jobs/updateUniverse.ts` | `30 6 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
+| **Update job** (off) | `node src/jobs/updateData.ts` | `0 7 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
 
 - **API settings:** pre-deploy command `node src/db/migrate.ts`, and health check path `/readyz`.
 - **Stopping cleanly:** set `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` to `30` on the API and `60` on both jobs. It defaults to 0, and without it Railway kills the process straight after the stop signal, so the API's 20-second drain and the jobs' "finish the current asset" never get the time. A job killed anyway is safe: its asset rolls back, and the next run marks the stale record.

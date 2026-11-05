@@ -882,10 +882,10 @@ The new service replaces the old one in the same Railway project, using a new Po
 1. **Build and test** on the `production` branch. When the first code lands, copy `rwa.dump` to `.local/backups/` and remove it from the branch's git history before any push.
 2. **Save main's data:** put the safe copy from section 4 in the private bucket.
 3. **Run the one-off conversion** from section 4 to create the baseline dump.
-4. **Create staging** in the existing project, with its own Postgres service restored from the baseline dump, and run the jobs there.
+4. **Create staging** in the existing project, with its own Postgres service restored from the baseline dump. The jobs are off for now (see `operations.md`), so staging runs the API alone.
 5. **Prove staging:** a load check, a test restore and the frontend team trying the API.
 6. **Create the production Postgres service,** restored from the baseline dump.
-7. **Deploy:** the new API and jobs replace the old service, and the first update job brings the data up to date. The old frontend and login stop working here, until the frontend team deploys theirs.
+7. **Deploy:** the new API replaces the old service and serves the baseline data. The jobs are off for now; once they're turned on, the first update job brings the data up to date. The old frontend and login stop working here, until the frontend team deploys theirs.
 8. **Confirm, then clean up:** check data and alerts, and turn on backups for the new database. Take a final off-Railway dump of the old database, then remove it and its unused variables.
 
 **Rollback:** until the old database is removed, restore the old service's variables, including its database URL, and redeploy the old image. The cutover doesn't change that database.
