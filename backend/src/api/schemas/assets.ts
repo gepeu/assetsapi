@@ -118,8 +118,8 @@ const assetListResponse = {
 } as const;
 export type AssetListResponse = FromSchema<typeof assetListResponse>;
 
-// No parameter here has a schema `default`, because a filter must only count when it was sent: Swagger's
-// form sends every default, and validation would fill them in. Each description states its default instead.
+// No parameter here has a schema `default`, because a filter must only count when it was sent: tools that
+// build calls from the contract send every default, and validation would fill them in. Each description states its default instead.
 const assetDetailQuery = {
   type: "object",
   additionalProperties: false,

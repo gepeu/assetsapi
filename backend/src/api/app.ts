@@ -5,7 +5,6 @@ import etag from "@fastify/etag";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
-import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, LogController } from "fastify";
 import { settings, type UiLogin } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
@@ -107,23 +106,6 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   // One hook for every scope, so they share the failure counts and the key cache.
   const auth = createAuthHook({ db, login: options.login, maxFailures: options.failedAuthMax, now: options.now });
-
-  // After the rate limit, so it covers these pages too. Behind the same check as the data, so only
-  // the team sees the contract; the browser asks for the login when one is set.
-  await app.register(async (scope) => {
-    if (!options.authDisabled) scope.addHook("onRequest", auth);
-    await scope.register(swaggerUi, {
-      routePrefix: "/docs",
-      uiConfig: {
-        deepLinking: true,
-        docExpansion: "list",
-        // Without the stock top bar, which is only a logo and a box for loading some other contract.
-        layout: "BaseLayout",
-        persistAuthorization: true,
-        validatorUrl: null,
-      },
-    });
-  });
 
   registerHealthRoutes(app, db);
   const { uiDir } = options;

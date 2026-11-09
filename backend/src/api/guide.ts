@@ -1,6 +1,6 @@
-/** The introduction at the top of the API docs, in Markdown. */
+/** The introduction at the top of the OpenAPI contract, in Markdown. */
 export const API_GUIDE = `
-Private, read-only API over tokenized asset data, updated daily. Data routes require an API key: use **Authorize** to enter one before trying a call here.
+Private, read-only API over tokenized asset data, updated daily. Data routes require an API key, sent as \`Authorization: Bearer <key>\`.
 
 ## Three endpoints
 

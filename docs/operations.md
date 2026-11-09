@@ -119,7 +119,7 @@ UPDATE api_key SET revoked_at = now() WHERE id = <id>;
 
 ## Frontend login
 
-The API serves the frontend at `/ui`. Set `UI_USERNAME` and `UI_PASSWORD` on the API service, and the browser asks for them there and at the Swagger page, `/docs`. Only `/readyz` is open without a login. The page's API calls then send the same login, and the data routes accept it as well as API keys. Without both variables the frontend still loads, but it can't get any data.
+The API serves the frontend at `/ui`. Set `UI_USERNAME` and `UI_PASSWORD` on the API service, and the browser asks for them there. Only `/readyz` is open without a login. The page's API calls then send the same login, and the data routes accept it as well as API keys. Without both variables the frontend still loads, but it can't get any data.
 
 - **One login for everyone:** share it through the password manager, and seal `UI_PASSWORD` like the RWA.xyz key. The API won't start with a password under 16 characters (`UI_PASSWORD_MIN_LENGTH`) or with only one of the two set.
 - **Signing out:** there are no sessions. The browser keeps the login until it closes.

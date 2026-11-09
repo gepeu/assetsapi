@@ -168,7 +168,7 @@ describe("GET /tokenized_assets/{slug}", () => {
     });
   }
 
-  test("an empty docs form works: what it sends for an untouched asset call is accepted", async () => {
+  test("a call that sends every default in the contract is accepted", async () => {
     const spec = harness.app.swagger() as {
       paths: Record<string, { get: { parameters: { name: string; schema: { default?: unknown } }[] } }>;
     };

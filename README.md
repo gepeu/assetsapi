@@ -38,8 +38,7 @@ npm run api
 curl -H "Authorization: Bearer <key>" http://127.0.0.1:3000/tokenized_assets
 ```
 
-The API documents itself at `/docs`, a Swagger page where you can read every parameter and try calls. It sits behind the same check as the data: the shared login or a backend API key.
-The same contract is committed as [backend/openapi.json](backend/openapi.json).
+The API contract is committed as [backend/openapi.json](backend/openapi.json). Open it in any OpenAPI viewer to read every parameter.
 
 ## Run the frontend
 

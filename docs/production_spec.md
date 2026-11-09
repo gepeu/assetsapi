@@ -135,7 +135,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
     │       ├── app.ts                  # builds the Fastify app
     │       ├── auth.ts
     │       ├── errors.ts               # the standard error response
-    │       ├── guide.ts                # the introduction on the docs page
+    │       ├── guide.ts                # the introduction in the OpenAPI contract
     │       ├── routes/
     │       │   ├── assets.ts
     │       │   └── health.ts
@@ -184,7 +184,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
             ├── assets.test.ts
             ├── auth.test.ts
             ├── catalog.test.ts
-            ├── docs.test.ts
+            ├── contract.test.ts
             ├── health.test.ts
             ├── openapi.test.ts
             └── sections.test.ts
@@ -490,7 +490,7 @@ With no parameters, `/tokenized_assets/{slug}` returns the core: identity, issue
 
 Daily points have their own parameter, because they're asked for by metric: `history` names the metrics and `range` sets how far back they go.
 
-Two operational paths need no key. `/readyz` reports whether the database is reachable and the schema is new enough, and Railway's deploy check and the uptime monitor call it. `/docs` is the Swagger page, with the contract at `/docs/json`, and neither holds any data.
+One operational path needs no key. `/readyz` reports whether the database is reachable and the schema is new enough, and Railway's deploy check and the uptime monitor call it.
 
 ### Input
 
@@ -517,7 +517,7 @@ Every input schema uses `additionalProperties: false`, in the style of Kamino's 
 | | `history` | Up to 10 metric names to return daily points for |
 | | `range` | `7d`, `30d`, `3m`, `1y` or `all`, default `3m`. Counts back from each series' own last point |
 
-A filter for a section that wasn't asked for is a `400`, such as `categories` without `include=fields` or `range` without `history`. It would otherwise do nothing, and the caller wouldn't know. These parameters state their defaults in their descriptions rather than as schema defaults, because Swagger's form sends every schema default, which would trip this rule on an untouched form.
+A filter for a section that wasn't asked for is a `400`, such as `categories` without `include=fields` or `range` without `history`. It would otherwise do nothing, and the caller wouldn't know. These parameters state their defaults in their descriptions rather than as schema defaults, because tools that build calls from the contract send every schema default, which would trip this rule.
 
 ### Responses
 
@@ -646,7 +646,7 @@ Coverage { withData, applicable: integer }
 
 ### For the frontend team
 
-The frontend team receives the docs page at `/docs`, `backend/openapi.json` and an API key. The page itself needs no key, and its **Authorize** button takes one for trying calls.
+The frontend team receives `backend/openapi.json` and an API key.
 
 - **Store the key as a Railway variable** on the frontend service, and use it only in server code. A static build variable, such as `VITE_`, ends up in the browser's JavaScript.
 - **Add a small server route** that adds the key to each API call. Browsers then only talk to the frontend's own domain, so the API needs no CORS.
@@ -663,7 +663,6 @@ The frontend team receives the docs page at `/docs`, `backend/openapi.json` and 
 
 - **Source of truth:** `backend/src/api/schemas/`, as JSON Schema in `.ts` files. Fastify validates against them, and TypeScript types are derived from them.
 - **`backend/openapi.json`:** generated and committed, so contract changes show up as a diff. CI fails if it's out of date.
-- **`/docs`:** the same contract as a Swagger page, served by the API, with an introduction from `backend/src/api/guide.ts`.
 - **Frontend types:** the team generates them with `openapi-typescript`.
 
 ## 7. Production operations
@@ -700,9 +699,7 @@ Several npm supply-chain compromises were reported in 2026, some running code at
 | **No secrets during install** | A malicious package has nothing to steal in that CI step |
 | **Production image holds production packages only** | Built with `--omit=dev`, on a Node 22 base image pinned by digest |
 
-**Production packages:** `fastify`, `@fastify/swagger`, `@fastify/swagger-ui`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/compress`, `@fastify/etag`, `pg` and `pino`. With their own dependencies, that's 98 packages, none with install scripts. The docs page accounts for 20 of them, and Sentry would have added more.
-
-**Temporary overrides:** `package.json` pins `glob` to 14.0.3 and `minimatch` to 11.0.3. `@fastify/static` 10.1.8 asks for older versions with moderate advisories, and the release that fixes this came out on 2026-11-04, under the 7-day minimum. From 2026-11-11, move to `@fastify/swagger-ui` 6.1.3 or later with `--before`, and remove the overrides.
+**Production packages:** `fastify`, `@fastify/swagger`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/compress`, `@fastify/etag`, `pg` and `pino`. With their own dependencies, that's 78 packages, none with install scripts. A hosted docs page would have added 20 more, so the API has none.
 
 **Dev packages:** `typescript`, `@biomejs/biome`, `@types/node`, `@types/pg` and `json-schema-to-ts`.
 
