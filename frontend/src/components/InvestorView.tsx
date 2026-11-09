@@ -73,7 +73,7 @@ export function InvestorView({ asset }: { asset: AssetPage }) {
   );
 }
 
-function Returns({ periods }: { periods: ReturnPeriod[] }) {
+export function Returns({ periods }: { periods: ReturnPeriod[] }) {
   return (
     <section className="flex min-w-0 flex-col gap-3">
       <h2 className="text-lg font-medium">Returns</h2>

@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getAssetPage, type AssetPage } from "../api/assets";
 import { AssetDataView } from "../components/AssetDataView";
+import { DashboardView } from "../components/DashboardView";
 import { InvestorView, OVERVIEW_HISTORY, OVERVIEW_RANGE } from "../components/InvestorView";
 import { useAsync } from "../components/useAsync";
 
 /** The overview answers an investor's questions. All data lists every field the asset has. */
-const VIEWS = ["Overview", "All data"] as const;
+const VIEWS = ["Overview", "Dashboard", "All data"] as const;
 
 export function AssetDetailPage() {
   const { slug = "" } = useParams();
@@ -77,6 +78,8 @@ function Detail({ asset }: { asset: AssetPage }) {
 
       {view === "Overview" ? (
         <InvestorView key={`overview-${asset.slug}`} asset={asset} />
+      ) : view === "Dashboard" ? (
+        <DashboardView key={`dashboard-${asset.slug}`} asset={asset} />
       ) : (
         <AssetDataView key={`data-${asset.slug}`} asset={asset} />
       )}
