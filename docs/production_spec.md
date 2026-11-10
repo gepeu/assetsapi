@@ -62,8 +62,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
 ```
 .
 ├── .github/
-│   ├── dependabot.yml                  # update PRs with a 7-day cooldown
-│   └── workflows/ci.yml
+│   └── dependabot.yml                  # update PRs with a 7-day cooldown
 ├── .dockerignore                       # an allowlist: dumps, backups and .env files stay out
 ├── .gitignore
 ├── Dockerfile                          # one image with the API, the jobs and the built frontend
@@ -666,7 +665,7 @@ The frontend team receives `backend/openapi.json` and an API key.
 ### Where the contract lives
 
 - **Source of truth:** `backend/src/api/schemas/`, as JSON Schema in `.ts` files. Fastify validates against them, and TypeScript types are derived from them.
-- **`backend/openapi.json`:** generated and committed, so contract changes show up as a diff. CI fails if it's out of date.
+- **`backend/openapi.json`:** generated and committed, so contract changes show up as a diff. `npm run openapi:check` fails if it's out of date.
 - **Frontend types:** the team generates them with `openapi-typescript`.
 
 ## 7. Production operations
@@ -768,10 +767,10 @@ Alerts go by email to start with. A job that stops, ends `partial` or holds some
 ### Delivery
 
 ```
-Pull request → CI → merge to production → staging → manual promotion → production
+Local checks → push to main → Railway deploys
 ```
 
-- **CI (GitHub Actions):** Biome format and lint, type check, tests with real Postgres, migrations on an empty database, OpenAPI freshness, `npm audit` and signatures, and a Docker build.
+- **No CI (removed 2026-11-10):** run the checks locally before pushing: Biome format and lint (`npx biome ci .`), type check (`npx tsc`), tests with real Postgres (`npm test`), OpenAPI freshness (`npm run openapi:check`), and `npm audit` and `npm audit signatures`. A failed migration still stops the Railway deploy.
 - **Environments:** staging and production in the existing Railway project, each with its own database, secrets and API keys. Staging runs jobs less often, to save RWA.xyz quota.
 - **Deploy order:** migrations as a pre-deploy step, then the API once `/readyz` passes. Jobs use the new image on their next run, and exit early if the schema is older than they need. A failed migration stops the deploy.
 - **Rollback:** redeploy the previous image. Migrations move forward only, and each must work with both old and new code.
