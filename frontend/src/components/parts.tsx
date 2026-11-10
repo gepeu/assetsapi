@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { type Tag, type Tone, logo } from "../model";
+import type { Tag, Tone } from "../model";
 
 // ----- Icons: 24px line drawings, drawn at 16px unless sized otherwise -----
 
@@ -173,32 +173,6 @@ export function Icon({ name, size = 16, className = "" }: { name: string; size?:
     >
       {PATHS[name] ?? PATHS.grid}
     </svg>
-  );
-}
-
-/** A logo cut from the Figma. They sit on white there, so multiply blending lets them sit on any light fill. */
-export function Logo({ name, size, label }: { name: string; size: number; label: string }) {
-  const src = logo(name);
-  if (!src) {
-    return (
-      <span
-        aria-hidden="true"
-        style={{ width: size, height: size }}
-        className="inline-flex shrink-0 items-center justify-center rounded-full bg-border text-xs font-medium text-muted-foreground"
-      >
-        {label.charAt(0)}
-      </span>
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt=""
-      width={size}
-      height={size}
-      style={{ width: size, height: size }}
-      className="shrink-0 rounded-full mix-blend-multiply"
-    />
   );
 }
 

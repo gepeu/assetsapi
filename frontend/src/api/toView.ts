@@ -99,14 +99,11 @@ export function toListAsset(item: AssetListItem): ListAsset {
     slug: item.slug,
     ticker: item.ticker,
     name: item.name,
-    // Logos cut from the Figma, by slug; assets without one show their initial.
-    logo: item.slug,
     classKey: tab,
     className: tabLabel(tab),
     subclass: item.assetClass,
     categories,
     issuer: item.issuer,
-    issuerLogo: null,
     yield: yieldRate === null ? null : percent(yieldRate, false),
     yieldRate,
     yoy: yoy === null ? null : percent(yoy),
@@ -129,9 +126,6 @@ const ACTIVITY_METRICS = [
   "holding_addresses_count",
 ];
 
-/** Chain logos cut from the Figma, where the file name differs from the network key. */
-const CHAIN_LOGOS: Record<string, string> = { "bnb-chain": "bnb" };
-
 function text(value: DataValue | null | undefined): string | null {
   if (value === null || value === undefined || value === "") return null;
   if (Array.isArray(value)) return value.length ? value.join(", ") : null;
@@ -152,7 +146,6 @@ export function toAssetPage(page: AssetPage, list: ListAsset[]): AssetPageData {
     return points.length > 1 ? points : null;
   };
 
-  const self = list.find((a) => a.slug === page.slug);
   const { tab } = classOf(page.assetClass);
   const tag = CLASS_TAGS[tab];
 
@@ -241,7 +234,7 @@ export function toAssetPage(page: AssetPage, list: ListAsset[]): AssetPageData {
     .sort((a, b) => (b.tvlValue ?? -1) - (a.tvlValue ?? -1))
     .slice(0, 3)
     .map((a) => {
-      const card: SimilarCard = { slug: a.slug, ticker: a.ticker, logo: a.logo, issuer: a.issuer ?? "–", tvl: a.tvl ?? "–", tag: CLASS_TAGS[a.classKey] };
+      const card: SimilarCard = { slug: a.slug, ticker: a.ticker, issuer: a.issuer ?? "–", tvl: a.tvl ?? "–", tag: CLASS_TAGS[a.classKey] };
       if (a.yieldRate !== null && a.yield && yieldRate !== null) {
         const gap = a.yieldRate - yieldRate;
         card.yield = { value: a.yield, versus: `${percent(gap)} vs ${page.ticker}`, tone: tone(gap) };
@@ -266,7 +259,6 @@ export function toAssetPage(page: AssetPage, list: ListAsset[]): AssetPageData {
   const chains: ChainRow[] = page.valueByNetwork.map((n) => {
     const holders = holdersByNetwork.get(n.key);
     return {
-      logo: CHAIN_LOGOS[n.key] ?? n.key,
       name: n.name,
       detail: [holders !== undefined && `${count(holders)} holders`, bridged.has(n.key) && "Bridged"].filter(Boolean).join(" · ") || `${n.share.toFixed(1)}% of value`,
       value: money(n.value),
@@ -286,7 +278,6 @@ export function toAssetPage(page: AssetPage, list: ListAsset[]): AssetPageData {
     slug: page.slug,
     ticker: page.ticker,
     name: page.name,
-    logo: self?.logo ?? null,
     tag,
     description: page.description ?? field("identity.description") ?? undefined,
     overview: overview.slice(0, 4),
@@ -319,7 +310,6 @@ export function toAssetPage(page: AssetPage, list: ListAsset[]): AssetPageData {
     },
     organization: issuerName
       ? {
-          logo: self?.issuerLogo ?? null,
           name: issuerName,
           subtitle: field("issuer.description") ?? undefined,
           link: issuerSite ? { label: host(issuerSite), href: issuerSite } : undefined,

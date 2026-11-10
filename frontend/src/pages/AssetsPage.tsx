@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { listAssets } from "../api/assets";
 import { toListAsset } from "../api/toView";
 import { CLASS_TABS, type ClassKey, type ListAsset, MORE_CATEGORIES } from "../model";
-import { Icon, Logo, useDismiss } from "../components/parts";
+import { Icon, useDismiss } from "../components/parts";
 import { useAsync } from "../components/useAsync";
 
 /** Largest on Solana first. */
@@ -182,7 +182,6 @@ function AssetRow({ asset }: { asset: ListAsset }) {
   const cells = (
     <>
       <div className="flex min-w-0 items-center gap-4">
-        <Logo name={asset.logo ?? ""} size={40} label={asset.ticker} />
         <div className="min-w-0">
           <p className="truncate text-[16px] font-medium">{asset.ticker}</p>
           <p className="truncate text-[14px] text-muted-foreground">{asset.name}</p>
@@ -193,7 +192,6 @@ function AssetRow({ asset }: { asset: ListAsset }) {
         <p className="truncate text-[15.5px] text-muted-foreground">{asset.subclass}</p>
       </div>
       <div className="flex min-w-0 items-center gap-2">
-        {asset.issuer && <Logo name={asset.issuerLogo ?? ""} size={20} label={asset.issuer} />}
         <span className="truncate text-[16px] font-medium">{asset.issuer ?? "–"}</span>
       </div>
       <Figure value={asset.yield} />

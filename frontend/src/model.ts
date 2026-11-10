@@ -1,10 +1,5 @@
 // What the Figma pages draw. src/api/toView.ts fills these shapes from the API.
 
-const LOGOS = import.meta.glob("./logos/*.png", { eager: true, import: "default" }) as Record<string, string>;
-
-/** A logo cut from the Figma export, by file name. */
-export const logo = (name: string): string | null => LOGOS[`./logos/${name}.png`] ?? null;
-
 export type Tone = "up" | "down" | "plain";
 
 export type ClassKey = "fixed-income" | "equities" | "commodities" | "crypto" | "alternatives";
@@ -57,14 +52,12 @@ export interface ListAsset {
   slug: string;
   ticker: string;
   name: string;
-  logo: string | null;
   classKey: ClassKey;
   className: string;
   subclass: string;
   /** Categories under "More categories". */
   categories: string[];
   issuer: string | null;
-  issuerLogo: string | null;
   yield: string | null;
   yieldRate: number | null;
   yoy: string | null;
@@ -101,7 +94,6 @@ export interface LinkRow {
 }
 
 export interface OrgCard {
-  logo: string | null;
   name: string;
   subtitle?: string;
   link?: LinkRow;
@@ -112,7 +104,6 @@ export interface OrgCard {
 export interface SimilarCard {
   slug: string;
   ticker: string;
-  logo: string | null;
   issuer: string;
   tvl: string;
   tag: Tag;
@@ -121,7 +112,6 @@ export interface SimilarCard {
 }
 
 export interface ChainRow {
-  logo: string;
   name: string;
   detail: string;
   value: string;
@@ -137,7 +127,6 @@ export interface AssetPageData {
   slug: string;
   ticker: string;
   name: string;
-  logo: string | null;
   tag: Tag;
   description?: string;
   overview: StatTile[];

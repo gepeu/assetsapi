@@ -9,7 +9,6 @@ import {
   Icon,
   LinkButton,
   BigValue,
-  Logo,
   MockChart,
   PageFrame,
   type Range,
@@ -46,7 +45,6 @@ function AssetView({ page }: { page: AssetPageData }) {
       <div className="flex flex-col gap-10">
         <header className="flex flex-col gap-6">
           <div className="flex items-center gap-4">
-            <Logo name={page.logo ?? ""} size={50} label={page.ticker} />
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-[22px] font-medium">{page.name}</h1>
@@ -257,7 +255,6 @@ function Organization({ page }: { page: AssetPageData }) {
       <SectionTitle>Issuer</SectionTitle>
       <Card className="flex flex-col p-5">
         <div className="mb-3 flex items-start gap-4">
-          <Logo name={org.logo ?? ""} size={50} label={org.name} />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex items-start justify-between gap-4">
               <h3 className="text-[20px] font-medium">{org.name}</h3>
@@ -310,7 +307,6 @@ function Similar({ page }: { page: AssetPageData }) {
         {page.similar.map((s) => (
           <Link key={s.slug} to={`/assets/${s.slug}`} className="flex flex-col rounded-xl border border-border bg-background p-5 transition-colors hover:bg-muted">
             <div className="flex items-center gap-3 pb-5">
-              <Logo name={s.logo ?? ""} size={44} label={s.ticker} />
               <div className="min-w-0">
                 <p className="text-[18px] font-medium">{s.ticker}</p>
                 <p className="truncate text-[14px] text-sidebar-foreground">{s.issuer}</p>
@@ -353,20 +349,7 @@ function Onchain({ page }: { page: AssetPageData }) {
               <Card className="px-5 pb-2 pt-5">
                 <h3 className="mb-1 text-[17px] font-medium">Token</h3>
                 {onchain.token.map((r) => (
-                  <FactLine
-                    key={r.label}
-                    label={r.label}
-                    value={
-                      r.label === "Network" ? (
-                        <span className="flex items-center gap-2">
-                          <Logo name={r.value.toLowerCase()} size={24} label={r.value} />
-                          {r.value}
-                        </span>
-                      ) : (
-                        r.value
-                      )
-                    }
-                  />
+                  <FactLine key={r.label} label={r.label} value={r.value} />
                 ))}
                 {onchain.explorer && (
                   <FactLine
@@ -403,7 +386,6 @@ function Onchain({ page }: { page: AssetPageData }) {
               {onchain.chains.map((c) => (
                 <div key={c.name} className="flex items-center justify-between gap-4 border-b border-dashed border-border py-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Logo name={c.logo} size={twoColumns ? 38 : 30} label={c.name} />
                     <div className="min-w-0">
                       <p className="text-[15.5px]">{c.name}</p>
                       <p className="truncate text-[14px] text-sidebar-foreground">{c.detail}</p>
@@ -497,7 +479,7 @@ function BuyPanel({ page }: { page: AssetPageData }) {
           </button>
         ))}
       </div>
-      {mode === "buy" ? <BuyForm page={page} /> : <MultiplyForm ticker={page.ticker} logoName={page.logo ?? ""} />}
+      {mode === "buy" ? <BuyForm page={page} /> : <MultiplyForm ticker={page.ticker} />}
     </div>
   );
 }
@@ -565,7 +547,6 @@ function BuyForm({ page }: { page: AssetPageData }) {
         <div className="flex items-center justify-between">
           <span className="text-[15.5px] text-sidebar-foreground">Pay with</span>
           <Chip>
-            <Logo name="usdc" size={18} label="USDC" />
             USDC
             <Icon name="chevronDown" size={13} />
           </Chip>
@@ -593,7 +574,7 @@ function BuyForm({ page }: { page: AssetPageData }) {
   );
 }
 
-function MultiplyForm({ ticker, logoName }: { ticker: string; logoName: string }) {
+function MultiplyForm({ ticker }: { ticker: string }) {
   const [leverage, setLeverage] = useState(2.7);
   const min = 1.1;
   const max = 5.8;
@@ -604,7 +585,6 @@ function MultiplyForm({ ticker, logoName }: { ticker: string; logoName: string }
         <div className="flex items-center justify-between">
           <span className="text-[15.5px] text-sidebar-foreground">Pay with</span>
           <Chip>
-            <Logo name="usdc" size={18} label="USDC" />
             USDC
             <Icon name="chevronDown" size={13} />
           </Chip>
@@ -629,7 +609,6 @@ function MultiplyForm({ ticker, logoName }: { ticker: string; logoName: string }
         <div className="flex items-center justify-between">
           <span className="text-[15.5px] text-sidebar-foreground">Buy &amp; Deposit</span>
           <Chip>
-            <Logo name={logoName} size={18} label={ticker} />
             {ticker}
           </Chip>
         </div>
@@ -646,7 +625,6 @@ function MultiplyForm({ ticker, logoName }: { ticker: string; logoName: string }
         <span className="text-[15.5px] text-sidebar-foreground">Borrow asset</span>
         <button type="button" className="flex h-12 cursor-pointer items-center justify-between rounded-xl bg-muted px-4 text-[15.5px]">
           <span className="flex items-center gap-2">
-            <Logo name="usdc" size={20} label="USDC" />
             USDC
             <span className="text-muted-foreground">·</span>
             <span className="font-mono text-warning">6.00%</span>

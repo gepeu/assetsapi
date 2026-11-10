@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BigValue, Card, FactLine, Icon, Logo, MockChart, mockSeries, PageFrame, RANGES, type Range, RangeTabs, SectionTitle } from "../components/parts";
+import { BigValue, Card, FactLine, Icon, MockChart, mockSeries, PageFrame, RANGES, type Range, RangeTabs, SectionTitle } from "../components/parts";
 
 // kicUSDC isn't in the API yet, so this page still draws the Figma's own numbers.
 
@@ -76,7 +76,6 @@ export function VaultPage() {
       <div className="flex flex-col gap-8">
         <header className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-4">
-            <Logo name="kicusdc" size={50} label="kicUSDC" />
             <h1 className="text-[22px] font-medium">{NAME}</h1>
             <span className="inline-flex h-6 items-center gap-1 rounded bg-[#edf2fa] px-2 text-[13px] text-secondary">
               <Icon name="lock" size={13} />
@@ -353,7 +352,6 @@ function DepositPanel() {
         <div className="flex items-center justify-between">
           <span className="text-[15.5px] text-sidebar-foreground">Deposit</span>
           <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-[14px] font-medium">
-            <Logo name="usdc" size={18} label="USDC" />
             USDC
           </span>
         </div>
@@ -379,7 +377,6 @@ function DepositPanel() {
         <div className="flex items-center justify-between">
           <span className="text-[15.5px] text-sidebar-foreground">You receive</span>
           <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-[14px] font-medium">
-            <Logo name="kicusdc" size={18} label="kicUSDC" />
             kicUSDC
           </span>
         </div>
@@ -399,7 +396,6 @@ function DepositPanel() {
         <div className="flex justify-between">
           <span className="text-sidebar-foreground">Proj. Annual Return</span>
           <span className="flex items-center gap-1.5 font-mono">
-            <Logo name="usdc" size={15} label="USDC" />
             {fixed(dollars * APY, 2)}
           </span>
         </div>
