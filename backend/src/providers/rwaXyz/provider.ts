@@ -3,8 +3,8 @@
  * records, so one asset is loaded once and shared between them. Network records are kept for the
  * whole run, because they rarely change and one can reach 1 MB.
  */
-import { settings } from "../../config.ts";
-import { ContractBrokenError } from "../errors.ts";
+import { settings } from '../../config.ts';
+import { ContractBrokenError } from '../errors.ts';
 import {
   type AddressResolver,
   type CurrentData,
@@ -22,8 +22,8 @@ import {
   SOLANA_NETWORK,
   type TokenRef,
   utcToday,
-} from "../types.ts";
-import { type ApiRecord, isRecord, RwaXyzClient, type RwaXyzClientOptions, type TimeseriesSeries } from "./client.ts";
+} from '../types.ts';
+import { type ApiRecord, isRecord, RwaXyzClient, type RwaXyzClientOptions, type TimeseriesSeries } from './client.ts';
 import {
   ASSET_MAPPINGS,
   cleanValue,
@@ -35,8 +35,8 @@ import {
   TOKEN_MAPPINGS,
   toAssetType,
   toIssuanceType,
-} from "./mapping.ts";
-import { toDailyPoints, toMeasureName, toMetrics, toStandardUnit } from "./measures.ts";
+} from './mapping.ts';
+import { toDailyPoints, toMeasureName, toMetrics, toStandardUnit } from './measures.ts';
 
 type RwaXyzProvider = AddressResolver & ReferenceProvider & FinancialProvider;
 
@@ -45,7 +45,7 @@ type RwaXyzProviderOptions = RwaXyzClientOptions & {
   today?: () => string;
 };
 
-type OrganizationIdentity = Omit<OrganizationInput, "fields">;
+type OrganizationIdentity = Omit<OrganizationInput, 'fields'>;
 
 interface LoadedToken {
   id: unknown;
@@ -66,19 +66,19 @@ interface LoadedAsset {
 }
 
 const toDay = (value: unknown): string | null => {
-  const date = typeof value === "string" ? value.slice(0, 10) : "";
+  const date = typeof value === 'string' ? value.slice(0, 10) : '';
   return isDay(date) ? date : null;
 };
 
 /** Hex addresses compare case-insensitively, and everything else exactly. */
 function isSameAddress(a: string, b: string): boolean {
   if (a === b) return true;
-  return a.startsWith("0x") && b.startsWith("0x") && a.toLowerCase() === b.toLowerCase();
+  return a.startsWith('0x') && b.startsWith('0x') && a.toLowerCase() === b.toLowerCase();
 }
 
 function requireString(record: ApiRecord, name: string, what: string): string {
   const value = record[name];
-  if (typeof value !== "string" || value.trim() === "") {
+  if (typeof value !== 'string' || value.trim() === '') {
     throw new ContractBrokenError(`RWA.xyz ${what} has no ${name}`);
   }
   return value;
@@ -87,10 +87,10 @@ function requireString(record: ApiRecord, name: string, what: string): string {
 /** Null without a usable name. Only identity fields are read. */
 function toOrganization(value: unknown): OrganizationIdentity | null {
   if (!isRecord(value)) return null;
-  const name = typeof value.name === "string" ? value.name.trim() : "";
+  const name = typeof value.name === 'string' ? value.name.trim() : '';
   if (!name) return null;
-  const slug = typeof value.slug === "string" && value.slug ? value.slug : slugify(name);
-  const legalName = typeof value.legal_name === "string" ? value.legal_name : null;
+  const slug = typeof value.slug === 'string' && value.slug ? value.slug : slugify(name);
+  const legalName = typeof value.legal_name === 'string' ? value.legal_name : null;
   return { slug, name, legalName };
 }
 
@@ -106,7 +106,7 @@ function applyMappings(mappings: readonly FieldMapping[], record: ApiRecord, asO
     const raw = mapping.get(record);
     if (raw === null || raw === undefined) continue;
 
-    if (mapping.type === "organization") {
+    if (mapping.type === 'organization') {
       const organization = toOrganization(raw);
       if (!organization) continue;
       result.organizations.push(organization);
@@ -129,8 +129,8 @@ function applyMappings(mappings: readonly FieldMapping[], record: ApiRecord, asO
 function toNetworkInput(record: ApiRecord, parent: ApiRecord | null, fallbackAsOf: string): NetworkInput {
   const withParent = { ...record, parent_network_name: parent?.name ?? null };
   return {
-    key: requireString(record, "slug", "network"),
-    name: requireString(record, "name", "network"),
+    key: requireString(record, 'slug', 'network'),
+    name: requireString(record, 'name', 'network'),
     // Addresses compare case-insensitively on EVM chains only.
     addressCaseSensitive: record.evm_chain_id == null,
     fields: applyMappings(NETWORK_MAPPINGS, withParent, toDay(record._updated_at) ?? fallbackAsOf).fields,
@@ -169,7 +169,7 @@ function toReferenceData(loaded: LoadedAsset): ReferenceData {
   // The asset-level platform only makes sense when all its tokens share one.
   const [platform] = platforms.values();
   if (platforms.size === 1 && platform) {
-    roles.push({ organization: platform.slug, role: "platform" });
+    roles.push({ organization: platform.slug, role: 'platform' });
     fields.push({
       field: PLATFORM_FIELD,
       value: { organization: platform.slug },
@@ -178,13 +178,13 @@ function toReferenceData(loaded: LoadedAsset): ReferenceData {
     });
   }
 
-  const assetClass = requireString(record, "asset_class_name", "asset");
+  const assetClass = requireString(record, 'asset_class_name', 'asset');
   return {
-    slug: slugify(requireString(record, "slug", "asset"))
+    slug: slugify(requireString(record, 'slug', 'asset'))
       .slice(0, settings.limits.maxSlugLength)
-      .replace(/-$/, ""),
-    ticker: requireString(record, "ticker", "asset"),
-    name: requireString(record, "name", "asset"),
+      .replace(/-$/, ''),
+    ticker: requireString(record, 'ticker', 'asset'),
+    name: requireString(record, 'name', 'asset'),
     assetClass,
     assetType: toAssetType(assetClass),
     fields,
@@ -234,7 +234,7 @@ export function createRwaXyzProvider({ today = utcToday, ...options }: RwaXyzPro
 
   const loadNetwork = async (id: number, asOf: string): Promise<NetworkInput> => {
     const record = await getNetworkRecord(id);
-    const parentId = typeof record.parent_network_id === "number" ? record.parent_network_id : null;
+    const parentId = typeof record.parent_network_id === 'number' ? record.parent_network_id : null;
     const parent = parentId === null ? null : await getNetworkRecord(parentId);
     return toNetworkInput(record, parent, asOf);
   };
@@ -248,13 +248,13 @@ export function createRwaXyzProvider({ today = utcToday, ...options }: RwaXyzPro
     const networks = new Map<number, NetworkInput>();
     const tokens: LoadedToken[] = [];
     for (const token of tokenRecords) {
-      const name = typeof token.name === "string" ? token.name : "unnamed";
+      const name = typeof token.name === 'string' ? token.name : 'unnamed';
       if (token.hidden === true) {
         notes.push(`Skipped hidden token ${name}`);
         continue;
       }
       const { address, network_id: networkId } = token;
-      if (typeof address !== "string" || !address || typeof networkId !== "number") {
+      if (typeof address !== 'string' || !address || typeof networkId !== 'number') {
         notes.push(`Skipped token ${name}: no address or network`);
         continue;
       }
@@ -286,7 +286,7 @@ export function createRwaXyzProvider({ today = utcToday, ...options }: RwaXyzPro
         return (
           token.hidden !== true &&
           tokenNetwork === network &&
-          typeof token.address === "string" &&
+          typeof token.address === 'string' &&
           isSameAddress(token.address, address)
         );
       });
@@ -294,7 +294,7 @@ export function createRwaXyzProvider({ today = utcToday, ...options }: RwaXyzPro
       if (ids.size === 0) return null;
       if (ids.size > 1) throw new ContractBrokenError(`RWA.xyz lists ${address} on several assets`);
       const [id] = ids;
-      if (typeof id !== "number" && typeof id !== "string") {
+      if (typeof id !== 'number' && typeof id !== 'string') {
         throw new ContractBrokenError(`RWA.xyz lists ${address} without an asset`);
       }
       return String(id);
@@ -314,7 +314,7 @@ export function createRwaXyzProvider({ today = utcToday, ...options }: RwaXyzPro
         if (converted) series.push(converted);
       };
 
-      for (const found of await client.timeseries("assets", [{ field: "asset_id", value: ref }])) {
+      for (const found of await client.timeseries('assets', [{ field: 'asset_id', value: ref }])) {
         if (found.groupId === loaded.record.id) addSeries(found, null);
         else notes.push(`Skipped a ${found.measure.slug} series for another asset`);
       }
@@ -325,10 +325,10 @@ export function createRwaXyzProvider({ today = utcToday, ...options }: RwaXyzPro
       if (firstSolana) {
         const tokenRefs = new Map(solanaTokens.map((token) => [token.id, token.ref]));
         const filters = [
-          { field: "asset_id", value: ref },
-          { field: "network_id", value: firstSolana.networkId },
+          { field: 'asset_id', value: ref },
+          { field: 'network_id', value: firstSolana.networkId },
         ];
-        for (const found of await client.timeseries("tokens", filters)) {
+        for (const found of await client.timeseries('tokens', filters)) {
           const tokenRef = tokenRefs.get(found.groupId);
           if (tokenRef) addSeries(found, tokenRef);
           else notes.push(`Skipped a ${found.measure.slug} series for a token we can't place`);

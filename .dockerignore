@@ -7,11 +7,4 @@
 !backend/src
 !backend/scripts
 !backend/db
-!frontend/package.json
-!frontend/package-lock.json
-!frontend/.npmrc
-!frontend/index.html
-!frontend/tsconfig.json
-!frontend/vite.config.ts
-!frontend/src
 **/.env*

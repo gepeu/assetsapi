@@ -1,24 +1,24 @@
 /** The `financials`, `series`, `valueByNetwork` and `terms` sections of `GET /tokenized_assets/{slug}`. */
-import type { FromSchema } from "json-schema-to-ts";
-import { dayOrNull, fieldValueSchema, nullableNumber, nullableString, scopeSchema } from "./shared.ts";
+import type { FromSchema } from 'json-schema-to-ts';
+import { dayOrNull, fieldValueSchema, nullableNumber, nullableString, scopeSchema } from './shared.ts';
 
 export const financialsSection = {
-  type: "array",
+  type: 'array',
   description: "Each metric's current value with its label, group, unit and past values",
   items: {
-    type: "object",
+    type: 'object',
     additionalProperties: false,
-    required: ["metric", "label", "group", "unit", "scope", "value", "value7d", "value30d", "value90d", "asOf"],
+    required: ['metric', 'label', 'group', 'unit', 'scope', 'value', 'value7d', 'value30d', 'value90d', 'asOf'],
     properties: {
-      metric: { type: "string" },
-      label: { type: "string" },
-      group: { type: "string" },
+      metric: { type: 'string' },
+      label: { type: 'string' },
+      group: { type: 'string' },
       unit: nullableString,
       scope: scopeSchema,
-      value: { type: "number" },
-      value7d: { ...nullableNumber, description: "The value 7 days ago" },
-      value30d: { ...nullableNumber, description: "The value 30 days ago" },
-      value90d: { ...nullableNumber, description: "The value 90 days ago" },
+      value: { type: 'number' },
+      value7d: { ...nullableNumber, description: 'The value 7 days ago' },
+      value30d: { ...nullableNumber, description: 'The value 30 days ago' },
+      value90d: { ...nullableNumber, description: 'The value 90 days ago' },
       asOf: dayOrNull,
     },
   },
@@ -26,16 +26,16 @@ export const financialsSection = {
 export type FinancialsSection = FromSchema<typeof financialsSection>;
 
 export const seriesSection = {
-  type: "array",
-  description: "The history series this asset has, without their points",
+  type: 'array',
+  description: 'The history series this asset has, without their points',
   items: {
-    type: "object",
+    type: 'object',
     additionalProperties: false,
-    required: ["metric", "label", "group", "unit", "scope"],
+    required: ['metric', 'label', 'group', 'unit', 'scope'],
     properties: {
-      metric: { type: "string" },
-      label: { type: "string" },
-      group: { type: "string" },
+      metric: { type: 'string' },
+      label: { type: 'string' },
+      group: { type: 'string' },
       unit: nullableString,
       scope: scopeSchema,
     },
@@ -44,25 +44,25 @@ export const seriesSection = {
 export type SeriesSection = FromSchema<typeof seriesSection>;
 
 export const valueByNetworkSection = {
-  type: "array",
-  description: "Total asset value on each network, largest first",
+  type: 'array',
+  description: 'Total asset value on each network, largest first',
   items: {
-    type: "object",
+    type: 'object',
     additionalProperties: false,
-    required: ["key", "name", "value", "share"],
+    required: ['key', 'name', 'value', 'share'],
     properties: {
-      key: { type: "string" },
-      name: { type: "string" },
-      value: { type: "number", description: "In dollars" },
-      share: { type: "number", description: "Percent of the asset's value across networks" },
+      key: { type: 'string' },
+      name: { type: 'string' },
+      value: { type: 'number', description: 'In dollars' },
+      share: { type: 'number', description: "Percent of the asset's value across networks" },
     },
   },
 } as const;
 export type ValueByNetworkSection = FromSchema<typeof valueByNetworkSection>;
 
 export const termsSection = {
-  type: "array",
-  description: "Fund terms and fees",
+  type: 'array',
+  description: 'Fund terms and fees',
   items: fieldValueSchema,
 } as const;
 export type TermsSection = FromSchema<typeof termsSection>;

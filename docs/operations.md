@@ -5,13 +5,13 @@ How to run the service on Railway. The design and the reasons are in
 
 ## Railway services
 
-One image, built by the `Dockerfile` at the repository root, runs as three services. Each holds only the variables it needs. Leave each service's root directory as the repository root, because the image builds the frontend too.
+One image, built by the `Dockerfile` at the repository root, runs as three services. Each holds only the variables it needs. Leave each service's root directory as the repository root, where the `Dockerfile` is.
 
 **The jobs are off for now.** Deploy only the API. It serves the data restored from the baseline dump, which stays as it is until the jobs run. `/readyz` checks only the database and the migrations, so the API runs fine without them. To turn the jobs on, create the two job services below with their schedules. Until then, the RWA.xyz key and the job monitor aren't needed.
 
 | Service | Start command | Schedule | Variables |
 |---|---|---|---|
-| **API** | `node src/api/server.ts` | Always on, 2 replicas | `DATABASE_URL` as `rwa_api`, `MIGRATION_DATABASE_URL` as `rwa_owner`, `UI_USERNAME`, `UI_PASSWORD` |
+| **API** | `node src/api/server.ts` | Always on, 2 replicas | `DATABASE_URL` as `rwa_api`, `MIGRATION_DATABASE_URL` as `rwa_owner` |
 | **Universe job** (off) | `node src/jobs/updateUniverse.ts` | `30 6 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
 | **Update job** (off) | `node src/jobs/updateData.ts` | `0 7 * * *` | `DATABASE_URL` as `rwa_job`, `RWA_XYZ_API_KEY`, `JOB_MONITOR_URL` |
 
@@ -28,7 +28,7 @@ The ones most likely to change:
 
 | Variable | Service | Default | When to change it |
 |---|---|---|---|
-| `RATE_LIMIT_MAX` | API | `600` | Requests per key in each window, a minute by default. Raise it for a caller with many visitors behind one backend API key: `6000` covers about 200 requests a second across two replicas |
+| `RATE_LIMIT_MAX` | API | `600` | Requests per IP address in each window, a minute by default. Raise it if one caller, such as a server, sends many requests from one address: `6000` covers about 200 requests a second across two replicas |
 | `DB_POOL_SIZE` | API | `5` | More replicas or a lower connection limit. Replicas times this, plus 4, has to stay under the Postgres limit |
 | `PROVIDER_REQUEST_INTERVAL_MS` | Jobs | `250` | RWA.xyz starts answering `429` |
 | `JOB_MAX_FAILED_SHARE` | Update job | `0.1` | Runs stop too early or too late when assets fail |
@@ -48,12 +48,11 @@ These depend on Railway's behaviour, which the tests can't reach.
 
 **Clean shutdown:** redeploy the API while requesting it. The logs should show `shutting down`, then the last requests, with no failed responses. Redeploy a job mid-run, and its run record should end as `interrupted`.
 
-**The client IP can't be faked:** the failed-key limit reads `X-Real-IP`, and Railway's docs don't say whether a value sent by the client gets overwritten. Send 25 requests with a bad key and a different `X-Real-IP` each time. The last ones must be `429`. If they stay `401`, the limit isn't working, and the client IP has to come from somewhere else.
+**The client IP can't be faked:** the API is public, so the per-IP rate limit is its only guard against one client using it all. It reads `X-Real-IP`, and Railway's docs don't say whether a value sent by the client gets overwritten. Set `RATE_LIMIT_MAX=20` on staging, then send 25 requests with a different `X-Real-IP` each time. The last ones must be `429`. If they all stay `200`, any client can get past the limit, and the client IP has to come from somewhere else. Remove the variable afterwards.
 
 ```sh
 for i in $(seq 1 25); do
-  curl -s -o /dev/null -w '%{http_code}\n' -H "X-Real-IP: 198.51.100.$i" \
-    -H "Authorization: Bearer rwa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "$API_URL/tokenized_assets"
+  curl -s -o /dev/null -w '%{http_code}\n' -H "X-Real-IP: 198.51.100.$i" "$API_URL/tokenized_assets"
 done
 ```
 
@@ -67,7 +66,7 @@ pg_restore -d "$DATABASE_ADMIN_URL" --no-owner --no-privileges --role=rwa_owner 
 npm run setup-roles
 ```
 
-The second `setup-roles` matters. A restore creates every table again, so default privileges give `rwa_job` the `api_key` table until it's taken back.
+The second `setup-roles` matters. A restore creates every table again, so default privileges let `rwa_job` change the catalog tables until that's taken back. The next deploy's migrate step then drops the `api_key` table the baseline dump still holds.
 
 Then on the database, as an admin:
 
@@ -80,54 +79,9 @@ ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';  -- needs a re
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 ```
 
-## Keys on Railway
+## The RWA.xyz key
 
-There are two kinds, stored differently.
-
-| Key | Used by | Where it lives |
-|---|---|---|
-| **RWA.xyz key** | Both jobs, to call RWA.xyz | A Railway variable, `RWA_XYZ_API_KEY` |
-| **Backend API key** | Each caller of this API | Its hash in the `api_key` table. The caller keeps the key itself |
-
-**RWA.xyz key:** add it once as a shared variable in the project settings, attach it to both job services, and seal it. A sealed value still reaches the running service, but the dashboard and the CLI never show it again, so keep a copy in the password manager.
-
-**Backend API keys:** the backend holds no key variable of its own. The script below writes a key's hash to the database and prints the key once. Give it to the caller, who stores it as a sealed variable on their own server. It must never reach browser code.
-
-## API keys
-
-Keys are created with the script, as `rwa_owner`, and shown once.
-
-```sh
-npm run create-api-key -- --client "frontend staging" --expires-days 90
-```
-
-**On Railway:** the database has no public address, so the script can't run from a laptop. Open a shell in the API service, which already holds `MIGRATION_DATABASE_URL`, and run it there:
-
-```sh
-railway ssh --service <api service>
-node scripts/createApiKey.ts --client "frontend production" --expires-days 365
-```
-
-Check this on staging first, because it hasn't been run on Railway yet. Use one key per caller and environment. An expired key stops that caller's data, so note the expiry date when the key is created.
-
-**Rotate:** create a new key, switch the client over, then revoke the old one. A client can hold two active keys while it switches.
-
-**Revoke:** a revoked key stops within a minute, because replicas cache key checks for up to 60 seconds.
-
-```sql
-SELECT id, client_name, key_prefix, last_used_at FROM api_key WHERE revoked_at IS NULL;
-UPDATE api_key SET revoked_at = now() WHERE id = <id>;
-```
-
-## Frontend login
-
-The API serves the frontend at `/ui`. Set `UI_USERNAME` and `UI_PASSWORD` on the API service, and the browser asks for them there. Only `/readyz` is open without a login. The page's API calls then send the same login, and the data routes accept it as well as API keys. Without both variables the frontend still loads, but it can't get any data.
-
-- **One login for everyone:** share it through the password manager, and seal `UI_PASSWORD` like the RWA.xyz key. The API won't start with a password under 16 characters (`UI_PASSWORD_MIN_LENGTH`) or with only one of the two set.
-- **Signing out:** there are no sessions. The browser keeps the login until it closes.
-- **Wrong passwords** count toward the same per-IP limit as bad keys. Opening the page without a login doesn't count, so a team behind one address can't block itself.
-- **Change it:** set the new password and redeploy. Everyone signs in again on their next visit.
-- **Check on staging:** open `/ui` in a private window. The browser should ask once, and the asset list should load.
+The API is public and needs no key. The jobs call RWA.xyz with `RWA_XYZ_API_KEY`: add it once as a shared variable in the project settings, attach it to both job services, and seal it. A sealed value still reaches the running service, but the dashboard and the CLI never show it again, so keep a copy in the password manager.
 
 ## Rotate other secrets
 

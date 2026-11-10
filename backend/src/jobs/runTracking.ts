@@ -2,15 +2,15 @@
  * Everything around a job's work: the schema check, the shared lock, stale runs, the run record, the
  * summary and the monitor ping. Both jobs run through `runTrackedJob`, so they fail the same way.
  */
-import type pg from "pg";
-import { type JobConfig, loadJobConfig, settings } from "../config.ts";
-import { type JobLock, tryAcquireLock } from "../db/lock.ts";
-import { findPendingMigrations } from "../db/migrate.ts";
-import { createPool } from "../db/pool.ts";
-import { findSourceId, finishRun, type JobName, markStaleRuns, type RunStatus, startRun } from "../db/queries/runs.ts";
-import { createLogger, type Logger } from "../logger.ts";
+import type pg from 'pg';
+import { type JobConfig, loadJobConfig, settings } from '../config.ts';
+import { type JobLock, tryAcquireLock } from '../db/lock.ts';
+import { findPendingMigrations } from '../db/migrate.ts';
+import { createPool } from '../db/pool.ts';
+import { findSourceId, finishRun, type JobName, markStaleRuns, type RunStatus, startRun } from '../db/queries/runs.ts';
+import { createLogger, type Logger } from '../logger.ts';
 
-type Severity = "none" | "normal" | "urgent";
+type Severity = 'none' | 'normal' | 'urgent';
 
 interface StopSignal {
   isStopping(): boolean;
@@ -32,25 +32,25 @@ interface RunContext {
 
 /** What a job's work reports back. */
 export interface RunReport {
-  status: Exclude<RunStatus, "running">;
+  status: Exclude<RunStatus, 'running'>;
   severity: Severity;
   summary: Record<string, unknown>;
 }
 
 export type JobOutcome =
-  | { kind: "finished"; runId: number; status: RunReport["status"]; summary: Record<string, unknown> }
-  | { kind: "locked" }
-  | { kind: "schema_behind"; pending: string[] };
+  | { kind: 'finished'; runId: number; status: RunReport['status']; summary: Record<string, unknown> }
+  | { kind: 'locked' }
+  | { kind: 'schema_behind'; pending: string[] };
 
 /** A signal handler that lets the current asset finish. */
 function listenForStop(logger: Logger): StopSignal {
   let stopping = false;
   const onSignal = (signal: NodeJS.Signals) => {
-    logger.info({ signal }, "stop signal received, finishing the current asset");
+    logger.info({ signal }, 'stop signal received, finishing the current asset');
     stopping = true;
   };
-  process.once("SIGTERM", onSignal);
-  process.once("SIGINT", onSignal);
+  process.once('SIGTERM', onSignal);
+  process.once('SIGINT', onSignal);
   return { isStopping: () => stopping };
 }
 
@@ -68,14 +68,14 @@ async function pingMonitor(deps: JobDeps, failed: boolean, body: unknown): Promi
   if (!deps.monitorUrl) return;
   const fetchImpl = deps.fetchImpl ?? fetch;
   try {
-    const url = failed ? `${deps.monitorUrl.replace(/\/$/, "")}/fail` : deps.monitorUrl;
+    const url = failed ? `${deps.monitorUrl.replace(/\/$/, '')}/fail` : deps.monitorUrl;
     const response = await fetchImpl(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: toMonitorBody(body),
       signal: AbortSignal.timeout(settings.jobs.monitorTimeoutMs),
     });
-    if (!response.ok) deps.logger.warn({ status: response.status }, "job monitor rejected the ping");
+    if (!response.ok) deps.logger.warn({ status: response.status }, 'job monitor rejected the ping');
   } catch (error) {
     deps.logger.warn({ err: error }, "couldn't reach the job monitor");
   }
@@ -90,26 +90,26 @@ export async function runTrackedJob(
   deps: JobDeps,
   job: JobName,
   sourceKey: string,
-  work: (context: RunContext) => Promise<RunReport>,
+  work: (context: RunContext) => Promise<RunReport>
 ): Promise<JobOutcome> {
   const { logger, pool } = deps;
 
   const pending = await findPendingMigrations(pool);
   if (pending.length > 0) {
-    logger.error({ job, pending }, "the database schema is older than this code needs");
-    await pingMonitor(deps, true, { job, severity: "urgent", error: "Schema is behind", pending });
-    return { kind: "schema_behind", pending };
+    logger.error({ job, pending }, 'the database schema is older than this code needs');
+    await pingMonitor(deps, true, { job, severity: 'urgent', error: 'Schema is behind', pending });
+    return { kind: 'schema_behind', pending };
   }
 
   const lock: JobLock | null = await tryAcquireLock(deps.connectionString);
   if (!lock) {
-    logger.warn({ job }, "another job holds the lock, exiting");
-    return { kind: "locked" };
+    logger.warn({ job }, 'another job holds the lock, exiting');
+    return { kind: 'locked' };
   }
 
   try {
     const stale = await markStaleRuns(pool);
-    if (stale > 0) logger.warn({ job, stale }, "marked stale runs as failed");
+    if (stale > 0) logger.warn({ job, stale }, 'marked stale runs as failed');
 
     const sourceId = await findSourceId(pool, sourceKey);
     const runId = await startRun(pool, sourceId, job);
@@ -118,8 +118,8 @@ export async function runTrackedJob(
     try {
       report = await work({ runId, isLockHeld: lock.isHeld });
     } catch (error) {
-      logger.error({ err: error, job, runId }, "run failed");
-      report = { status: "failed", severity: "urgent", summary: { error: toErrorMessage(error) } };
+      logger.error({ err: error, job, runId }, 'run failed');
+      report = { status: 'failed', severity: 'urgent', summary: { error: toErrorMessage(error) } };
     }
 
     try {
@@ -129,20 +129,20 @@ export async function runTrackedJob(
       // The record stays "running" until the next run marks it stale.
       logger.error({ err: error, job, runId }, "couldn't record the end of the run");
       report = {
-        status: "failed",
-        severity: "urgent",
+        status: 'failed',
+        severity: 'urgent',
         summary: { ...report.summary, recordError: toErrorMessage(error) },
       };
     }
-    logger.info({ job, runId, status: report.status, summary: report.summary }, "run finished");
-    await pingMonitor(deps, report.severity !== "none", {
+    logger.info({ job, runId, status: report.status, summary: report.summary }, 'run finished');
+    await pingMonitor(deps, report.severity !== 'none', {
       job,
       runId,
       status: report.status,
       severity: report.severity,
       summary: report.summary,
     });
-    return { kind: "finished", runId, status: report.status, summary: report.summary };
+    return { kind: 'finished', runId, status: report.status, summary: report.summary };
   } finally {
     await lock.release();
   }
@@ -150,15 +150,15 @@ export async function runTrackedJob(
 
 /** Failed runs and a schema mismatch exit non-zero, so Railway shows them as failed too. */
 export function toExitCode(outcome: JobOutcome): number {
-  if (outcome.kind === "schema_behind") return 1;
-  if (outcome.kind === "finished" && outcome.status === "failed") return 1;
+  if (outcome.kind === 'schema_behind') return 1;
+  if (outcome.kind === 'finished' && outcome.status === 'failed') return 1;
   return 0;
 }
 
 /** A job's command: reads the config, runs the job, and sets the exit code. */
 export async function runJobCommand(
   name: string,
-  run: (deps: JobDeps, config: JobConfig) => Promise<JobOutcome>,
+  run: (deps: JobDeps, config: JobConfig) => Promise<JobOutcome>
 ): Promise<void> {
   const logger = createLogger();
   const config = loadJobConfig();

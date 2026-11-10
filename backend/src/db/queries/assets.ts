@@ -1,8 +1,8 @@
 /** The `asset` table and its aliases: the only list of the universe. */
-import type { Queryable } from "../pool.ts";
-import { servedSolanaToken } from "./history.ts";
+import type { Queryable } from '../pool.ts';
+import { servedSolanaToken } from './history.ts';
 
-const PROVIDER_NAMESPACE = "rwa_xyz_id";
+const PROVIDER_NAMESPACE = 'rwa_xyz_id';
 
 interface ActiveAsset {
   id: number;
@@ -17,7 +17,7 @@ export async function listActiveAssets(db: Queryable): Promise<ActiveAsset[]> {
      JOIN asset_alias x ON x.asset_id = a.id AND x.namespace = $1
      WHERE a.deactivated_at IS NULL
      ORDER BY a.slug`,
-    [PROVIDER_NAMESPACE],
+    [PROVIDER_NAMESPACE]
   );
   return rows;
 }
@@ -39,13 +39,13 @@ export async function listKnownAssets(db: Queryable): Promise<KnownAsset[]> {
      ) ON t.asset_id = a.id
      GROUP BY a.id, x.value
      ORDER BY a.slug`,
-    [PROVIDER_NAMESPACE],
+    [PROVIDER_NAMESPACE]
   );
   return rows;
 }
 
 export async function isSlugTaken(db: Queryable, slug: string): Promise<boolean> {
-  const { rows } = await db.query<{ taken: boolean }>("SELECT EXISTS (SELECT 1 FROM asset WHERE slug = $1) AS taken", [
+  const { rows } = await db.query<{ taken: boolean }>('SELECT EXISTS (SELECT 1 FROM asset WHERE slug = $1) AS taken', [
     slug,
   ]);
   return rows[0]?.taken ?? false;
@@ -63,11 +63,11 @@ interface NewAsset {
 export async function insertAsset(db: Queryable, asset: NewAsset): Promise<number> {
   const { rows } = await db.query<{ id: number }>(
     `INSERT INTO asset (slug, ticker, name, asset_class, asset_type) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [asset.slug, asset.ticker, asset.name, asset.assetClass, asset.assetType],
+    [asset.slug, asset.ticker, asset.name, asset.assetClass, asset.assetType]
   );
   const id = rows[0]?.id;
   if (id === undefined) throw new Error("Couldn't create an asset");
-  await db.query("INSERT INTO asset_alias (asset_id, namespace, value) VALUES ($1, $2, $3)", [
+  await db.query('INSERT INTO asset_alias (asset_id, namespace, value) VALUES ($1, $2, $3)', [
     id,
     PROVIDER_NAMESPACE,
     asset.ref,
@@ -86,16 +86,16 @@ export async function refreshAssetIdentity(db: Queryable, assetId: number, ident
   await db.query(
     `UPDATE asset SET ticker = $2, name = $3, asset_class = $4
      WHERE id = $1 AND (ticker, name, asset_class) IS DISTINCT FROM ($2, $3, $4)`,
-    [assetId, identity.ticker, identity.name, identity.assetClass],
+    [assetId, identity.ticker, identity.name, identity.assetClass]
   );
 }
 
 export async function deactivateAssets(db: Queryable, ids: readonly number[]): Promise<void> {
-  await db.query("UPDATE asset SET deactivated_at = now() WHERE id = ANY($1::int[]) AND deactivated_at IS NULL", [ids]);
+  await db.query('UPDATE asset SET deactivated_at = now() WHERE id = ANY($1::int[]) AND deactivated_at IS NULL', [ids]);
 }
 
 export async function reactivateAssets(db: Queryable, ids: readonly number[]): Promise<void> {
-  await db.query("UPDATE asset SET deactivated_at = NULL WHERE id = ANY($1::int[]) AND deactivated_at IS NOT NULL", [
+  await db.query('UPDATE asset SET deactivated_at = NULL WHERE id = ANY($1::int[]) AND deactivated_at IS NOT NULL', [
     ids,
   ]);
 }
@@ -114,7 +114,7 @@ export async function findActiveAssetBySlug(db: Queryable, slug: string): Promis
   const { rows } = await db.query<ActiveAssetRow>(
     `SELECT id, slug, ticker, name, asset_class, asset_type
      FROM asset WHERE slug = $1 AND deactivated_at IS NULL`,
-    [slug],
+    [slug]
   );
   return rows[0] ?? null;
 }
@@ -126,7 +126,7 @@ interface AssetListFilters {
   q: string | null;
 }
 
-export type AssetSort = { by: "ticker" } | { by: "metric"; metric: string; scope: "asset" | "solana" };
+export type AssetSort = { by: 'ticker' } | { by: 'metric'; metric: string; scope: 'asset' | 'solana' };
 
 interface AssetListOptions extends AssetListFilters {
   sort: AssetSort;
@@ -149,13 +149,13 @@ export interface AssetListRow {
 // Text sorts with a fixed collation, because the database's own locale differs by host and would
 // reorder most of the list.
 const toSortExpression = (sort: AssetSort): string =>
-  sort.by === "ticker" ? `lower(a.ticker) COLLATE "C"` : "s.value";
+  sort.by === 'ticker' ? `lower(a.ticker) COLLATE "C"` : 's.value';
 
 /** The sort metric's value for each asset, in $7. A holder share above 100% can't be true, so it sorts as missing. */
 function toSortJoin(sort: AssetSort): string {
-  if (sort.by === "ticker") return "";
+  if (sort.by === 'ticker') return '';
   const scope =
-    sort.scope === "asset" ? "s.token_id IS NULL" : `s.token_id = ${servedSolanaToken("a.id")} AND s.value <= 100`;
+    sort.scope === 'asset' ? 's.token_id IS NULL' : `s.token_id = ${servedSolanaToken('a.id')} AND s.value <= 100`;
   return `LEFT JOIN financial_current s ON s.asset_id = a.id AND s.metric = $7 AND ${scope}`;
 }
 
@@ -180,11 +180,11 @@ const FILTERS = `
   AND ($4::text IS NULL OR a.ticker ILIKE $4 OR a.name ILIKE $4 OR i.brand_name ILIKE $4)`;
 
 function toSearchPattern(q: string | null): string | null {
-  return q === null ? null : `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+  return q === null ? null : `%${q.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
 export async function listAssetRows(db: Queryable, options: AssetListOptions): Promise<AssetListRow[]> {
-  const direction = options.descending ? "DESC" : "ASC";
+  const direction = options.descending ? 'DESC' : 'ASC';
   const { sort } = options;
   const { rows } = await db.query<AssetListRow>(
     `SELECT a.id, a.slug, a.ticker, a.name, a.asset_class, a.asset_type, i.brand_name AS issuer, d.as_of
@@ -208,8 +208,8 @@ export async function listAssetRows(db: Queryable, options: AssetListOptions): P
       toSearchPattern(options.q),
       options.limit,
       options.offset,
-      ...(sort.by === "metric" ? [sort.metric] : []),
-    ],
+      ...(sort.by === 'metric' ? [sort.metric] : []),
+    ]
   );
   return rows;
 }
@@ -217,7 +217,7 @@ export async function listAssetRows(db: Queryable, options: AssetListOptions): P
 export async function countAssets(db: Queryable, filters: AssetListFilters): Promise<number> {
   const { rows } = await db.query<{ total: number }>(
     `SELECT count(*)::int AS total FROM asset a ${ISSUER_JOIN} WHERE ${FILTERS}`,
-    [filters.assetClass, filters.assetType, filters.network, toSearchPattern(filters.q)],
+    [filters.assetClass, filters.assetType, filters.network, toSearchPattern(filters.q)]
   );
   return rows[0]?.total ?? 0;
 }
@@ -239,7 +239,7 @@ export async function listFilterOptions(db: Queryable): Promise<FilterOptions> {
          JOIN network n ON n.id = t.network_id
          JOIN asset a ON a.id = t.asset_id AND a.deactivated_at IS NULL
          WHERE t.deactivated_at IS NULL
-       ), '{}') AS networks`,
+       ), '{}') AS networks`
   );
   return rows[0] ?? { assetClasses: [], assetTypes: [], networks: [] };
 }

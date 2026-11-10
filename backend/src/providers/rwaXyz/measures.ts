@@ -2,26 +2,26 @@
  * Unit fixes and measure conversion: RWA.xyz's financial fields and history series, turned into our
  * measure names and numbers.
  */
-import { ContractBrokenError } from "../errors.ts";
-import { isDay } from "../types.ts";
-import { type ApiRecord, isRecord } from "./client.ts";
+import { ContractBrokenError } from '../errors.ts';
+import { isDay } from '../types.ts';
+import { type ApiRecord, isRecord } from './client.ts';
 
 const FINANCIAL_FIELD =
   /price|net_asset|^nav|apy|yield|return|_fee|fee_|fees|supply|market_|^primary_markets$|_dollar|volume|concentration|holding_addresses|active_addresses|transactions|transfer_count|bridge|mints|burns|capacity|idle|cash_drag|principal|loan|interest|repo|collateral|issued|asset_value|minimum|m2_|sofr|overnight|performance|inflow|outflow|funded|drawndown|recovered|written_off|maturity|rebase|accounting|fair_value|hypothetical|rating|distribut|income|investable|outstanding|total_contracts|_token$|denomination/i;
 
 /** The same measure under two names on RWA.xyz. */
 const RENAMED_MEASURES: Readonly<Record<string, string>> = {
-  yield_to_maturity_percent: "yield_to_maturity",
+  yield_to_maturity_percent: 'yield_to_maturity',
 };
 
 const UNIT_FIXES: Readonly<Record<string, string>> = {
-  Dollars: "dollar",
-  Transfers: "transfer",
+  Dollars: 'dollar',
+  Transfers: 'transfer',
 };
 
 /** RWA.xyz labels this measure's unit `address`, which is wrong. */
 const UNIT_OVERRIDES: Readonly<Record<string, string>> = {
-  number_of_daily_transactions_count: "transaction",
+  number_of_daily_transactions_count: 'transaction',
 };
 
 export function toMeasureName(name: string): string {
@@ -40,10 +40,10 @@ function isFinancialField(name: string): boolean {
 }
 
 const numberOrNull = (value: unknown): number | null =>
-  typeof value === "number" && Number.isFinite(value) ? value : null;
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
 
 function hasNoValue(raw: unknown): boolean {
-  if (raw === null || raw === undefined || raw === "") return true;
+  if (raw === null || raw === undefined || raw === '') return true;
   if (Array.isArray(raw)) return raw.length === 0;
   if (isRecord(raw)) return Object.values(raw).every((value) => value === null || value === undefined);
   return false;
@@ -63,7 +63,7 @@ export function toMetrics(record: ApiRecord): ConvertedMetric[] {
   const metrics = new Map<string, ConvertedMetric>();
   for (const [name, raw] of Object.entries(record)) {
     if (!isFinancialField(name) || hasNoValue(raw)) continue;
-    const tracked = isRecord(raw) && "val" in raw ? raw : null;
+    const tracked = isRecord(raw) && 'val' in raw ? raw : null;
     const metric = toMeasureName(name);
     // Should RWA.xyz send both spellings of a measure, its own current name wins.
     if (metrics.has(metric) && metric !== name) continue;
@@ -87,11 +87,11 @@ export function toMetrics(record: ApiRecord): ConvertedMetric[] {
 export function toDailyPoints(points: readonly unknown[], today: string): [string, number][] {
   const byDay = new Map<string, number>();
   for (const point of points) {
-    if (!Array.isArray(point)) throw new ContractBrokenError("RWA.xyz series has a malformed point");
+    if (!Array.isArray(point)) throw new ContractBrokenError('RWA.xyz series has a malformed point');
     const [rawDay, rawValue] = point as unknown[];
-    if (typeof rawDay !== "string") throw new ContractBrokenError("RWA.xyz series has a point without a day");
+    if (typeof rawDay !== 'string') throw new ContractBrokenError('RWA.xyz series has a point without a day');
     const day = rawDay.slice(0, 10);
-    if (!isDay(day)) throw new ContractBrokenError("RWA.xyz series has a malformed day");
+    if (!isDay(day)) throw new ContractBrokenError('RWA.xyz series has a malformed day');
     const value = numberOrNull(rawValue);
     if (value !== null && day < today) byDay.set(day, value);
   }

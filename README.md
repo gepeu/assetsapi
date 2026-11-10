@@ -1,6 +1,6 @@
 # RWA data service
 
-A private, read-only API over a Postgres database that scheduled jobs keep current from RWA.xyz and
+A public, read-only API over a Postgres database that scheduled jobs keep current from RWA.xyz and
 Kamino. [docs/production_spec.md](docs/production_spec.md) is the design, and
 [docs/operations.md](docs/operations.md) covers running it.
 
@@ -29,39 +29,15 @@ DATABASE_URL=postgres://rwa_job:local_job@127.0.0.1:54331/rwa_service npm run up
 DATABASE_URL=postgres://rwa_job:local_job@127.0.0.1:54331/rwa_service npm run update-data
 ```
 
-Then start the API and try it with a key:
+Then start the API and try it. It's public, so no key is needed:
 
 ```sh
-npm run create-api-key -- --client "my laptop"     # shows the key once
 npm run api
 
-curl -H "Authorization: Bearer <key>" http://127.0.0.1:3000/tokenized_assets
+curl http://127.0.0.1:3000/tokenized_assets
 ```
 
 The API contract is committed as [backend/openapi.json](backend/openapi.json). Open it in any OpenAPI viewer to read every parameter.
-
-## Run the frontend
-
-The API serves a built frontend at `/ui`, so there's nothing else to start. Locally the simplest way
-is with the data routes open, so use this on your own machine only, never on a reachable host.
-
-```sh
-cd frontend
-npm ci --ignore-scripts
-npm run build                        # writes frontend/dist, which the API looks for at startup
-
-cd ../backend
-API_AUTH_DISABLED=true HOST=127.0.0.1 npm run api
-```
-
-Then open `http://127.0.0.1:<PORT>/ui`, where `PORT` is the one in `backend/.env`. Without
-`frontend/dist`, the service is the API alone. Keys are required unless `API_AUTH_DISABLED` is
-`true`, and with `NODE_ENV=production`, as in the Docker image, that value stops the API from
-starting.
-
-**On Railway:** the Docker image builds the frontend in, and `UI_USERNAME` and `UI_PASSWORD` put it
-behind one shared login. The browser asks for it at `/ui` and sends it with the page's API calls,
-which accept it as well as API keys. To try that locally, set both instead of `API_AUTH_DISABLED`.
 
 ## Settings
 
@@ -78,10 +54,10 @@ that reads them. A value that doesn't parse stops the process when it starts.
 | `npm run update-data` | One data run, then exits |
 | `npm run migrate` | Applies migrations, then exits |
 | `npm run setup-roles` | Creates database roles and grants. Safe to re-run |
-| `npm run create-api-key -- --client "name"` | Creates an API key and shows it once |
 | `npm run openapi` | Regenerates `openapi.json` from the schemas |
 | `npm test` | Runs the tests, against real Postgres |
-| `npm run lint` / `npm run format` | Checks, or fixes, formatting and lint |
+| `npm run format:check` / `npm run format` | Checks, or fixes, formatting with Prettier |
+| `npm run lint:migrations` | Checks migrations for statements unsafe on a live database (squawk) |
 | `npm run typecheck` | Type checks |
 
 Tests create and drop their own `rwa_test_*` databases and set up the `rwa_owner`, `rwa_job` and

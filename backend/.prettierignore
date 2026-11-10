@@ -1,0 +1,4 @@
+node_modules
+openapi.json
+package-lock.json
+test/fixtures

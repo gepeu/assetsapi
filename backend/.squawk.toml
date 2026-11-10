@@ -1,0 +1,13 @@
+# Lints db/migrations/ for statements that are unsafe on a live database: `npm run lint:migrations`.
+# Each migration runs in one transaction (src/db/migrate.ts).
+assume_in_transaction = true
+
+excluded_rules = [
+  # The baseline uses int and smallint keys throughout, and no table is near their limits.
+  "prefer-bigint-over-int",
+  "prefer-bigint-over-smallint",
+  # Migrations hold the job lock, so no job runs alongside them, and API statements time out after
+  # 5 seconds (API_STATEMENT_TIMEOUT_MS). That bounds how long a migration can wait for a lock.
+  "require-lock-timeout",
+  "require-statement-timeout",
+]

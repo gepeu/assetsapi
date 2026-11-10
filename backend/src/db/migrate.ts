@@ -2,17 +2,17 @@
  * Entry point for the `migrate` command, and the runner behind it. Applies migration files not yet
  * recorded, in filename order, while holding the job lock so a schema change never meets a running job.
  */
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
-import type pg from "pg";
-import { loadMigrationDatabaseUrl, settings } from "../config.ts";
-import { createLogger } from "../logger.ts";
-import { type JobLock, tryAcquireLock } from "./lock.ts";
-import type { Queryable } from "./pool.ts";
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
+import type pg from 'pg';
+import { loadMigrationDatabaseUrl, settings } from '../config.ts';
+import { createLogger } from '../logger.ts';
+import { type JobLock, tryAcquireLock } from './lock.ts';
+import type { Queryable } from './pool.ts';
 
 async function listMigrationFiles(): Promise<string[]> {
-  return (await readdir(settings.db.migrationsDir)).filter((file) => file.endsWith(".sql")).sort();
+  return (await readdir(settings.db.migrationsDir)).filter((file) => file.endsWith('.sql')).sort();
 }
 
 /**
@@ -23,7 +23,7 @@ export async function findPendingMigrations(db: Queryable): Promise<string[]> {
   const files = await listMigrationFiles();
   const { rows } = await db.query<{ exists: boolean }>("SELECT to_regclass('schema_migration') IS NOT NULL AS exists");
   if (!rows[0]?.exists) return files;
-  const applied = await db.query<{ filename: string }>("SELECT filename FROM schema_migration");
+  const applied = await db.query<{ filename: string }>('SELECT filename FROM schema_migration');
   const done = new Set(applied.rows.map((row) => row.filename));
   return files.filter((file) => !done.has(file));
 }
@@ -33,20 +33,20 @@ async function waitForLock(connectionString: string, timeoutMs: number, pollMs: 
   for (;;) {
     const lock = await tryAcquireLock(connectionString);
     if (lock) return lock;
-    if (Date.now() + pollMs > deadline) throw new Error("Timed out waiting for the job lock");
+    if (Date.now() + pollMs > deadline) throw new Error('Timed out waiting for the job lock');
     await sleep(pollMs);
   }
 }
 
 async function applyMigration(client: pg.Client, file: string): Promise<void> {
-  const sql = await readFile(join(settings.db.migrationsDir, file), "utf8");
-  await client.query("BEGIN");
+  const sql = await readFile(join(settings.db.migrationsDir, file), 'utf8');
+  await client.query('BEGIN');
   try {
     await client.query(sql);
-    await client.query("INSERT INTO schema_migration (filename) VALUES ($1)", [file]);
-    await client.query("COMMIT");
+    await client.query('INSERT INTO schema_migration (filename) VALUES ($1)', [file]);
+    await client.query('COMMIT');
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
+    await client.query('ROLLBACK').catch(() => undefined);
     throw error;
   }
 }
@@ -61,7 +61,7 @@ export async function migrate(connectionString: string, options: MigrateOptions 
   const lock = await waitForLock(
     connectionString,
     options.lockTimeoutMs ?? settings.db.migrateLockWaitMs,
-    options.lockPollMs ?? settings.db.migrateLockPollMs,
+    options.lockPollMs ?? settings.db.migrateLockPollMs
   );
   try {
     await lock.client.query(`
@@ -82,9 +82,9 @@ if (import.meta.main) {
   const logger = createLogger();
   try {
     const applied = await migrate(loadMigrationDatabaseUrl());
-    logger.info({ applied }, "migrations finished");
+    logger.info({ applied }, 'migrations finished');
   } catch (error) {
-    logger.error({ err: error }, "migration failed");
+    logger.error({ err: error }, 'migration failed');
     process.exitCode = 1;
   }
 }

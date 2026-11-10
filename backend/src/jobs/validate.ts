@@ -2,9 +2,9 @@
  * Checks converted data before it's written, with no I/O. This is where value type checks live now:
  * a failure here fails that one asset, which keeps its last good data.
  */
-import { settings } from "../config.ts";
-import { ContractBrokenError } from "../providers/errors.ts";
-import { type CurrentData, type FieldInput, type HistoryData, isDay, type ReferenceData } from "../providers/types.ts";
+import { settings } from '../config.ts';
+import { ContractBrokenError } from '../providers/errors.ts';
+import { type CurrentData, type FieldInput, type HistoryData, isDay, type ReferenceData } from '../providers/types.ts';
 
 interface CatalogEntry {
   valueType: string;
@@ -34,29 +34,29 @@ function checkDay(slug: string, day: string, today: string, what: string): void 
 
 function checkValueType(slug: string, input: FieldInput, valueType: string): void {
   const { value } = input;
-  const isOrganizationRef = typeof value === "object" && !Array.isArray(value);
+  const isOrganizationRef = typeof value === 'object' && !Array.isArray(value);
   let fits: boolean;
   switch (valueType) {
-    case "organization":
+    case 'organization':
       fits = isOrganizationRef;
       break;
-    case "boolean":
-      fits = typeof value === "boolean";
+    case 'boolean':
+      fits = typeof value === 'boolean';
       break;
-    case "integer":
-      fits = typeof value === "number" && Number.isInteger(value);
+    case 'integer':
+      fits = typeof value === 'number' && Number.isInteger(value);
       break;
-    case "decimal":
-      fits = typeof value === "number" && Number.isFinite(value);
+    case 'decimal':
+      fits = typeof value === 'number' && Number.isFinite(value);
       break;
-    case "list":
-      fits = Array.isArray(value) && value.every((item) => typeof item === "string");
+    case 'list':
+      fits = Array.isArray(value) && value.every((item) => typeof item === 'string');
       break;
-    case "date":
-      fits = typeof value === "string" && isDay(value);
+    case 'date':
+      fits = typeof value === 'string' && isDay(value);
       break;
     default:
-      fits = typeof value === "string";
+      fits = typeof value === 'string';
   }
   if (!fits) fail(slug, `${input.field} isn't a valid ${valueType}`);
 }
@@ -67,7 +67,7 @@ function checkFields(
   level: string,
   catalog: Catalog,
   organizations: ReadonlySet<string>,
-  today: string,
+  today: string
 ): void {
   const seen = new Set<string>();
   for (const input of inputs) {
@@ -80,7 +80,7 @@ function checkFields(
     checkValueType(slug, input, entry.valueType);
     checkDay(slug, input.asOf, today, input.field);
     const { value } = input;
-    if (typeof value === "object" && !Array.isArray(value) && !organizations.has(value.organization)) {
+    if (typeof value === 'object' && !Array.isArray(value) && !organizations.has(value.organization)) {
       fail(slug, `${input.field} names an unlisted organization`);
     }
   }
@@ -97,33 +97,33 @@ export function validateAssetData(data: AssetData, catalog: Catalog, today: stri
   if (!SLUG_PATTERN.test(slug)) fail(slug, "the slug doesn't fit our rule");
   // Every asset here has a mint on the provider's list, so an empty list is a bad response. Taken at
   // face value, it would deactivate every token and start the missing clock on all their values.
-  if (reference.tokens.length === 0) fail(slug, "the provider listed no tokens");
+  if (reference.tokens.length === 0) fail(slug, 'the provider listed no tokens');
 
   const organizations = new Set(reference.organizations.map((organization) => organization.slug));
   const networks = new Set(reference.networks.map((network) => network.key));
 
-  checkFields(slug, reference.fields, "asset", catalog, organizations, today);
+  checkFields(slug, reference.fields, 'asset', catalog, organizations, today);
   for (const organization of reference.organizations) {
-    checkFields(slug, organization.fields, "organization", catalog, organizations, today);
+    checkFields(slug, organization.fields, 'organization', catalog, organizations, today);
   }
   for (const network of reference.networks) {
-    checkFields(slug, network.fields, "network", catalog, organizations, today);
+    checkFields(slug, network.fields, 'network', catalog, organizations, today);
   }
   for (const token of reference.tokens) {
     if (!networks.has(token.network)) fail(slug, `a token is on unlisted network ${token.network}`);
-    checkFields(slug, token.fields, "token", catalog, organizations, today);
+    checkFields(slug, token.fields, 'token', catalog, organizations, today);
   }
   for (const { organization } of reference.roles) {
-    if (!organizations.has(organization)) fail(slug, "a role names an unlisted organization");
+    if (!organizations.has(organization)) fail(slug, 'a role names an unlisted organization');
   }
 
   for (const row of current.values) {
     if (!MEASURE_PATTERN.test(row.metric)) fail(slug, `measure name ${row.metric} doesn't fit our rule`);
     for (const [what, value] of [
-      ["value", row.value],
-      ["7-day value", row.value7d],
-      ["30-day value", row.value30d],
-      ["90-day value", row.value90d],
+      ['value', row.value],
+      ['7-day value', row.value7d],
+      ['30-day value', row.value30d],
+      ['90-day value', row.value90d],
     ] as const) {
       checkNumber(slug, value, `${row.metric} ${what}`);
     }
@@ -145,7 +145,7 @@ export interface LargeSwing {
   to: number;
 }
 
-export const SWING_METRICS: readonly string[] = ["price_dollar", "net_asset_value_dollar", "total_asset_value_dollar"];
+export const SWING_METRICS: readonly string[] = ['price_dollar', 'net_asset_value_dollar', 'total_asset_value_dollar'];
 
 /** Real values can jump, so a swing is noted in the run summary and still written. */
 export function findLargeSwings(previous: ReadonlyMap<string, number>, current: CurrentData): LargeSwing[] {

@@ -2,18 +2,18 @@
 
 **Status:** reviewed on 2026-11-05, with the review's fixes applied. Nothing here is built yet.
 
-The service is a private, read-only API over a Postgres database that scheduled jobs keep current from RWA.xyz and Kamino. It runs on Railway, in the existing project, which it replaces. This spec covers the backend. The frontend is a separate service owned by the frontend team.
+The service is a public, read-only API over a Postgres database that scheduled jobs keep current from RWA.xyz and Kamino. It runs on Railway, in the existing project, which it replaces. This spec covers the backend. The frontend is a separate service owned by the frontend team.
 
 | Topic | Decision |
 |---|---|
-| **Who uses it** | The frontend team, with API keys. It isn't public, and there are no outside clients for now |
-| **Access** | A normal Railway URL, with an API key required on every data request. The frontend at `/ui` sits behind one shared login, which the data routes also accept |
+| **Who uses it** | The frontend team, and anyone else with the URL. There are no other known clients for now |
+| **Access** | Public on a normal Railway URL, with no key or login. Requests are rate limited per IP address |
 | **Data** | The token universe, reference fields, current financial values and daily history |
 | **Updates** | Scheduled jobs. Each update overwrites current values |
 | **Providers** | RWA.xyz for data and Kamino for the verified token list |
 | **Scale** | Two API replicas. Add more if traffic requires it |
 
-**Out of scope for now:** the chat agent, document storage and search, document links, AI-sourced values, public access, the frontend itself, market-wide totals and bulk export. `main` and the local `rwa` database still hold the old system and data.
+**Out of scope for now:** the chat agent, document storage and search, document links, AI-sourced values, CORS, the frontend itself, market-wide totals and bulk export. `main` and the local `rwa` database still hold the old system and data.
 
 ## 1. Architecture
 
@@ -32,9 +32,9 @@ Read path:   API → Read logic → Database → Postgres
 | **Jobs** | `jobs/` | Maintain the universe and update data | Serve requests, contain SQL or know provider field names |
 | **Database** | `db/` | Connections, migrations and all SQL | Call providers or build API responses |
 | **Read logic** | `services/` | Turn rows into API responses | Handle HTTP or contain SQL |
-| **API** | `api/` | HTTP, authentication and errors | Call providers or run SQL directly |
+| **API** | `api/` | HTTP, validation, rate limits and errors | Call providers or run SQL directly |
 
-**Import rules:** `api` and `jobs` never import each other, `api` never imports `providers`, and only `db/queries/` contains SQL.
+**Import rules:** `api` and `services` never import `jobs` or `providers`, `jobs` never import `api` or `services`, `providers` import none of the other layers, and `db` imports nothing above it. `test/layers.test.ts` enforces these. Only `db/queries/` contains SQL.
 
 **Processes:** one Docker image runs four commands.
 
@@ -65,12 +65,11 @@ The frontend and backend are two apps, deployed separately. The API and both job
 │   └── dependabot.yml                  # update PRs with a 7-day cooldown
 ├── .dockerignore                       # an allowlist: dumps, backups and .env files stay out
 ├── .gitignore
-├── Dockerfile                          # one image with the API, the jobs and the built frontend
+├── Dockerfile                          # one image with the API and the jobs
 ├── README.md                           # how to run it locally
 ├── docker-compose.yml                  # local Postgres
 ├── docs/
-│   ├── operations.md                   # key rotation, restore, manual corrections
-│   ├── production_spec.html
+│   ├── operations.md                   # restore, secret rotation, manual corrections
 │   └── production_spec.md
 └── backend/
     ├── .env.example
@@ -82,9 +81,10 @@ The frontend and backend are two apps, deployed separately. The API and both job
     ├── db/migrations/
     │   ├── 001_baseline.sql            # the final schema
     │   ├── 002_catalog_seed.sql        # fields, sources and measures
-    │   └── 003_stop_serving_duplicate_terms.sql
+    │   ├── 003_stop_serving_duplicate_terms.sql
+    │   ├── 004_data_version.sql        # moves on every write, for the API cache
+    │   └── 005_drop_api_key.sql        # the API went public
     ├── scripts/
-    │   ├── createApiKey.ts
     │   ├── generateOpenApi.ts
     │   └── setupRoles.ts               # database roles and grants, safe to re-run
     ├── src/
@@ -97,7 +97,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
     │   │   ├── kamino/
     │   │   │   └── provider.ts
     │   │   └── rwaXyz/
-    │   │       ├── client.ts           # HTTP calls and the API key
+    │   │       ├── client.ts           # HTTP calls and the RWA.xyz key
     │   │       ├── mapping.ts          # RWA.xyz fields → our catalog fields
     │   │       ├── measures.ts         # unit fixes and measure conversion
     │   │       └── provider.ts         # puts these behind the interfaces
@@ -113,7 +113,6 @@ The frontend and backend are two apps, deployed separately. The API and both job
     │   │   ├── lock.ts                 # the shared advisory lock
     │   │   ├── migrate.ts              # entry point
     │   │   └── queries/
-    │   │       ├── apiKeys.ts
     │   │       ├── assets.ts
     │   │       ├── fieldValues.ts
     │   │       ├── financials.ts
@@ -132,7 +131,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
     │   └── api/
     │       ├── server.ts               # entry point: listens and shuts down cleanly
     │       ├── app.ts                  # builds the Fastify app
-    │       ├── auth.ts
+    │       ├── cache.ts                # the in-memory response cache
     │       ├── errors.ts               # the standard error response
     │       ├── guide.ts                # the introduction in the OpenAPI contract
     │       ├── routes/
@@ -180,8 +179,8 @@ The frontend and backend are two apps, deployed separately. The API and both job
         │   ├── history.test.ts
         │   └── tokens.test.ts
         └── api/
+            ├── access.test.ts          # open access, the per-IP rate limit, request logs
             ├── assets.test.ts
-            ├── auth.test.ts
             ├── catalog.test.ts
             ├── contract.test.ts
             ├── health.test.ts
@@ -241,7 +240,7 @@ There are 16 tables, down from 27, and 2 views, down from 9.
 | **Universe** | `asset`, `token`, `network`, `asset_alias`, `organization`, `asset_organization` |
 | **Reference data** | `field`, `field_value`, `source` |
 | **Financials** | `financial_current`, `financial_timeseries`, `financial_measure` |
-| **Operations** | `ingestion_run`, `api_key`, `schema_migration`, `data_version` |
+| **Operations** | `ingestion_run`, `schema_migration`, `data_version` |
 
 **Removed tables:** `claim`, `claim_citation`, `fact_override`, `source_priority`, `subjective_term`, `document`, `asset_document`, `stored_file`, `document_text`, `document_chunk`, `contract`, `token_contract`, `raw_response`, `agent_response` and `financial_snapshot`.
 
@@ -376,16 +375,7 @@ Rules carried over from `main`: holder shares are read from the Solana token, an
 | `status` | `text` | `running`, `succeeded`, `partial`, `failed` or **`interrupted`** (new) |
 | `summary` | `jsonb` | Counts, failed assets, and held-back and new items |
 
-**`api_key`** (new)
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `bigint` | Primary key |
-| `client_name` | `text`, required | Who holds the key |
-| `key_hash` | `text`, unique, required | SHA-256. The key itself is never stored |
-| `key_prefix` | `text`, required | Visible start of the key, for identifying it |
-| `expires_at`, `revoked_at`, `last_used_at` | `timestamptz` | |
-| `created_at` | `timestamptz`, required | |
+**`api_key`:** created by `001` and dropped by `005` on 2026-11-10, when the API became public.
 
 **`schema_migration`:** unchanged.
 
@@ -471,7 +461,7 @@ Assets update one by one, so for a few minutes some have new data while others s
 
 ### Endpoints
 
-All are `GET`, and all require a key.
+All are `GET`, and none needs a key.
 
 | Endpoint | Returns |
 |---|---|
@@ -492,7 +482,7 @@ With no parameters, `/tokenized_assets/{slug}` returns the core: identity, issue
 
 Daily points have their own parameter, because they're asked for by metric: `history` names the metrics and `range` sets how far back they go.
 
-One operational path needs no key. `/readyz` reports whether the database is reachable and the schema is new enough, and Railway's deploy check and the uptime monitor call it.
+One operational path sits beside them. `/readyz` reports whether the database is reachable and the schema is new enough, and Railway's deploy check and the uptime monitor call it. It isn't rate limited.
 
 ### Input
 
@@ -612,7 +602,7 @@ Coverage { withData, applicable: integer }
 // Any error
 {
   error: {
-    code: "bad_request" | "unauthorized" | "not_found" | "rate_limited" | "unavailable" | "internal"
+    code: "bad_request" | "not_found" | "rate_limited" | "unavailable" | "internal"
     message, requestId: string
   }
 }
@@ -623,7 +613,6 @@ Coverage { withData, applicable: integer }
 | `200` | Success |
 | `304` | The `ETag` matches, so there's no body |
 | `400` | Invalid or unknown parameter or name, or a filter for a section that wasn't asked for |
-| `401` | Missing, revoked or expired key |
 | `404` | Unknown or deactivated asset |
 | `429` | Rate limited |
 | `503` | Database unavailable |
@@ -640,26 +629,24 @@ Coverage { withData, applicable: integer }
 
 ### Access
 
-- **Exposure:** the API has a normal Railway URL. Anyone can find it, but every data route returns a `401` without a key, and Postgres stays private.
-- **Format:** `Authorization: Bearer <key>`, with one key per person or app.
-- **Creating keys:** `scripts/createApiKey.ts` shows a key once. There's no dashboard.
-- **Rotating:** a client can hold two active keys while it switches.
-- **Revoking:** replicas cache key checks for up to 60 seconds, so a revoked key stops within a minute.
+- **Exposure:** the API is public on a normal Railway URL, with no key or login. Postgres stays private.
+- **Rate limit:** 600 requests per minute per IP address on each replica, set by `RATE_LIMIT_MAX`. The IP comes from Railway's `X-Real-IP` header, so the limit only holds if a client can't set that header itself. `operations.md` has the staging check.
+- **CORS:** not enabled, so a browser page on another domain can't call the API directly. `@fastify/cors` can be added when a client needs it.
+- **History:** the first version required API keys, with an optional shared login for a built-in frontend. Both were removed on 2026-11-10.
 
 ### For the frontend team
 
-The frontend team receives `backend/openapi.json` and an API key.
+The frontend team receives `backend/openapi.json` and the API's URL. No key is needed.
 
-- **Store the key as a Railway variable** on the frontend service, and use it only in server code. A static build variable, such as `VITE_`, ends up in the browser's JavaScript.
-- **Add a small server route** that adds the key to each API call. Browsers then only talk to the frontend's own domain, so the API needs no CORS.
-- **Protect private viewing.** The key only protects the API, so anyone with the frontend's URL could see the data through that server. The simplest fix is HTTP Basic Auth on the frontend server, with the shared password stored in Railway.
+- **Call the API from the frontend's server for now.** Without CORS, the browser can't call it from the frontend's domain.
+- **Mind the rate limit** if the frontend's server makes every call: they all count against its one IP address.
 - **Keep the banner:** "Data obtained from RWA.xyz".
 
 ### Caching
 
-- **`ETag`:** a hash of the response body, with `Cache-Control: private, no-cache`. A client gets a `304` when nothing has changed.
+- **`ETag`:** a hash of the response body, with `Cache-Control: no-cache`. A client gets a `304` when nothing has changed.
 - **Compression:** enabled for long history responses.
-- **In-memory cache:** each replica keeps the three data routes' `200` responses in memory, by URL, in `backend/src/api/cache.ts`. A route opts in with `config: { cache: true }`. Statement triggers move the one-row `data_version` table on any write to a data table, whether from a job, a hand correction or a migration. A replica reads it at most every `CACHE_VERSION_CHECK_MS` (10 seconds) and drops what it kept when it moves, so a response is at most that much out of date, whatever the update schedule. `CACHE_MAX_BYTES` (64 MB) bounds the memory, least recently used out first, and `0` turns it off. A hit still passes the key check, the rate limit and validation, and carries `x-cache: hit`. Measured locally on 2026-11-09: a full set of asset pages is 430 URLs and 7 MB, and one replica went from 573 to 5,264 requests a second, with the median from 78 to 10 ms.
+- **In-memory cache:** each replica keeps the three data routes' `200` responses in memory, by URL, in `backend/src/api/cache.ts`. A route opts in with `config: { cache: true }`. Statement triggers move the one-row `data_version` table on any write to a data table, whether from a job, a hand correction or a migration. A replica reads it at most every `CACHE_VERSION_CHECK_MS` (10 seconds) and drops what it kept when it moves, so a response is at most that much out of date, whatever the update schedule. `CACHE_MAX_BYTES` (64 MB) bounds the memory, least recently used out first, and `0` turns it off. A hit still passes the rate limit and validation, and carries `x-cache: hit`. Measured locally on 2026-11-09: a full set of asset pages is 430 URLs and 7 MB, and one replica went from 573 to 5,264 requests a second, with the median from 78 to 10 ms.
 - **CDN and Redis:** left out. Replicas share nothing and each warms its own cache within seconds.
 
 ### Where the contract lives
@@ -675,13 +662,13 @@ The frontend team receives `backend/openapi.json` and an API key.
 | Area | Design |
 |---|---|
 | **Database access** | Railway private network only, with no public address on the new Postgres service |
-| **API exposure** | Railway's public URL. Every data route requires a key |
+| **API exposure** | Railway's public URL, open to anyone with no key |
 | **Secrets** | Railway variables, with each service holding only what it needs. Only the jobs have the RWA.xyz key |
-| **Rotation** | A short written procedure for the RWA.xyz key, database passwords and API keys |
+| **Rotation** | A short written procedure for the RWA.xyz key and database passwords |
 | **SQL** | Parameterised queries only |
-| **Logs** | `Authorization` headers and keys are redacted. Errors never contain the RWA.xyz key |
+| **Logs** | `Authorization` headers are redacted. Errors never contain the RWA.xyz key |
 | **Errors** | Clients get a generic message and request ID, with no stack traces or SQL |
-| **Rate limits** | Starting at 600 requests per minute per key on each replica, and 20 failed authentications per minute per IP. Both are settings, `RATE_LIMIT_MAX` and `FAILED_AUTH_MAX`, each with its own window. The client IP comes from Railway's proxy header, and a valid key is never blocked by IP |
+| **Rate limits** | Starting at 600 requests per minute per IP address on each replica, set by `RATE_LIMIT_MAX` and its window. The client IP comes from Railway's proxy header. `/readyz` isn't limited |
 | **Transport** | HTTPS through Railway's proxy, plus Fastify's security headers plugin |
 
 **Left out:** per-request audit logs, a WAF, and encryption beyond Railway's defaults.
@@ -704,7 +691,7 @@ Several npm supply-chain compromises were reported in 2026, some running code at
 
 **Production packages:** `fastify`, `@fastify/swagger`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/compress`, `@fastify/etag`, `pg` and `pino`. With their own dependencies, that's 78 packages, none with install scripts. A hosted docs page would have added 20 more, so the API has none.
 
-**Dev packages:** `typescript`, `@biomejs/biome`, `@types/node`, `@types/pg` and `json-schema-to-ts`.
+**Dev packages:** `typescript`, `prettier`, `squawk-cli`, `@types/node`, `@types/pg` and `json-schema-to-ts`.
 
 **Checked 2026-11-05:** `npm audit` on `main`'s backend lockfile reports 0 known vulnerabilities, and the lockfile lists no packages with install scripts. The new lockfile gets the same checks when it's created. On that date, 4 of the 13 planned packages had a latest version under 7 days old, including `fastify`, so the `--before` rule matters from the first install.
 
@@ -712,7 +699,7 @@ Several npm supply-chain compromises were reported in 2026, some running code at
 
 | Piece | Tool | Does |
 |---|---|---|
-| **Logs** | Fastify's logger, viewed in Railway | One JSON line per request, with request ID, route, status, duration and key name. Errors are logged in full |
+| **Logs** | Fastify's logger, viewed in Railway | One JSON line per request, with request ID, route, status and duration. Errors are logged in full |
 | **Job monitor** | Healthchecks.io or similar | Alerts when a job reports a failure, or when its success ping doesn't arrive, even if the cron never started |
 | **Uptime check** | Any uptime monitor | Calls `/readyz` every minute |
 
@@ -747,9 +734,9 @@ Alerts go by email to start with. A job that stops, ends `partial` or holds some
 
 | Role | Used by | Can do |
 |---|---|---|
-| `rwa_owner` | Migrations and the key script | Change the schema and manage keys |
-| `rwa_job` | Jobs | Read and write data tables, with no access to `api_key` |
-| `rwa_api` | API | Read data tables and `api_key`, and update only `last_used_at` |
+| `rwa_owner` | Migrations | Change the schema |
+| `rwa_job` | Jobs | Read and write data tables. Only read the catalog and the migration record |
+| `rwa_api` | API | Read data tables |
 
 - **Creating roles:** `scripts/setupRoles.ts` creates the three roles and their grants, with passwords from environment variables. It's safe to re-run, and it runs once per environment and in CI. Default privileges cover tables that later migrations add, and dumps are restored as `rwa_owner`.
 - **Statement timeout:** set on `rwa_api` only, because jobs and migrations run longer statements.
@@ -770,8 +757,8 @@ Alerts go by email to start with. A job that stops, ends `partial` or holds some
 Local checks → push to main → Railway deploys
 ```
 
-- **No CI (removed 2026-11-10):** run the checks locally before pushing: Biome format and lint (`npx biome ci .`), type check (`npx tsc`), tests with real Postgres (`npm test`), OpenAPI freshness (`npm run openapi:check`), and `npm audit` and `npm audit signatures`. A failed migration still stops the Railway deploy.
-- **Environments:** staging and production in the existing Railway project, each with its own database, secrets and API keys. Staging runs jobs less often, to save RWA.xyz quota.
+- **No CI (removed 2026-11-10):** run the checks locally before pushing: Prettier formatting (`npm run format:check`), migration lint (`npm run lint:migrations`), type check (`npx tsc`), tests with real Postgres (`npm test`), OpenAPI freshness (`npm run openapi:check`), and `npm audit` and `npm audit signatures`. A failed migration still stops the Railway deploy.
+- **Environments:** staging and production in the existing Railway project, each with its own database and secrets. Staging runs jobs less often, to save RWA.xyz quota.
 - **Deploy order:** migrations as a pre-deploy step, then the API once `/readyz` passes. Jobs use the new image on their next run, and exit early if the schema is older than they need. A failed migration stops the deploy.
 - **Rollback:** redeploy the previous image. Migrations move forward only, and each must work with both old and new code.
 - **Branches:** `production` is this service's main branch, with short-lived branches merged by pull request and branch protection once code exists.
@@ -786,7 +773,7 @@ Local checks → push to main → Railway deploys
 | **Providers** | RWA.xyz and Kamino adapters, and each error type | Recorded real responses |
 | **Jobs** | Full universe and update runs | Fake provider and real Postgres |
 | **Queries and responses** | `db/queries` and `services` | Real Postgres |
-| **API** | Auth, validation, `ETag`s and error shapes | Fastify's test client and real Postgres |
+| **API** | Open access, rate limits, validation, `ETag`s and error shapes | Fastify's test client and real Postgres |
 | **Database roles** | Each role's permissions | Connecting as each role |
 
 **Job cases that must pass:**
@@ -809,14 +796,16 @@ Local checks → push to main → Railway deploys
 
 ## 8. Coding standards
 
-The code keeps the style already on `main` and adds tooling to enforce it, because `main` has no lint or format config.
+The code keeps the style already on `main`, formatted with Prettier using the same config as `kamino-public-api`. There's no code linter: tests check the layer rules, and the rest below are kept in review.
 
 ### Tools
 
 | Tool | Setup | Why |
 |---|---|---|
 | **TypeScript** | `main`'s strict config, plus `noUncheckedIndexedAccess` and `verbatimModuleSyntax` | Catches missing array and map values, and keeps imports explicit |
-| **Biome** | One package for formatting and linting, failing in CI | Replaces ESLint and Prettier and their many dependencies |
+| **Prettier** | Kamino's `.prettierrc`: single quotes, ES5 trailing commas | Matches `kamino-public-api`. Formatting only, with no lint rules |
+| **squawk** | `backend/.squawk.toml`, run by `npm run lint:migrations` | Flags migration statements that lock or break a live database, as in `kamino-public-api` |
+| **Layer test** | `test/layers.test.ts` | Fails on an import across the layer rules in section 1 |
 | **Line width** | 120 | Keeps lines readable |
 
 ### Code rules
@@ -897,7 +886,7 @@ The new service replaces the old one in the same Railway project, using a new Po
 3. Build the providers, with recorded responses.
 4. Build the jobs, with failure tests.
 5. Build the read logic and queries.
-6. Build the API: schemas, routes, auth, `ETag`s, health checks and OpenAPI.
+6. Build the API: schemas, routes, rate limits, `ETag`s, health checks and OpenAPI.
 7. Add observability and database roles.
 8. Set up staging and run the load check.
 9. Cut over.
@@ -912,6 +901,8 @@ The new service replaces the old one in the same Railway project, using a new Po
 - Railway's connection limit, private networking and deploy settings.
 - That Railway's Postgres version can restore a Postgres 18 dump.
 - That the chosen job monitor includes the run summary in its failure emails.
+- That Railway's proxy overwrites an `X-Real-IP` header sent by a client, because the per-IP rate limit depends on it.
+- Whether a browser client needs CORS.
 
 **Needed from you at setup:**
 - The alert email address.

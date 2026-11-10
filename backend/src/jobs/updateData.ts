@@ -2,10 +2,10 @@
  * Entry point for `update-data`: one run over the active assets, then exit. Assets update one by one,
  * each in its own transaction, so a crash leaves finished assets updated and the next run does the rest.
  */
-import { settings, toPercent } from "../config.ts";
-import { listActiveAssets } from "../db/queries/assets.ts";
-import { AuthOrQuotaError } from "../providers/errors.ts";
-import { createRwaXyzProvider } from "../providers/rwaXyz/provider.ts";
+import { settings, toPercent } from '../config.ts';
+import { listActiveAssets } from '../db/queries/assets.ts';
+import { AuthOrQuotaError } from '../providers/errors.ts';
+import { createRwaXyzProvider } from '../providers/rwaXyz/provider.ts';
 import {
   type JobDeps,
   type JobOutcome,
@@ -14,14 +14,14 @@ import {
   runJobCommand,
   runTrackedJob,
   toErrorMessage,
-} from "./runTracking.ts";
+} from './runTracking.ts';
 import {
   type AssetWriteResult,
   createAssetContext,
   DATA_SOURCE,
   type DataProviders,
   updateAsset,
-} from "./updateAsset.ts";
+} from './updateAsset.ts';
 
 export type UpdateJobDeps = JobDeps & DataProviders;
 
@@ -34,7 +34,7 @@ function findFailureLimit(consecutive: number, failed: number, total: number): s
 }
 
 export async function runUpdateJob(deps: UpdateJobDeps): Promise<JobOutcome> {
-  return runTrackedJob(deps, "update", DATA_SOURCE, async ({ runId, isLockHeld }): Promise<RunReport> => {
+  return runTrackedJob(deps, 'update', DATA_SOURCE, async ({ runId, isLockHeld }): Promise<RunReport> => {
     const context = await createAssetContext(deps, runId);
     const assets = await listActiveAssets(deps.pool);
 
@@ -47,7 +47,7 @@ export async function runUpdateJob(deps: UpdateJobDeps): Promise<JobOutcome> {
     };
     const failed: { slug: string; error: string }[] = [];
     const newMeasures = new Set<string>();
-    const swings: ({ slug: string } & AssetWriteResult["swings"][number])[] = [];
+    const swings: ({ slug: string } & AssetWriteResult['swings'][number])[] = [];
     const notes: { slug: string; note: string }[] = [];
     let updated = 0;
     let consecutiveFailures = 0;
@@ -72,12 +72,12 @@ export async function runUpdateJob(deps: UpdateJobDeps): Promise<JobOutcome> {
         updated++;
         consecutiveFailures = 0;
       } catch (error) {
-        deps.logger.warn({ err: error, slug: asset.slug }, "asset failed, keeping its last good data");
+        deps.logger.warn({ err: error, slug: asset.slug }, 'asset failed, keeping its last good data');
         failed.push({ slug: asset.slug, error: toErrorMessage(error) });
         consecutiveFailures++;
         stoppedBy =
           error instanceof AuthOrQuotaError
-            ? "The provider rejected the key or the quota is used up"
+            ? 'The provider rejected the key or the quota is used up'
             : findFailureLimit(consecutiveFailures, failed.length, assets.length);
         if (stoppedBy) break;
       }
@@ -93,15 +93,15 @@ export async function runUpdateJob(deps: UpdateJobDeps): Promise<JobOutcome> {
       swings,
       notes,
     };
-    if (stoppedBy) return { status: "failed", severity: "urgent", summary };
-    if (interrupted) return { status: "interrupted", severity: "normal", summary };
-    if (failed.length > 0) return { status: "partial", severity: "normal", summary };
-    return { status: "succeeded", severity: newMeasures.size > 0 ? "normal" : "none", summary };
+    if (stoppedBy) return { status: 'failed', severity: 'urgent', summary };
+    if (interrupted) return { status: 'interrupted', severity: 'normal', summary };
+    if (failed.length > 0) return { status: 'partial', severity: 'normal', summary };
+    return { status: 'succeeded', severity: newMeasures.size > 0 ? 'normal' : 'none', summary };
   });
 }
 
 if (import.meta.main) {
-  await runJobCommand("update", (deps, config) => {
+  await runJobCommand('update', (deps, config) => {
     const provider = createRwaXyzProvider({ apiKey: config.rwaXyzApiKey });
     return runUpdateJob({ ...deps, reference: provider, financial: provider });
   });

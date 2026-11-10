@@ -1,71 +1,71 @@
 /** `GET /tokenized_assets/catalog`. */
-import type { FromSchema } from "json-schema-to-ts";
-import { API_TAG, errorResponses, nullableString } from "./shared.ts";
+import type { FromSchema } from 'json-schema-to-ts';
+import { API_TAG, errorResponses, nullableString } from './shared.ts';
 
 const namedOption = {
-  type: "object",
+  type: 'object',
   additionalProperties: false,
-  required: ["key", "label"],
+  required: ['key', 'label'],
   properties: {
-    key: { type: "string", description: "The name to send in the parameter" },
-    label: { type: "string" },
+    key: { type: 'string', description: 'The name to send in the parameter' },
+    label: { type: 'string' },
   },
 } as const;
 
 const catalogResponse = {
-  type: "object",
+  type: 'object',
   additionalProperties: false,
-  required: ["data"],
+  required: ['data'],
   properties: {
     data: {
-      type: "object",
+      type: 'object',
       additionalProperties: false,
-      required: ["metrics", "groups", "categories", "fields", "filters"],
+      required: ['metrics', 'groups', 'categories', 'fields', 'filters'],
       properties: {
         metrics: {
-          type: "array",
-          description: "Every name accepted by `metrics`, `financialMetrics`, `history` and `sort`",
+          type: 'array',
+          description: 'Every name accepted by `metrics`, `financialMetrics`, `history` and `sort`',
           items: {
-            type: "object",
+            type: 'object',
             additionalProperties: false,
-            required: ["metric", "label", "group", "unit", "hasCurrentValue", "hasHistory"],
+            required: ['metric', 'label', 'group', 'unit', 'hasCurrentValue', 'hasHistory'],
             properties: {
-              metric: { type: "string" },
-              label: { type: "string" },
-              group: { type: "string" },
+              metric: { type: 'string' },
+              label: { type: 'string' },
+              group: { type: 'string' },
               unit: nullableString,
-              hasCurrentValue: { type: "boolean", description: "Whether any asset has a current value" },
-              hasHistory: { type: "boolean", description: "Whether any asset has a history series" },
+              hasCurrentValue: { type: 'boolean', description: 'Whether any asset has a current value' },
+              hasHistory: { type: 'boolean', description: 'Whether any asset has a history series' },
             },
           },
         },
-        groups: { type: "array", description: "The values `groups` accepts", items: namedOption },
-        categories: { type: "array", description: "The values `categories` accepts", items: namedOption },
+        groups: { type: 'array', description: 'The values `groups` accepts', items: namedOption },
+        categories: { type: 'array', description: 'The values `categories` accepts', items: namedOption },
         fields: {
-          type: "array",
-          description: "Every descriptive field, including token-level ones",
+          type: 'array',
+          description: 'Every descriptive field, including token-level ones',
           items: {
-            type: "object",
+            type: 'object',
             additionalProperties: false,
-            required: ["key", "label", "category", "valueType", "level"],
+            required: ['key', 'label', 'category', 'valueType', 'level'],
             properties: {
-              key: { type: "string" },
-              label: { type: "string" },
-              category: { type: "string" },
-              valueType: { type: "string" },
-              level: { type: "string" },
+              key: { type: 'string' },
+              label: { type: 'string' },
+              category: { type: 'string' },
+              valueType: { type: 'string' },
+              level: { type: 'string' },
             },
           },
         },
         filters: {
-          type: "object",
+          type: 'object',
           additionalProperties: false,
-          required: ["assetClasses", "assetTypes", "networks"],
-          description: "The values in use across active assets, for filtering the list",
+          required: ['assetClasses', 'assetTypes', 'networks'],
+          description: 'The values in use across active assets, for filtering the list',
           properties: {
-            assetClasses: { type: "array", items: { type: "string" } },
-            assetTypes: { type: "array", items: { type: "string" } },
-            networks: { type: "array", items: { type: "string" } },
+            assetClasses: { type: 'array', items: { type: 'string' } },
+            assetTypes: { type: 'array', items: { type: 'string' } },
+            networks: { type: 'array', items: { type: 'string' } },
           },
         },
       },
@@ -74,11 +74,11 @@ const catalogResponse = {
 } as const;
 export type CatalogResponse = FromSchema<typeof catalogResponse>;
 
-const catalogQuery = { type: "object", additionalProperties: false, properties: {} } as const;
+const catalogQuery = { type: 'object', additionalProperties: false, properties: {} } as const;
 
 export const catalogRoute = {
-  summary: "Everything you can request",
-  description: "The metrics, groups, categories, fields and filter values that the other endpoints accept.",
+  summary: 'Everything you can request',
+  description: 'The metrics, groups, categories, fields and filter values that the other endpoints accept.',
   tags: [API_TAG],
   querystring: catalogQuery,
   response: { 200: catalogResponse, ...errorResponses },

@@ -3,13 +3,13 @@
  * Kamino mint on each run, so both halves of the rule are checked, and changes nothing unless both
  * providers answered and enough active assets would remain.
  */
-import { settings, toPercent } from "../config.ts";
-import { inTransaction } from "../db/pool.ts";
-import { deactivateAssets, listKnownAssets, reactivateAssets } from "../db/queries/assets.ts";
-import { AuthOrQuotaError, NotFoundError } from "../providers/errors.ts";
-import { createKaminoProvider } from "../providers/kamino/provider.ts";
-import { createRwaXyzProvider } from "../providers/rwaXyz/provider.ts";
-import type { AddressResolver, UniverseProvider } from "../providers/types.ts";
+import { settings, toPercent } from '../config.ts';
+import { inTransaction } from '../db/pool.ts';
+import { deactivateAssets, listKnownAssets, reactivateAssets } from '../db/queries/assets.ts';
+import { AuthOrQuotaError, NotFoundError } from '../providers/errors.ts';
+import { createKaminoProvider } from '../providers/kamino/provider.ts';
+import { createRwaXyzProvider } from '../providers/rwaXyz/provider.ts';
+import type { AddressResolver, UniverseProvider } from '../providers/types.ts';
 import {
   type JobDeps,
   type JobOutcome,
@@ -18,11 +18,11 @@ import {
   runJobCommand,
   runTrackedJob,
   toErrorMessage,
-} from "./runTracking.ts";
-import { isSafeToApply, type NewAssetMatch, planUniverse, type ResolvedMint } from "./universeRules.ts";
-import { type AssetContext, createAssetContext, createNewAsset, type DataProviders } from "./updateAsset.ts";
+} from './runTracking.ts';
+import { isSafeToApply, type NewAssetMatch, planUniverse, type ResolvedMint } from './universeRules.ts';
+import { type AssetContext, createAssetContext, createNewAsset, type DataProviders } from './updateAsset.ts';
 
-const LIST_SOURCE = "kamino";
+const LIST_SOURCE = 'kamino';
 
 export type UniverseJobDeps = JobDeps &
   DataProviders & {
@@ -53,7 +53,7 @@ async function createNewAssets(
   deps: UniverseJobDeps,
   context: AssetContext,
   matches: readonly NewAssetMatch[],
-  isLockHeld: () => boolean,
+  isLockHeld: () => boolean
 ): Promise<NewAssetOutcomes> {
   const outcomes: NewAssetOutcomes = {
     created: [],
@@ -70,7 +70,7 @@ async function createNewAssets(
     if (!isLockHeld()) throw new Error(LOCK_LOST_MESSAGE);
     try {
       const result = await createNewAsset(context, ref, mints);
-      if (result.status === "held_back") {
+      if (result.status === 'held_back') {
         outcomes.heldBack.push({ slug: result.slug, assetClass: result.assetClass });
         continue;
       }
@@ -78,7 +78,7 @@ async function createNewAssets(
       for (const measure of result.result.newMeasures) outcomes.newMeasures.add(measure);
     } catch (error) {
       if (error instanceof AuthOrQuotaError) throw error;
-      deps.logger.warn({ err: error, ref }, "new asset failed, creating nothing");
+      deps.logger.warn({ err: error, ref }, 'new asset failed, creating nothing');
       outcomes.failed.push({ ref, error: toErrorMessage(error) });
     }
   }
@@ -86,14 +86,14 @@ async function createNewAssets(
 }
 
 export async function runUniverseJob(deps: UniverseJobDeps): Promise<JobOutcome> {
-  return runTrackedJob(deps, "universe", LIST_SOURCE, async ({ runId, isLockHeld }): Promise<RunReport> => {
+  return runTrackedJob(deps, 'universe', LIST_SOURCE, async ({ runId, isLockHeld }): Promise<RunReport> => {
     const tokens = await deps.universe.listTokens();
 
     const resolved: ResolvedMint[] = [];
     for (const token of tokens) {
       if (deps.stop.isStopping()) {
         const summary = { listed: tokens.length, resolved: resolved.length };
-        return { status: "interrupted", severity: "normal", summary };
+        return { status: 'interrupted', severity: 'normal', summary };
       }
       const ref = await resolveMint(deps.resolver, token.network, token.address);
       if (ref !== null) resolved.push({ mint: token.address, ref });
@@ -106,7 +106,7 @@ export async function runUniverseJob(deps: UniverseJobDeps): Promise<JobOutcome>
     if (!isSafeToApply(plan)) {
       const minimum = toPercent(settings.jobs.universeMinRemainingShare);
       const error = `Fewer than ${minimum} of active assets would remain, so nothing changed`;
-      return { status: "failed", severity: "urgent", summary: { ...counts, error } };
+      return { status: 'failed', severity: 'urgent', summary: { ...counts, error } };
     }
 
     const context = await createAssetContext(deps, runId);
@@ -114,10 +114,10 @@ export async function runUniverseJob(deps: UniverseJobDeps): Promise<JobOutcome>
       deps,
       context,
       plan.newAssets,
-      isLockHeld,
+      isLockHeld
     );
     if (interrupted) {
-      return { status: "interrupted", severity: "normal", summary: { ...counts, created, heldBack, failed } };
+      return { status: 'interrupted', severity: 'normal', summary: { ...counts, created, heldBack, failed } };
     }
 
     if (!isLockHeld()) throw new Error(LOCK_LOST_MESSAGE);
@@ -137,14 +137,14 @@ export async function runUniverseJob(deps: UniverseJobDeps): Promise<JobOutcome>
       reactivated: plan.reactivate.map(slugOf),
       moved: plan.moved,
     };
-    if (failed.length > 0) return { status: "partial", severity: "normal", summary };
+    if (failed.length > 0) return { status: 'partial', severity: 'normal', summary };
     const needsAttention = heldBack.length > 0 || newMeasures.size > 0 || plan.moved.length > 0;
-    return { status: "succeeded", severity: needsAttention ? "normal" : "none", summary };
+    return { status: 'succeeded', severity: needsAttention ? 'normal' : 'none', summary };
   });
 }
 
 if (import.meta.main) {
-  await runJobCommand("universe", (deps, config) => {
+  await runJobCommand('universe', (deps, config) => {
     const provider = createRwaXyzProvider({ apiKey: config.rwaXyzApiKey });
     return runUniverseJob({
       ...deps,

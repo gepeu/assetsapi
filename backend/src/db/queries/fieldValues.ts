@@ -1,6 +1,6 @@
 /** The field catalog and `field_value`. Writes skip locked rows and leave unchanged rows untouched. */
-import { settings } from "../../config.ts";
-import type { Queryable } from "../pool.ts";
+import { settings } from '../../config.ts';
+import type { Queryable } from '../pool.ts';
 
 /** How long a value stays after the provider stops reporting it, as a Postgres interval. */
 export const missingGrace = (): string => `${settings.jobs.missingGraceDays} days`;
@@ -18,7 +18,7 @@ interface CatalogField {
 export async function listCatalog(db: Queryable): Promise<CatalogField[]> {
   const { rows } = await db.query<CatalogField>(
     `SELECT id, key, category, label, value_type AS "valueType", level, record_group AS "recordGroup"
-     FROM field ORDER BY sort_order`,
+     FROM field ORDER BY sort_order`
   );
   return rows;
 }
@@ -43,7 +43,7 @@ export async function upsertFieldValues(
   db: Queryable,
   rows: readonly FieldValueWrite[],
   sourceId: number,
-  runId: number,
+  runId: number
 ): Promise<number> {
   if (rows.length === 0) return 0;
   const { rowCount } = await db.query(
@@ -77,7 +77,7 @@ export async function upsertFieldValues(
       rows.map((row) => row.asOf),
       sourceId,
       runId,
-    ],
+    ]
   );
   return rowCount ?? 0;
 }
@@ -91,7 +91,7 @@ interface SeenValue {
 export async function markMissingFieldValues(
   db: Queryable,
   subjects: readonly string[],
-  seen: readonly SeenValue[],
+  seen: readonly SeenValue[]
 ): Promise<number> {
   const { rowCount } = await db.query(
     `UPDATE field_value v SET missing_since = now()
@@ -102,7 +102,7 @@ export async function markMissingFieldValues(
          SELECT 1 FROM unnest($2::int[], $3::text[]) AS s(field_id, subject_ref)
          WHERE s.field_id = v.field_id AND s.subject_ref = v.subject_ref
        )`,
-    [subjects, seen.map((row) => row.fieldId), seen.map((row) => row.subjectRef)],
+    [subjects, seen.map((row) => row.fieldId), seen.map((row) => row.subjectRef)]
   );
   return rowCount ?? 0;
 }
@@ -113,13 +113,13 @@ export async function deleteExpiredFieldValues(db: Queryable, subjects: readonly
      WHERE subject_ref = ANY($1::text[])
        AND locked_reason IS NULL
        AND missing_since < now() - $2::interval`,
-    [subjects, missingGrace()],
+    [subjects, missingGrace()]
   );
   return rowCount ?? 0;
 }
 
 export interface FieldStatusRow extends CatalogField {
-  status: "with_data" | "no_data" | "not_applicable";
+  status: 'with_data' | 'no_data' | 'not_applicable';
 }
 
 export async function listAssetFieldStatuses(db: Queryable, assetId: number): Promise<FieldStatusRow[]> {
@@ -130,7 +130,7 @@ export async function listAssetFieldStatuses(db: Queryable, assetId: number): Pr
      JOIN field f ON f.id = s.field_id
      WHERE s.asset_id = $1
      ORDER BY f.sort_order`,
-    [assetId],
+    [assetId]
   );
   return rows;
 }
@@ -150,7 +150,7 @@ export async function listAssetSubjectValues(db: Queryable, assetId: number): Pr
      FROM field_value v
      JOIN asset_subject s ON s.subject_ref = v.subject_ref AND s.asset_id = $1
      WHERE s.level <> 'token'`,
-    [assetId],
+    [assetId]
   );
   return rows;
 }
@@ -160,7 +160,7 @@ export async function listTokenValues(db: Queryable, tokenIds: readonly number[]
     `SELECT v.field_id, v.subject_ref, v.record_key, v.value, v.as_of::text AS as_of
      FROM field_value v
      WHERE v.token_id = ANY($1::int[])`,
-    [tokenIds],
+    [tokenIds]
   );
   return rows;
 }
@@ -170,7 +170,7 @@ export async function findAssetFieldValue(db: Queryable, assetId: number, fieldK
   const { rows } = await db.query<{ value: unknown }>(
     `SELECT v.value FROM field_value v JOIN field f ON f.id = v.field_id
      WHERE v.asset_id = $1 AND f.key = $2 AND v.record_key = ''`,
-    [assetId, fieldKey],
+    [assetId, fieldKey]
   );
   return rows[0]?.value ?? null;
 }

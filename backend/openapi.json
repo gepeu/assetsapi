@@ -3,15 +3,9 @@
   "info": {
     "title": "Tokenized assets API",
     "version": "2.0.0",
-    "description": "Private, read-only API over tokenized asset data, updated daily. Data routes require an API key, sent as `Authorization: Bearer <key>`.\n\n## Three endpoints\n\n| Endpoint | Returns |\n|---|---|\n| `/tokenized_assets` | All active assets, one row each |\n| `/tokenized_assets/catalog` | Everything you can request: metrics, groups, categories, fields and filter values |\n| `/tokenized_assets/{slug}` | One asset, plus any sections you ask for |\n\n## Ask only for what you need\n\nWith no parameters, `/tokenized_assets/{slug}` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with `include`, and only those are queried.\n\n| Section | Contents | Narrow with |\n|---|---|---|\n| `financials` | Each metric's value, label, group, unit, scope, date and past values | `groups`, `financialMetrics` |\n| `series` | Which history series this asset has | |\n| `valueByNetwork` | Value and share per network | |\n| `terms` | Fund terms and fees | |\n| `fields` | Descriptive values by category, with coverage | `categories`, `empty` |\n| `tokens` | One row per token | `network` |\n\nDaily points are requested by name: `history` takes metric names, and `range` sets how far back they go, 3 months by default.\n\n## Examples\n\n| You want | Call |\n|---|---|\n| Stablecoins by size | `/tokenized_assets?assetType=stablecoin&sort=-total_asset_value_dollar` |\n| Every asset compared on one metric | `/tokenized_assets?metrics=market_value_dollar&sort=-market_value_dollar&limit=200` |\n| The basics for one asset | `/tokenized_assets/usdt` |\n| Everything on an asset page | `/tokenized_assets/usdt?include=fields,tokens` |\n| Only issuer and legal facts that have a value | `/tokenized_assets/usdt?include=fields&categories=issuer,legal&empty=false` |\n| The financials tab | `/tokenized_assets/usdt?include=financials,series,valueByNetwork,terms` |\n| Value and yield numbers only | `/tokenized_assets/usdt?include=financials&groups=value,yield` |\n| One metric with its past values | `/tokenized_assets/usdt?include=financials&financialMetrics=price_dollar` |\n| Price history only | `/tokenized_assets/usdt?history=price_dollar&range=1y` |\n| Two series on one chart | `/tokenized_assets/usdt?history=price_dollar,net_asset_value_dollar` |\n\n## Rules\n\n- **Lists** are comma-separated, with no spaces.\n- **Names:** `metrics` is always a plain name-to-number map, and `financials` is always the full array with labels and past values.\n- **Errors:** an unknown parameter or name is a 400, and so is a filter for a section you didn't ask for. An unknown asset is a 404. A valid metric with no data comes back as `null` or with empty points.\n- **Holder shares:** `top_*_holder_concentration` always reads the Solana token, because the asset-level value adds up each token's percentage. A share above 100% can't be true, so it's `null`.\n- **Caching:** responses carry an `ETag`. Send it back in `If-None-Match` to get a 304 when nothing has changed."
+    "description": "Public, read-only API over tokenized asset data, updated daily. No key is needed. Requests are rate limited per IP address.\n\n## Three endpoints\n\n| Endpoint | Returns |\n|---|---|\n| `/tokenized_assets` | All active assets, one row each |\n| `/tokenized_assets/catalog` | Everything you can request: metrics, groups, categories, fields and filter values |\n| `/tokenized_assets/{slug}` | One asset, plus any sections you ask for |\n\n## Ask only for what you need\n\nWith no parameters, `/tokenized_assets/{slug}` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with `include`, and only those are queried.\n\n| Section | Contents | Narrow with |\n|---|---|---|\n| `financials` | Each metric's value, label, group, unit, scope, date and past values | `groups`, `financialMetrics` |\n| `series` | Which history series this asset has | |\n| `valueByNetwork` | Value and share per network | |\n| `terms` | Fund terms and fees | |\n| `fields` | Descriptive values by category, with coverage | `categories`, `empty` |\n| `tokens` | One row per token | `network` |\n\nDaily points are requested by name: `history` takes metric names, and `range` sets how far back they go, 3 months by default.\n\n## Examples\n\n| You want | Call |\n|---|---|\n| Stablecoins by size | `/tokenized_assets?assetType=stablecoin&sort=-total_asset_value_dollar` |\n| Every asset compared on one metric | `/tokenized_assets?metrics=market_value_dollar&sort=-market_value_dollar&limit=200` |\n| The basics for one asset | `/tokenized_assets/usdt` |\n| Everything on an asset page | `/tokenized_assets/usdt?include=fields,tokens` |\n| Only issuer and legal facts that have a value | `/tokenized_assets/usdt?include=fields&categories=issuer,legal&empty=false` |\n| The financials tab | `/tokenized_assets/usdt?include=financials,series,valueByNetwork,terms` |\n| Value and yield numbers only | `/tokenized_assets/usdt?include=financials&groups=value,yield` |\n| One metric with its past values | `/tokenized_assets/usdt?include=financials&financialMetrics=price_dollar` |\n| Price history only | `/tokenized_assets/usdt?history=price_dollar&range=1y` |\n| Two series on one chart | `/tokenized_assets/usdt?history=price_dollar,net_asset_value_dollar` |\n\n## Rules\n\n- **Lists** are comma-separated, with no spaces.\n- **Names:** `metrics` is always a plain name-to-number map, and `financials` is always the full array with labels and past values.\n- **Errors:** an unknown parameter or name is a 400, and so is a filter for a section you didn't ask for. An unknown asset is a 404. A valid metric with no data comes back as `null` or with empty points.\n- **Holder shares:** `top_*_holder_concentration` always reads the Solana token, because the asset-level value adds up each token's percentage. A share above 100% can't be true, so it's `null`.\n- **Caching:** responses carry an `ETag`. Send it back in `If-None-Match` to get a 304 when nothing has changed."
   },
   "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
-      }
-    },
     "schemas": {}
   },
   "paths": {
@@ -21,7 +15,6 @@
         "tags": [
           "Service"
         ],
-        "security": [],
         "responses": {
           "200": {
             "description": "Default Response",
@@ -70,7 +63,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -343,52 +335,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
-                            "not_found",
-                            "rate_limited",
-                            "unavailable",
-                            "internal"
-                          ]
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, revoked or expired key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Missing, revoked or expired key",
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -433,7 +379,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -478,7 +423,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -523,7 +467,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -568,7 +511,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -801,52 +743,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
-                            "not_found",
-                            "rate_limited",
-                            "unavailable",
-                            "internal"
-                          ]
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, revoked or expired key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Missing, revoked or expired key",
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -891,7 +787,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -936,7 +831,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -981,7 +875,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -1026,7 +919,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -1882,52 +1774,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
-                            "not_found",
-                            "rate_limited",
-                            "unavailable",
-                            "internal"
-                          ]
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, revoked or expired key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Missing, revoked or expired key",
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -1972,7 +1818,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -2017,7 +1862,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -2062,7 +1906,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -2107,7 +1950,6 @@
                           "type": "string",
                           "enum": [
                             "bad_request",
-                            "unauthorized",
                             "not_found",
                             "rate_limited",
                             "unavailable",
@@ -2131,15 +1973,10 @@
       }
     }
   },
-  "security": [
-    {
-      "bearerAuth": []
-    }
-  ],
   "tags": [
     {
       "name": "Tokenized assets",
-      "description": "Asset data. Requires an API key"
+      "description": "Asset data"
     },
     {
       "name": "Service",

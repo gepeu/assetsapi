@@ -1,13 +1,13 @@
 /** Financial measures and current values. */
-import type { Queryable } from "../pool.ts";
-import { missingGrace } from "./fieldValues.ts";
-import { servedSolanaToken } from "./history.ts";
+import type { Queryable } from '../pool.ts';
+import { missingGrace } from './fieldValues.ts';
+import { servedSolanaToken } from './history.ts';
 
 export interface NewMeasure {
   slug: string;
   label: string;
   unit: string | null;
-  kind: "figure" | "term";
+  kind: 'figure' | 'term';
 }
 
 /** Adds unknown names, unserved. Returns those added, for the run summary. */
@@ -24,7 +24,7 @@ export async function addNewMeasures(db: Queryable, measures: readonly NewMeasur
       measures.map((measure) => measure.label),
       measures.map((measure) => measure.unit),
       measures.map((measure) => measure.kind),
-    ],
+    ]
   );
   return rows.map((row) => row.slug);
 }
@@ -45,7 +45,7 @@ export async function upsertCurrent(
   db: Queryable,
   assetId: number,
   runId: number,
-  rows: readonly CurrentWrite[],
+  rows: readonly CurrentWrite[]
 ): Promise<number> {
   if (rows.length === 0) return 0;
   const { rowCount } = await db.query(
@@ -80,7 +80,7 @@ export async function upsertCurrent(
       rows.map((row) => row.value90d),
       rows.map((row) => JSON.stringify(row.raw)),
       rows.map((row) => row.asOf),
-    ],
+    ]
   );
   return rowCount ?? 0;
 }
@@ -88,7 +88,7 @@ export async function upsertCurrent(
 export async function markMissingCurrent(
   db: Queryable,
   assetId: number,
-  seen: readonly { tokenId: number | null; metric: string }[],
+  seen: readonly { tokenId: number | null; metric: string }[]
 ): Promise<number> {
   const { rowCount } = await db.query(
     `UPDATE financial_current c SET missing_since = now()
@@ -98,15 +98,15 @@ export async function markMissingCurrent(
          SELECT 1 FROM unnest($2::int[], $3::text[]) AS s(token_id, metric)
          WHERE s.token_id IS NOT DISTINCT FROM c.token_id AND s.metric = c.metric
        )`,
-    [assetId, seen.map((row) => row.tokenId), seen.map((row) => row.metric)],
+    [assetId, seen.map((row) => row.tokenId), seen.map((row) => row.metric)]
   );
   return rowCount ?? 0;
 }
 
 export async function deleteExpiredCurrent(db: Queryable, assetId: number): Promise<number> {
   const { rowCount } = await db.query(
-    "DELETE FROM financial_current WHERE asset_id = $1 AND missing_since < now() - $2::interval",
-    [assetId, missingGrace()],
+    'DELETE FROM financial_current WHERE asset_id = $1 AND missing_since < now() - $2::interval',
+    [assetId, missingGrace()]
   );
   return rowCount ?? 0;
 }
@@ -115,12 +115,12 @@ export async function deleteExpiredCurrent(db: Queryable, assetId: number): Prom
 export async function readAssetValues(
   db: Queryable,
   assetId: number,
-  metrics: readonly string[],
+  metrics: readonly string[]
 ): Promise<Map<string, number>> {
   const { rows } = await db.query<{ metric: string; value: number }>(
     `SELECT metric, value FROM financial_current
      WHERE asset_id = $1 AND token_id IS NULL AND metric = ANY($2::text[]) AND value IS NOT NULL`,
-    [assetId, metrics],
+    [assetId, metrics]
   );
   return new Map(rows.map((row) => [row.metric, row.value]));
 }
@@ -130,7 +130,7 @@ export interface ServedValueRow {
   label: string;
   unit: string | null;
   measure_group: string | null;
-  kind: "figure" | "term" | null;
+  kind: 'figure' | 'term' | null;
   value: number | null;
   value_7d: number | null;
   value_30d: number | null;
@@ -149,7 +149,7 @@ export async function listServedAssetValues(db: Queryable, assetId: number): Pro
      JOIN financial_measure m ON m.slug = c.metric AND m.served
      WHERE c.asset_id = $1 AND c.token_id IS NULL
      ORDER BY m.sort_order, c.metric`,
-    [assetId],
+    [assetId]
   );
   return rows;
 }
@@ -158,7 +158,7 @@ export async function listServedAssetValues(db: Queryable, assetId: number): Pro
 export async function listServedSolanaValues(
   db: Queryable,
   assetId: number,
-  metrics: readonly string[],
+  metrics: readonly string[]
 ): Promise<ServedValueRow[]> {
   const { rows } = await db.query<ServedValueRow>(
     `SELECT DISTINCT ON (c.metric) ${SERVED_VALUE_COLUMNS}
@@ -168,7 +168,7 @@ export async function listServedSolanaValues(
      JOIN network n ON n.id = t.network_id AND n.key = 'solana'
      WHERE c.asset_id = $1 AND c.metric = ANY($2::text[])
      ORDER BY c.metric, t.id`,
-    [assetId, metrics],
+    [assetId, metrics]
   );
   return rows;
 }
@@ -183,14 +183,14 @@ export interface TokenValueRow {
 export async function listServedTokenValues(
   db: Queryable,
   tokenIds: readonly number[],
-  metrics: readonly string[],
+  metrics: readonly string[]
 ): Promise<TokenValueRow[]> {
   const { rows } = await db.query<TokenValueRow>(
     `SELECT c.token_id, c.metric, c.value, c.as_of::text AS as_of
      FROM financial_current c
      JOIN financial_measure m ON m.slug = c.metric AND m.served
      WHERE c.token_id = ANY($1::int[]) AND c.metric = ANY($2::text[])`,
-    [tokenIds, metrics],
+    [tokenIds, metrics]
   );
   return rows;
 }
@@ -202,7 +202,7 @@ export async function listTokenAsOf(db: Queryable, tokenIds: readonly number[]):
      FROM financial_current c
      WHERE c.token_id = ANY($1::int[])
      GROUP BY c.token_id`,
-    [tokenIds],
+    [tokenIds]
   );
   return new Map(rows.map((row) => [row.token_id, row.as_of]));
 }
@@ -223,7 +223,7 @@ export async function listValueByNetwork(db: Queryable, assetId: number): Promis
      GROUP BY n.key, n.name
      HAVING sum(c.value) > 0
      ORDER BY value DESC, n.key`,
-    [assetId],
+    [assetId]
   );
   return rows;
 }
@@ -241,7 +241,7 @@ export async function listServedMetrics(db: Queryable): Promise<MetricInfo[]> {
     `SELECT slug, label, unit, measure_group AS "group"
      FROM financial_measure
      WHERE served AND kind = 'figure'
-     ORDER BY sort_order, slug`,
+     ORDER BY sort_order, slug`
   );
   return rows;
 }
@@ -258,7 +258,7 @@ export async function listCatalogMetrics(db: Queryable): Promise<CatalogMetric[]
             EXISTS (SELECT 1 FROM financial_timeseries s WHERE s.measure = m.slug) AS "hasHistory"
      FROM financial_measure m
      WHERE m.served AND m.kind = 'figure'
-     ORDER BY m.sort_order, m.slug`,
+     ORDER BY m.sort_order, m.slug`
   );
   return rows;
 }
@@ -273,14 +273,14 @@ export interface AssetMetricValue {
 export async function listAssetMetricValues(
   db: Queryable,
   assetIds: readonly number[],
-  metrics: readonly string[],
+  metrics: readonly string[]
 ): Promise<AssetMetricValue[]> {
   const { rows } = await db.query<AssetMetricValue>(
     `SELECT c.asset_id, c.metric, c.value
      FROM financial_current c
      JOIN financial_measure m ON m.slug = c.metric AND m.served
      WHERE c.asset_id = ANY($1::int[]) AND c.token_id IS NULL AND c.metric = ANY($2::text[])`,
-    [assetIds, metrics],
+    [assetIds, metrics]
   );
   return rows;
 }
@@ -289,15 +289,15 @@ export async function listAssetMetricValues(
 export async function listSolanaMetricValues(
   db: Queryable,
   assetIds: readonly number[],
-  metrics: readonly string[],
+  metrics: readonly string[]
 ): Promise<AssetMetricValue[]> {
   const { rows } = await db.query<AssetMetricValue>(
     `SELECT c.asset_id, c.metric, c.value
      FROM financial_current c
      JOIN financial_measure m ON m.slug = c.metric AND m.served
      WHERE c.asset_id = ANY($1::int[]) AND c.metric = ANY($2::text[])
-       AND c.token_id = ${servedSolanaToken("c.asset_id")}`,
-    [assetIds, metrics],
+       AND c.token_id = ${servedSolanaToken('c.asset_id')}`,
+    [assetIds, metrics]
   );
   return rows;
 }

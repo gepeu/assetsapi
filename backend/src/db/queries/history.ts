@@ -1,7 +1,7 @@
 /** Daily history: writing changed days, and reading series for the API. */
-import { settings } from "../../config.ts";
-import type { Queryable } from "../pool.ts";
-import type { MetricInfo } from "./financials.ts";
+import { settings } from '../../config.ts';
+import type { Queryable } from '../pool.ts';
+import type { MetricInfo } from './financials.ts';
 
 /** The one token that Solana-scoped reads use, so every endpoint agrees on it. */
 export const servedSolanaToken = (assetId: string): string => `(
@@ -27,12 +27,12 @@ export async function upsertHistory(
   db: Queryable,
   assetId: number,
   runId: number,
-  series: readonly HistoryWrite[],
+  series: readonly HistoryWrite[]
 ): Promise<number> {
   let written = 0;
   for (const { tokenId, measure, points } of series) {
     // Spelled out for each case, because the index can't serve IS NOT DISTINCT FROM.
-    const sameToken = tokenId === null ? "e.token_id IS NULL" : "e.token_id = $2";
+    const sameToken = tokenId === null ? 'e.token_id IS NULL' : 'e.token_id = $2';
     for (let start = 0; start < points.length; start += settings.jobs.historyBatchSize) {
       const batch = points.slice(start, start + settings.jobs.historyBatchSize);
       const { rowCount } = await db.query(
@@ -44,7 +44,7 @@ export async function upsertHistory(
          WHERE e.value IS DISTINCT FROM p.value
          ON CONFLICT (asset_id, token_id, measure, day) DO UPDATE
            SET value = EXCLUDED.value, ingestion_run_id = EXCLUDED.ingestion_run_id`,
-        [assetId, tokenId, measure, runId, batch.map(([day]) => day), batch.map(([, value]) => value)],
+        [assetId, tokenId, measure, runId, batch.map(([day]) => day), batch.map(([, value]) => value)]
       );
       written += rowCount ?? 0;
     }
@@ -67,12 +67,12 @@ export async function listAvailableSeries(db: Queryable, assetId: number): Promi
        SELECT DISTINCT s.measure, s.token_id
        FROM financial_timeseries s
        WHERE s.asset_id = $1 AND ${SERVABLE_POINT}
-         AND (s.token_id IS NULL OR s.token_id = ${servedSolanaToken("$1")})
+         AND (s.token_id IS NULL OR s.token_id = ${servedSolanaToken('$1')})
      ) a
      JOIN financial_measure m ON m.slug = a.measure AND m.served AND m.kind = 'figure'
      GROUP BY m.slug, m.label, m.unit, m.measure_group, m.sort_order
      ORDER BY m.sort_order, m.slug`,
-    [assetId],
+    [assetId]
   );
   return rows;
 }
@@ -86,9 +86,9 @@ export async function findSeriesPresence(db: Queryable, assetId: number, measure
        ) AS "hasAssetSeries",
        EXISTS (
          SELECT 1 FROM financial_timeseries s
-         WHERE s.asset_id = $1 AND s.measure = $2 AND s.token_id = ${servedSolanaToken("$1")} AND ${SERVABLE_POINT}
+         WHERE s.asset_id = $1 AND s.measure = $2 AND s.token_id = ${servedSolanaToken('$1')} AND ${SERVABLE_POINT}
        ) AS "hasSolanaSeries"`,
-    [assetId, measure],
+    [assetId, measure]
   );
   return rows[0] ?? { hasAssetSeries: false, hasSolanaSeries: false };
 }
@@ -101,10 +101,10 @@ export async function listHistoryPoints(
   db: Queryable,
   assetId: number,
   measure: string,
-  scope: "asset" | "solana",
-  rangeDays: number | null,
+  scope: 'asset' | 'solana',
+  rangeDays: number | null
 ): Promise<{ day: string; value: number }[]> {
-  const scopeFilter = scope === "asset" ? "s.token_id IS NULL" : `s.token_id = ${servedSolanaToken("$1")}`;
+  const scopeFilter = scope === 'asset' ? 's.token_id IS NULL' : `s.token_id = ${servedSolanaToken('$1')}`;
   const { rows } = await db.query<{ day: string; value: number }>(
     `WITH series AS (
        SELECT s.day, s.value FROM financial_timeseries s
@@ -113,7 +113,7 @@ export async function listHistoryPoints(
      SELECT day::text AS day, value FROM series
      WHERE $3::int IS NULL OR day > (SELECT max(day) FROM series) - $3::int
      ORDER BY series.day`,
-    [assetId, measure, rangeDays],
+    [assetId, measure, rangeDays]
   );
   return rows;
 }

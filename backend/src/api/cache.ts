@@ -7,11 +7,11 @@
  * A hit still passes the key check, the rate limit and validation, which all run before the lookup.
  * `ETag` and compression run on the kept body as they do on a fresh one.
  */
-import type { FastifyInstance } from "fastify";
-import type { Queryable } from "../db/pool.ts";
-import { readDataVersion } from "../db/queries/dataVersion.ts";
+import type { FastifyInstance } from 'fastify';
+import type { Queryable } from '../db/pool.ts';
+import { readDataVersion } from '../db/queries/dataVersion.ts';
 
-declare module "fastify" {
+declare module 'fastify' {
   interface FastifyContextConfig {
     /** Keep this route's 200 responses until the data changes. */
     cache?: boolean;
@@ -132,9 +132,9 @@ export function registerResponseCache(app: FastifyInstance, options: CacheOption
   const versions = new VersionCheck(options.db, options.versionCheckMs, options.now);
   let lastVersion: string | null = null;
 
-  app.decorateRequest("cacheVersion", null);
+  app.decorateRequest('cacheVersion', null);
 
-  app.addHook("preHandler", async (request, reply) => {
+  app.addHook('preHandler', async (request, reply) => {
     if (!request.routeOptions.config.cache) return;
     let version: string;
     try {
@@ -152,16 +152,16 @@ export function registerResponseCache(app: FastifyInstance, options: CacheOption
     const body = store.get(request.url, version);
     if (body === null) {
       request.cacheVersion = version;
-      reply.header("x-cache", "miss");
+      reply.header('x-cache', 'miss');
       return;
     }
-    reply.header("x-cache", "hit").type("application/json; charset=utf-8");
+    reply.header('x-cache', 'hit').type('application/json; charset=utf-8');
     return reply.send(body);
   });
 
-  app.addHook("onSend", async (request, reply, payload) => {
+  app.addHook('onSend', async (request, reply, payload) => {
     const version = request.cacheVersion;
-    if (version !== null && reply.statusCode === 200 && typeof payload === "string") {
+    if (version !== null && reply.statusCode === 200 && typeof payload === 'string') {
       store.set(request.url, payload, version);
     }
     return payload;

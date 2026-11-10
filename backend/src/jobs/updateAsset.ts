@@ -3,17 +3,17 @@
  * rolls back that asset only, so it keeps its last good data. New assets go through the same write,
  * which is why an asset can never appear without data.
  */
-import type pg from "pg";
-import { settings } from "../config.ts";
-import { inTransaction, type Queryable } from "../db/pool.ts";
-import { insertAsset, isSlugTaken, refreshAssetIdentity } from "../db/queries/assets.ts";
+import type pg from 'pg';
+import { settings } from '../config.ts';
+import { inTransaction, type Queryable } from '../db/pool.ts';
+import { insertAsset, isSlugTaken, refreshAssetIdentity } from '../db/queries/assets.ts';
 import {
   deleteExpiredFieldValues,
   type FieldValueWrite,
   listCatalog,
   markMissingFieldValues,
   upsertFieldValues,
-} from "../db/queries/fieldValues.ts";
+} from '../db/queries/fieldValues.ts';
 import {
   addNewMeasures,
   type CurrentWrite,
@@ -22,12 +22,12 @@ import {
   type NewMeasure,
   readAssetValues,
   upsertCurrent,
-} from "../db/queries/financials.ts";
-import { type HistoryWrite, upsertHistory } from "../db/queries/history.ts";
-import { ensureOrganization, syncAssetOrganizations } from "../db/queries/organizations.ts";
-import { findSourceId } from "../db/queries/runs.ts";
-import { deactivateOtherTokens, ensureNetwork, listAllTokenIds, saveToken } from "../db/queries/tokens.ts";
-import { ContractBrokenError } from "../providers/errors.ts";
+} from '../db/queries/financials.ts';
+import { type HistoryWrite, upsertHistory } from '../db/queries/history.ts';
+import { ensureOrganization, syncAssetOrganizations } from '../db/queries/organizations.ts';
+import { findSourceId } from '../db/queries/runs.ts';
+import { deactivateOtherTokens, ensureNetwork, listAllTokenIds, saveToken } from '../db/queries/tokens.ts';
+import { ContractBrokenError } from '../providers/errors.ts';
 import {
   type FieldContent,
   type FieldInput,
@@ -38,7 +38,7 @@ import {
   SOLANA_NETWORK,
   type TokenRef,
   utcToday,
-} from "../providers/types.ts";
+} from '../providers/types.ts';
 import {
   type AssetData,
   type Catalog,
@@ -46,9 +46,9 @@ import {
   type LargeSwing,
   SWING_METRICS,
   validateAssetData,
-} from "./validate.ts";
+} from './validate.ts';
 
-export const DATA_SOURCE = "rwa_xyz";
+export const DATA_SOURCE = 'rwa_xyz';
 
 export interface DataProviders {
   pool: pg.Pool;
@@ -81,8 +81,8 @@ export interface AssetWriteResult {
 }
 
 type NewAssetResult =
-  | { status: "created"; slug: string; result: AssetWriteResult }
-  | { status: "held_back"; assetClass: string; slug: string };
+  | { status: 'created'; slug: string; result: AssetWriteResult }
+  | { status: 'held_back'; assetClass: string; slug: string };
 
 export async function createAssetContext(deps: DataProviders, runId: number): Promise<AssetContext> {
   const fields = await listCatalog(deps.pool);
@@ -116,7 +116,7 @@ interface Subject {
 
 /** Organization values point at a record, so spelling differences never read as changes. */
 function toStoredValue(value: FieldContent, organizationIds: ReadonlyMap<string, number>): unknown {
-  if (typeof value !== "object" || Array.isArray(value)) return value;
+  if (typeof value !== 'object' || Array.isArray(value)) return value;
   const id = organizationIds.get(value.organization);
   if (id === undefined) throw new ContractBrokenError(`Organization ${value.organization} wasn't saved`);
   return { organization_id: id };
@@ -126,7 +126,7 @@ function toFieldRows(
   inputs: readonly FieldInput[],
   subject: Subject,
   context: AssetContext,
-  organizationIds: ReadonlyMap<string, number>,
+  organizationIds: ReadonlyMap<string, number>
 ): FieldValueWrite[] {
   return inputs.map((input) => {
     const fieldId = context.fieldIds.get(input.field);
@@ -155,7 +155,7 @@ async function saveSharedRecords(
   db: Queryable,
   context: AssetContext,
   assetId: number,
-  reference: ReferenceData,
+  reference: ReferenceData
 ): Promise<SharedRecords> {
   const organizationIds = new Map<string, number>();
   for (const organization of reference.organizations) {
@@ -195,7 +195,7 @@ async function saveTokens(
   context: AssetContext,
   assetId: number,
   reference: ReferenceData,
-  shared: SharedRecords,
+  shared: SharedRecords
 ): Promise<SavedTokens> {
   const tokenIds = new Map<string, number>();
   const rows: FieldValueWrite[] = [];
@@ -230,7 +230,7 @@ async function writeFieldValues(
   context: AssetContext,
   assetId: number,
   sharedRows: readonly FieldValueWrite[],
-  ownRows: readonly FieldValueWrite[],
+  ownRows: readonly FieldValueWrite[]
 ) {
   const { sourceId, runId } = context;
   const written =
@@ -255,7 +255,7 @@ function collectMeasures(data: AssetData): NewMeasure[] {
         slug: row.metric,
         label: row.metric,
         unit: null,
-        kind: row.value === null ? "term" : "figure",
+        kind: row.value === null ? 'term' : 'figure',
       });
     }
   }
@@ -264,7 +264,7 @@ function collectMeasures(data: AssetData): NewMeasure[] {
       slug: series.measure,
       label: series.label ?? series.measure,
       unit: series.unit,
-      kind: "figure",
+      kind: 'figure',
     });
   }
   return [...measures.values()];
@@ -276,7 +276,7 @@ async function writeFinancials(
   context: AssetContext,
   assetId: number,
   data: AssetData,
-  tokenIds: ReadonlyMap<string, number>,
+  tokenIds: ReadonlyMap<string, number>
 ) {
   const { runId } = context;
   const notes: string[] = [];
@@ -317,7 +317,7 @@ async function writeAssetData(
   db: Queryable,
   context: AssetContext,
   assetId: number,
-  data: AssetData,
+  data: AssetData
 ): Promise<{ result: AssetWriteResult; tokenIds: ReadonlyMap<string, number> }> {
   const { reference, history } = data;
   await refreshAssetIdentity(db, assetId, reference);
@@ -345,7 +345,7 @@ async function writeAssetData(
 
 export async function updateAsset(
   context: AssetContext,
-  asset: { id: number; ref: ProviderRef },
+  asset: { id: number; ref: ProviderRef }
 ): Promise<AssetWriteResult> {
   const data = await fetchAssetData(context, asset.ref);
   validateAssetData(data, context.catalog, context.today());
@@ -354,7 +354,7 @@ export async function updateAsset(
 }
 
 /** API paths that sit where an asset's slug would, so an asset with one of these could never be read. */
-const RESERVED_SLUGS: ReadonlySet<string> = new Set(["catalog"]);
+const RESERVED_SLUGS: ReadonlySet<string> = new Set(['catalog']);
 
 async function isSlugFree(db: Queryable, slug: string): Promise<boolean> {
   return !RESERVED_SLUGS.has(slug) && !(await isSlugTaken(db, slug));
@@ -376,14 +376,14 @@ async function findFreeSlug(db: Queryable, base: string): Promise<string> {
 export async function createNewAsset(
   context: AssetContext,
   ref: ProviderRef,
-  mints: readonly string[],
+  mints: readonly string[]
 ): Promise<NewAssetResult> {
   const data = await fetchAssetData(context, ref);
   validateAssetData(data, context.catalog, context.today());
 
   const { reference } = data;
   if (reference.assetType === null) {
-    return { status: "held_back", assetClass: reference.assetClass, slug: reference.slug };
+    return { status: 'held_back', assetClass: reference.assetClass, slug: reference.slug };
   }
   const assetType = reference.assetType;
 
@@ -396,6 +396,6 @@ export async function createNewAsset(
         throw new ContractBrokenError(`${slug}: the new asset's mint ${mint} wasn't in its token list`);
       }
     }
-    return { status: "created", slug, result };
+    return { status: 'created', slug, result };
   });
 }

@@ -1,6 +1,6 @@
 /** The introduction at the top of the OpenAPI contract, in Markdown. */
 export const API_GUIDE = `
-Private, read-only API over tokenized asset data, updated daily. Data routes require an API key, sent as \`Authorization: Bearer <key>\`.
+Public, read-only API over tokenized asset data, updated daily. No key is needed. Requests are rate limited per IP address.
 
 ## Three endpoints
 

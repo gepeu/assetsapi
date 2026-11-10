@@ -20,8 +20,9 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+  # The Dockerfile is at the repository root, which is also the build context.
   - package-ecosystem: docker
-    directory: /backend
+    directory: /
     schedule:
       interval: weekly
     cooldown:

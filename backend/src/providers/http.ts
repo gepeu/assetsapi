@@ -3,9 +3,9 @@
  * pacing is real state shared across calls. Every failure leaves here as one of the typed provider
  * errors, and messages carry only the path, never headers.
  */
-import { setTimeout as delay } from "node:timers/promises";
-import { settings } from "../config.ts";
-import { AuthOrQuotaError, ContractBrokenError, NotFoundError, TransientError } from "./errors.ts";
+import { setTimeout as delay } from 'node:timers/promises';
+import { settings } from '../config.ts';
+import { AuthOrQuotaError, ContractBrokenError, NotFoundError, TransientError } from './errors.ts';
 
 /** Anything left out takes its value from the provider settings in config.ts. */
 export interface HttpClientOptions {
@@ -27,10 +27,10 @@ export interface HttpClientOptions {
  * so only its name and system code are used.
  */
 function toFailureReason(error: unknown): string {
-  if (!(error instanceof Error)) return "unknown";
-  if (error.name === "TimeoutError") return "timed out";
+  if (!(error instanceof Error)) return 'unknown';
+  if (error.name === 'TimeoutError') return 'timed out';
   const code = (error.cause as { code?: unknown } | undefined)?.code;
-  return typeof code === "string" ? code : error.name;
+  return typeof code === 'string' ? code : error.name;
 }
 
 export class HttpClient {
@@ -124,12 +124,12 @@ export class HttpClient {
 
   /** Stops early when the window is used up, rather than spending a request on a certain 429. */
   private noteRateLimit(response: Response): void {
-    if (response.headers.get("x-ratelimit-remaining") !== "0") return;
+    if (response.headers.get('x-ratelimit-remaining') !== '0') return;
     this.waitUntilReset(response);
   }
 
   private noteRetryAfter(response: Response): void {
-    const retryAfter = Number(response.headers.get("retry-after"));
+    const retryAfter = Number(response.headers.get('retry-after'));
     if (Number.isFinite(retryAfter) && retryAfter > 0) {
       this.nextRequestAt = Math.max(this.nextRequestAt, this.now() + retryAfter * 1000);
       return;
@@ -140,7 +140,7 @@ export class HttpClient {
   }
 
   private waitUntilReset(response: Response): boolean {
-    const reset = Number(response.headers.get("x-ratelimit-reset"));
+    const reset = Number(response.headers.get('x-ratelimit-reset'));
     if (!Number.isFinite(reset) || reset <= 0) return false;
     this.nextRequestAt = Math.max(this.nextRequestAt, reset * 1000);
     return true;
