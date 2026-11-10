@@ -14,12 +14,6 @@ updates:
         dependency-type: production
       development:
         dependency-type: development
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
   # The Dockerfile is at the repository root, which is also the build context.
   - package-ecosystem: docker
     directory: /

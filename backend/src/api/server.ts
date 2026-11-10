@@ -1,6 +1,6 @@
 /**
  * Entry point for the `api` command: checks the config, connects, listens, and shuts down cleanly.
- * A crash logs the exception and exits, so Railway restarts the replica.
+ * A crash logs the exception and exits, so the host restarts the replica.
  */
 import { loadApiConfig, settings } from '../config.ts';
 import { checkConnection, createPool } from '../db/pool.ts';

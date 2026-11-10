@@ -1,4 +1,4 @@
-/** `/readyz`: the one route that isn't rate limited. Railway's deploy check and the uptime monitor call it. */
+/** `/readyz`: the one route that isn't rate limited. The deploy check and the uptime monitor call it. */
 import type { FastifyInstance } from 'fastify';
 import { findPendingMigrations } from '../../db/migrate.ts';
 import type { Queryable } from '../../db/pool.ts';

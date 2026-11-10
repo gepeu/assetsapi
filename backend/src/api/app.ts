@@ -25,7 +25,7 @@ interface AppOptions {
   cacheVersionCheckMs?: number;
 }
 
-/** Railway's proxy sets this header. Outside Railway it falls back to the socket address. */
+/** The proxy in front sets this header. Without it, the socket address is used. */
 function getClientIp(request: FastifyRequest): string {
   const header = request.headers['x-real-ip'];
   return typeof header === 'string' && header !== '' ? header : request.ip;

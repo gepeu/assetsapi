@@ -148,7 +148,7 @@ export async function runTrackedJob(
   }
 }
 
-/** Failed runs and a schema mismatch exit non-zero, so Railway shows them as failed too. */
+/** Failed runs and a schema mismatch exit non-zero, so the scheduler shows them as failed too. */
 export function toExitCode(outcome: JobOutcome): number {
   if (outcome.kind === 'schema_behind') return 1;
   if (outcome.kind === 'finished' && outcome.status === 'failed') return 1;
