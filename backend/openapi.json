@@ -1,0 +1,2149 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Tokenized assets API",
+    "version": "2.0.0",
+    "description": "Private, read-only API over tokenized asset data, updated daily. Data routes require an API key, sent as `Authorization: Bearer <key>`.\n\n## Three endpoints\n\n| Endpoint | Returns |\n|---|---|\n| `/tokenized_assets` | All active assets, one row each |\n| `/tokenized_assets/catalog` | Everything you can request: metrics, groups, categories, fields and filter values |\n| `/tokenized_assets/{slug}` | One asset, plus any sections you ask for |\n\n## Ask only for what you need\n\nWith no parameters, `/tokenized_assets/{slug}` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with `include`, and only those are queried.\n\n| Section | Contents | Narrow with |\n|---|---|---|\n| `financials` | Each metric's value, label, group, unit, scope, date and past values | `groups`, `financialMetrics` |\n| `series` | Which history series this asset has | |\n| `valueByNetwork` | Value and share per network | |\n| `terms` | Fund terms and fees | |\n| `fields` | Descriptive values by category, with coverage | `categories`, `empty` |\n| `tokens` | One row per token | `network` |\n\nDaily points are requested by name: `history` takes metric names, and `range` sets how far back they go, 3 months by default.\n\n## Examples\n\n| You want | Call |\n|---|---|\n| Stablecoins by size | `/tokenized_assets?assetType=stablecoin&sort=-total_asset_value_dollar` |\n| Every asset compared on one metric | `/tokenized_assets?metrics=market_value_dollar&sort=-market_value_dollar&limit=200` |\n| The basics for one asset | `/tokenized_assets/usdt` |\n| Everything on an asset page | `/tokenized_assets/usdt?include=fields,tokens` |\n| Only issuer and legal facts that have a value | `/tokenized_assets/usdt?include=fields&categories=issuer,legal&empty=false` |\n| The financials tab | `/tokenized_assets/usdt?include=financials,series,valueByNetwork,terms` |\n| Value and yield numbers only | `/tokenized_assets/usdt?include=financials&groups=value,yield` |\n| One metric with its past values | `/tokenized_assets/usdt?include=financials&financialMetrics=price_dollar` |\n| Price history only | `/tokenized_assets/usdt?history=price_dollar&range=1y` |\n| Two series on one chart | `/tokenized_assets/usdt?history=price_dollar,net_asset_value_dollar` |\n\n## Rules\n\n- **Lists** are comma-separated, with no spaces.\n- **Names:** `metrics` is always a plain name-to-number map, and `financials` is always the full array with labels and past values.\n- **Errors:** an unknown parameter or name is a 400, and so is a filter for a section you didn't ask for. An unknown asset is a 404. A valid metric with no data comes back as `null` or with empty points.\n- **Holder shares:** `top_*_holder_concentration` always reads the Solana token, because the asset-level value adds up each token's percentage. A share above 100% can't be true, so it's `null`.\n- **Caching:** responses carry an `ETag`. Send it back in `If-None-Match` to get a 304 when nothing has changed."
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/readyz": {
+      "get": {
+        "summary": "Whether the database is reachable and the schema is new enough",
+        "tags": [
+          "Service"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ready"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not ready",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tokenized_assets": {
+      "get": {
+        "summary": "List assets",
+        "tags": [
+          "Tokenized assets"
+        ],
+        "description": "Active assets, one row each, with the metrics you choose. To compare every asset on one metric, use `?metrics=market_value_dollar&sort=-market_value_dollar&limit=200`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000]*$"
+            },
+            "in": "query",
+            "name": "assetClass",
+            "required": false,
+            "description": "Only this asset class"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tokenized_equity",
+                "tokenized_fund",
+                "tokenized_commodity",
+                "wrapped_crypto",
+                "native_crypto",
+                "defi_yield",
+                "stablecoin"
+              ]
+            },
+            "in": "query",
+            "name": "assetType",
+            "required": false,
+            "description": "Only this asset type"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,64}$"
+            },
+            "in": "query",
+            "name": "network",
+            "required": false,
+            "description": "Only assets with an active token on this network"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000]*$"
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Searches ticker, name and issuer"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}){0,99}$"
+            },
+            "in": "query",
+            "name": "metrics",
+            "required": false,
+            "description": "Comma-separated metric names for `metrics`. Defaults to the five key metrics: `price_dollar`, `net_asset_value_dollar`, `total_asset_value_dollar`, `apy_30_day` and `holding_addresses_count`. The catalog lists every name."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}){0,99}$"
+            },
+            "in": "query",
+            "name": "solanaMetrics",
+            "required": false,
+            "description": "Comma-separated metric names to read from each asset's Solana token rather than the whole asset. They come back in `solanaMetrics`, which appears only when sent."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^-?[a-z0-9_]{1,64}$",
+              "default": "ticker"
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "description": "`ticker` or a metric name. A leading `-` sorts descending. Missing values sort last, and ties break by slug."
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647,
+              "default": 0
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "description": "Page start"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "slug",
+                          "ticker",
+                          "name",
+                          "assetClass",
+                          "assetType",
+                          "issuer",
+                          "asOf",
+                          "metrics"
+                        ],
+                        "properties": {
+                          "slug": {
+                            "type": "string"
+                          },
+                          "ticker": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "assetClass": {
+                            "type": "string"
+                          },
+                          "assetType": {
+                            "type": "string"
+                          },
+                          "issuer": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "asOf": {
+                            "type": [
+                              "null",
+                              "string"
+                            ],
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "metrics": {
+                            "type": "object",
+                            "description": "Numbers by metric name. A metric with no value is `null`",
+                            "additionalProperties": {
+                              "type": [
+                                "null",
+                                "number"
+                              ]
+                            }
+                          },
+                          "solanaMetrics": {
+                            "type": "object",
+                            "description": "Numbers by metric name. A metric with no value is `null`",
+                            "additionalProperties": {
+                              "type": [
+                                "null",
+                                "number"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "total",
+                        "limit",
+                        "offset"
+                      ],
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "description": "Matching assets, ignoring paging"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "offset": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The ETag matches, so there's no body"
+          },
+          "400": {
+            "description": "Invalid or unknown parameter or name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Invalid or unknown parameter or name",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, revoked or expired key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, revoked or expired key",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or deactivated asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Unknown or deactivated asset",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Rate limited",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Internal error",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Database unavailable",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tokenized_assets/catalog": {
+      "get": {
+        "summary": "Everything you can request",
+        "tags": [
+          "Tokenized assets"
+        ],
+        "description": "The metrics, groups, categories, fields and filter values that the other endpoints accept.",
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "metrics",
+                        "groups",
+                        "categories",
+                        "fields",
+                        "filters"
+                      ],
+                      "properties": {
+                        "metrics": {
+                          "type": "array",
+                          "description": "Every name accepted by `metrics`, `financialMetrics`, `history` and `sort`",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "metric",
+                              "label",
+                              "group",
+                              "unit",
+                              "hasCurrentValue",
+                              "hasHistory"
+                            ],
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "group": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "hasCurrentValue": {
+                                "type": "boolean",
+                                "description": "Whether any asset has a current value"
+                              },
+                              "hasHistory": {
+                                "type": "boolean",
+                                "description": "Whether any asset has a history series"
+                              }
+                            }
+                          }
+                        },
+                        "groups": {
+                          "type": "array",
+                          "description": "The values `groups` accepts",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "key",
+                              "label"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "description": "The name to send in the parameter"
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "categories": {
+                          "type": "array",
+                          "description": "The values `categories` accepts",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "key",
+                              "label"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "description": "The name to send in the parameter"
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "array",
+                          "description": "Every descriptive field, including token-level ones",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "key",
+                              "label",
+                              "category",
+                              "valueType",
+                              "level"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "category": {
+                                "type": "string"
+                              },
+                              "valueType": {
+                                "type": "string"
+                              },
+                              "level": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "filters": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "assetClasses",
+                            "assetTypes",
+                            "networks"
+                          ],
+                          "description": "The values in use across active assets, for filtering the list",
+                          "properties": {
+                            "assetClasses": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "assetTypes": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "networks": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The ETag matches, so there's no body"
+          },
+          "400": {
+            "description": "Invalid or unknown parameter or name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Invalid or unknown parameter or name",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, revoked or expired key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, revoked or expired key",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or deactivated asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Unknown or deactivated asset",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Rate limited",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Internal error",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Database unavailable",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tokenized_assets/{slug}": {
+      "get": {
+        "summary": "Get one asset",
+        "tags": [
+          "Tokenized assets"
+        ],
+        "description": "With no parameters, returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with `include`, and daily points with `history`. A section appears only if you asked for it, and a filter for a section you didn't ask for is a 400.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(financials|series|valueByNetwork|terms|fields|tokens)(,(financials|series|valueByNetwork|terms|fields|tokens)){0,5}$"
+            },
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "description": "Comma-separated sections to add to the core: `financials`, `series`, `valueByNetwork`, `terms`, `fields`, `tokens`. Only these are queried."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}){0,99}$"
+            },
+            "in": "query",
+            "name": "metrics",
+            "required": false,
+            "description": "Comma-separated metric names for `metrics`. Defaults to the five key metrics: `price_dollar`, `net_asset_value_dollar`, `total_asset_value_dollar`, `apy_30_day` and `holding_addresses_count`. The catalog lists every name."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]{1,64}(,[a-z0-9]{1,64}){0,99}$"
+            },
+            "in": "query",
+            "name": "groups",
+            "required": false,
+            "description": "Narrows `financials` to these groups: `value`, `yield`, `supply`, `activity`. Needs `include=financials`."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}){0,99}$"
+            },
+            "in": "query",
+            "name": "financialMetrics",
+            "required": false,
+            "description": "Narrows `financials` to these metric names. With `groups`, a metric must match both. Needs `include=financials`."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]{1,64}(,[a-z0-9]{1,64}){0,99}$"
+            },
+            "in": "query",
+            "name": "categories",
+            "required": false,
+            "description": "Narrows `fields` to these categories, such as `issuer,legal`. The catalog lists them. Needs `include=fields`."
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "empty",
+            "required": false,
+            "description": "Defaults to `true`. Set to `false` to drop listed fields that have no value. Coverage counts don't change. Needs `include=fields`."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,64}$"
+            },
+            "in": "query",
+            "name": "network",
+            "required": false,
+            "description": "Narrows `tokens` to this network. Needs `include=tokens`."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}){0,9}$"
+            },
+            "in": "query",
+            "name": "history",
+            "required": false,
+            "description": "Comma-separated metric names to return daily points for, up to 10."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "3m",
+                "1y",
+                "all"
+              ]
+            },
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "description": "How far back `history` goes, counted from each series' own last point. Defaults to `3m`. Needs `history`."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,64}$"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "description": "The asset's slug, such as `usdt`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "slug",
+                        "ticker",
+                        "name",
+                        "assetClass",
+                        "assetType",
+                        "description",
+                        "issuer",
+                        "organizations",
+                        "networks",
+                        "asOf",
+                        "metrics"
+                      ],
+                      "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
+                        "ticker": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "assetClass": {
+                          "type": "string"
+                        },
+                        "assetType": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "issuer": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "organizations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "slug",
+                              "name",
+                              "role",
+                              "legalName"
+                            ],
+                            "properties": {
+                              "slug": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string"
+                              },
+                              "legalName": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "networks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "key",
+                              "name"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "asOf": {
+                          "type": [
+                            "null",
+                            "string"
+                          ],
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "metrics": {
+                          "type": "object",
+                          "description": "Numbers by metric name. A metric with no value is `null`",
+                          "additionalProperties": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          }
+                        },
+                        "financials": {
+                          "type": "array",
+                          "description": "Each metric's current value with its label, group, unit and past values",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "metric",
+                              "label",
+                              "group",
+                              "unit",
+                              "scope",
+                              "value",
+                              "value7d",
+                              "value30d",
+                              "value90d",
+                              "asOf"
+                            ],
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "group": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "scope": {
+                                "type": "string",
+                                "enum": [
+                                  "asset",
+                                  "solana"
+                                ],
+                                "description": "`asset` is the whole asset across networks. `solana` is its Solana token only"
+                              },
+                              "value": {
+                                "type": "number"
+                              },
+                              "value7d": {
+                                "type": [
+                                  "null",
+                                  "number"
+                                ],
+                                "description": "The value 7 days ago"
+                              },
+                              "value30d": {
+                                "type": [
+                                  "null",
+                                  "number"
+                                ],
+                                "description": "The value 30 days ago"
+                              },
+                              "value90d": {
+                                "type": [
+                                  "null",
+                                  "number"
+                                ],
+                                "description": "The value 90 days ago"
+                              },
+                              "asOf": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ],
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            }
+                          }
+                        },
+                        "series": {
+                          "type": "array",
+                          "description": "The history series this asset has, without their points",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "metric",
+                              "label",
+                              "group",
+                              "unit",
+                              "scope"
+                            ],
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "group": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "scope": {
+                                "type": "string",
+                                "enum": [
+                                  "asset",
+                                  "solana"
+                                ],
+                                "description": "`asset` is the whole asset across networks. `solana` is its Solana token only"
+                              }
+                            }
+                          }
+                        },
+                        "valueByNetwork": {
+                          "type": "array",
+                          "description": "Total asset value on each network, largest first",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "key",
+                              "name",
+                              "value",
+                              "share"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "number",
+                                "description": "In dollars"
+                              },
+                              "share": {
+                                "type": "number",
+                                "description": "Percent of the asset's value across networks"
+                              }
+                            }
+                          }
+                        },
+                        "terms": {
+                          "type": "array",
+                          "description": "Fund terms and fees",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "key",
+                              "label",
+                              "valueType",
+                              "value",
+                              "asOf"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "valueType": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "asOf": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ],
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "coverage",
+                            "categories"
+                          ],
+                          "description": "Descriptive values by category, without token-level fields",
+                          "properties": {
+                            "coverage": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "withData",
+                                "applicable"
+                              ],
+                              "description": "The whole asset, whichever categories were asked for",
+                              "properties": {
+                                "withData": {
+                                  "type": "integer"
+                                },
+                                "applicable": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "categories": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "name",
+                                  "coverage",
+                                  "fields",
+                                  "records"
+                                ],
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "coverage": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "withData",
+                                      "applicable"
+                                    ],
+                                    "description": "How many of the fields that apply to this asset have a value",
+                                    "properties": {
+                                      "withData": {
+                                        "type": "integer"
+                                      },
+                                      "applicable": {
+                                        "type": "integer"
+                                      }
+                                    }
+                                  },
+                                  "fields": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "key",
+                                        "label",
+                                        "valueType",
+                                        "value",
+                                        "asOf"
+                                      ],
+                                      "properties": {
+                                        "key": {
+                                          "type": "string"
+                                        },
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueType": {
+                                          "type": "string"
+                                        },
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            },
+                                            {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "asOf": {
+                                          "type": [
+                                            "null",
+                                            "string"
+                                          ],
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "records": {
+                                    "type": "array",
+                                    "description": "Values that repeat, such as one record per network",
+                                    "items": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "group",
+                                        "key",
+                                        "fields"
+                                      ],
+                                      "properties": {
+                                        "group": {
+                                          "type": "string"
+                                        },
+                                        "key": {
+                                          "type": "string"
+                                        },
+                                        "fields": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "key",
+                                              "label",
+                                              "valueType",
+                                              "value",
+                                              "asOf"
+                                            ],
+                                            "properties": {
+                                              "key": {
+                                                "type": "string"
+                                              },
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueType": {
+                                                "type": "string"
+                                              },
+                                              "value": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  },
+                                                  {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "type": "string"
+                                                    }
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "asOf": {
+                                                "type": [
+                                                  "null",
+                                                  "string"
+                                                ],
+                                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "tokens": {
+                          "type": "array",
+                          "description": "One row per token. A network can have several",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "network",
+                              "address",
+                              "issuanceType",
+                              "fields",
+                              "metrics",
+                              "asOf"
+                            ],
+                            "properties": {
+                              "network": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "key",
+                                  "name"
+                                ],
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "address": {
+                                "type": "string"
+                              },
+                              "issuanceType": {
+                                "type": "string",
+                                "enum": [
+                                  "native",
+                                  "bridged",
+                                  "wrapper",
+                                  "unknown"
+                                ]
+                              },
+                              "fields": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "key",
+                                    "label",
+                                    "valueType",
+                                    "value",
+                                    "asOf"
+                                  ],
+                                  "properties": {
+                                    "key": {
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueType": {
+                                      "type": "string"
+                                    },
+                                    "value": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "asOf": {
+                                      "type": [
+                                        "null",
+                                        "string"
+                                      ],
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                    }
+                                  }
+                                }
+                              },
+                              "metrics": {
+                                "type": "object",
+                                "description": "`total_asset_value_dollar`, `market_value_dollar`, `total_supply_token` and `holding_addresses_count` for this token",
+                                "additionalProperties": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              },
+                              "asOf": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ],
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            }
+                          }
+                        },
+                        "history": {
+                          "type": "array",
+                          "description": "One series per metric named in `history`, in that order",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "metric",
+                              "label",
+                              "unit",
+                              "scope",
+                              "points"
+                            ],
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "scope": {
+                                "type": "string",
+                                "enum": [
+                                  "asset",
+                                  "solana"
+                                ],
+                                "description": "`asset` is the whole asset across networks. `solana` is its Solana token only"
+                              },
+                              "points": {
+                                "type": "array",
+                                "description": "[day, value] pairs, oldest first. Empty for a valid metric with no data",
+                                "items": {
+                                  "type": "array",
+                                  "minItems": 2,
+                                  "maxItems": 2,
+                                  "items": {
+                                    "type": [
+                                      "string",
+                                      "number"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The ETag matches, so there's no body"
+          },
+          "400": {
+            "description": "Invalid or unknown parameter or name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Invalid or unknown parameter or name",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, revoked or expired key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, revoked or expired key",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or deactivated asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Unknown or deactivated asset",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Rate limited",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Internal error",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Database unavailable",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "code",
+                        "message",
+                        "requestId"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "unauthorized",
+                            "not_found",
+                            "rate_limited",
+                            "unavailable",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Tokenized assets",
+      "description": "Asset data. Requires an API key"
+    },
+    {
+      "name": "Service",
+      "description": "Operational routes"
+    }
+  ]
+}

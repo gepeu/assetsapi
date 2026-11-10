@@ -1,163 +1,101 @@
-// The frontend's only source of asset data: the backend's AssetModelViews.
-// These types mirror backend/src/views/.
-import { notifySignedOut } from "./auth";
+// The frontend's only source of asset data. These types mirror backend/src/api/schemas/.
 
-/** Named once, in the page banner, rather than beside every value. Must match the backend's source name. */
+/** Named once, in the page banner, rather than beside every value. */
 export const PRIMARY_SOURCE = "RWA.xyz";
+
+/** The API's largest page. */
+const PAGE_SIZE = 200;
+
+/** Numbers by metric name. A metric with no value is null. */
+export type Metrics = Record<string, number | null>;
 
 export interface AssetListItem {
   slug: string;
   ticker: string;
   name: string;
-  issuer: string | null;
   assetClass: string;
+  assetType: string;
+  issuer: string | null;
+  asOf: string | null;
+  metrics: Metrics;
+  solanaMetrics: Metrics;
 }
 
-export type FieldStatus = "disclosed" | "not_disclosed" | "not_applicable" | "attributed_only" | "never_checked";
+/** The list's columns: asset-wide yield and one-year return, and value held on Solana. */
+export const LIST_METRICS = {
+  yield: "apy_30_day",
+  yearReturn: "trailing_1_year_return_percent",
+  solanaValue: "total_asset_value_dollar",
+} as const;
+
+interface AssetListResponse {
+  data: AssetListItem[];
+  meta: { total: number };
+}
+
+export interface NetworkRef {
+  key: string;
+  name: string;
+}
+
+export interface AssetDetail {
+  slug: string;
+  ticker: string;
+  name: string;
+  assetClass: string;
+  assetType: string;
+  description: string | null;
+  issuer: string | null;
+  organizations: { slug: string; name: string; role: string; legalName: string | null }[];
+  networks: NetworkRef[];
+  asOf: string | null;
+  metrics: Metrics;
+}
 
 export type DataValue = string | number | boolean | string[];
 
-export interface CoverageCounts {
-  disclosed: number;
-  applicable: number;
-  notDisclosed: number;
-  attributedOnly: number;
-  neverChecked: number;
-  notApplicable: number;
-  conflicts: number;
-}
-
-export interface ClaimCitation {
-  documentId: number;
-  title: string;
-  quote: string;
-  locator: string | null;
-  verified: boolean;
-}
-
-export interface SourceClaim {
-  source: string;
-  status: "disclosed" | "not_disclosed" | "not_applicable";
-  value: DataValue | null;
-  asOf: string | null;
-  observedAt: string;
-  method: string;
-  isFact: boolean;
-  isAttributedOnly: boolean;
-  overrideReason: string | null;
-  citations: ClaimCitation[];
-}
-
-export interface FactValue {
-  status: FieldStatus;
-  value: DataValue | null;
-  source: string | null;
-  asOf: string | null;
-  hasConflict: boolean;
-  claims: SourceClaim[];
-}
-
-export interface FieldDescriptor {
+export interface FieldValue {
   key: string;
   label: string;
   valueType: string;
-  requiresAsOf: boolean;
-  conflictPolicy: "chain_first" | "documents_first";
-  status: FieldStatus;
-  hasConflict: boolean;
+  value: DataValue | null;
+  asOf: string | null;
 }
 
-export type FieldEntry = FieldDescriptor & FactValue;
-
-export interface FieldsBlock {
-  kind: "fields";
-  fields: FieldEntry[];
-}
-
-export interface RecordsBlock {
-  kind: "records";
-  key: string;
-  title: string;
-  rowLabelHeader: string | null;
-  columns: FieldDescriptor[];
-  rows: { key: string; label: string | null; cells: FactValue[] }[];
-  sources: string[];
-}
-
-export interface CategoryView {
+export interface FieldCategory {
   name: string;
-  coverage: CoverageCounts;
-  blocks: (FieldsBlock | RecordsBlock)[];
+  fields: FieldValue[];
+  records: { group: string; key: string; fields: FieldValue[] }[];
 }
 
-export interface AssetDocument {
-  id: number;
-  title: string;
-  url: string;
-  category: string;
-  isOfficial: boolean;
-  lastCheckedAt: string | null;
-  hasSavedCopy: boolean;
+export interface AssetFields {
+  categories: FieldCategory[];
 }
 
-export interface AssetDetailView {
-  asset: {
-    slug: string;
-    ticker: string;
-    name: string;
-    assetClass: string;
-    assetType: string;
-    issuer: string | null;
-    description: string | null;
-    reviewNote: string | null;
-  };
-  catalogFieldCount: number;
-  coverage: CoverageCounts;
-  conflictOrders: Record<FieldDescriptor["conflictPolicy"], string[]>;
-  categories: CategoryView[];
-  documents: AssetDocument[];
+export interface AssetToken {
+  network: NetworkRef;
+  address: string;
+  issuanceType: string;
+  fields: FieldValue[];
+  metrics: Metrics;
+  asOf: string | null;
 }
-
-/** Null when the view says there's nothing there. */
-async function fetchView<T>(name: string, params?: Record<string, string>): Promise<T | null> {
-  const query = params ? `?${new URLSearchParams(params)}` : "";
-  const response = await fetch(`/api/views/${name}${query}`);
-  if (response.status === 401) notifySignedOut();
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`View request failed: ${response.status}`);
-  return (await response.json()) as T;
-}
-
-/** Requires a session. The backend then redirects to a link that always downloads. */
-export function documentDownloadUrl(documentId: number): string {
-  return `/api/documents/${documentId}/download`;
-}
-
-export async function listAssets(): Promise<AssetListItem[]> {
-  return (await fetchView<AssetListItem[]>("asset_list")) ?? [];
-}
-
-export function getAsset(slug: string): Promise<AssetDetailView | null> {
-  return fetchView<AssetDetailView>("asset_detail", { asset: slug });
-}
-
-export type FinancialFormat = "dollar" | "price" | "percent" | "count";
 
 export type FinancialRange = "7d" | "30d" | "3m" | "1y" | "all";
 
-export interface FinancialFigure {
-  key: string;
-  label: string;
-  format: FinancialFormat;
-  value: number;
-  change30d: number | null;
-}
+export type FinancialScope = "asset" | "solana";
 
-export interface FinancialTerm {
-  key: string;
+export interface FinancialMetric {
+  metric: string;
   label: string;
-  format: "percent" | "count" | "text" | "long_text";
-  value: number | string;
+  group: string;
+  unit: string | null;
+  scope: FinancialScope;
+  value: number;
+  value7d: number | null;
+  value30d: number | null;
+  value90d: number | null;
+  asOf: string;
 }
 
 export interface FinancialNetwork {
@@ -167,33 +105,81 @@ export interface FinancialNetwork {
   share: number;
 }
 
-export interface FinancialChart {
-  measure: string;
+export interface FinancialSeries {
+  metric: string;
   label: string;
   group: string;
-  format: FinancialFormat;
-  form: "area" | "line" | "bar";
-  scope: "asset" | "solana";
+  unit: string | null;
+  scope: FinancialScope;
 }
 
-export interface AssetFinancialsView {
-  asOf: string | null;
-  overview: FinancialFigure[];
-  sections: { title: string; figures: FinancialFigure[] }[];
-  terms: FinancialTerm[];
-  networks: FinancialNetwork[];
-  charts: FinancialChart[];
+export interface AssetFinancials extends AssetDetail {
+  financials: FinancialMetric[];
+  series: FinancialSeries[];
+  valueByNetwork: FinancialNetwork[];
+  terms: FieldValue[];
 }
 
-export interface FinancialHistoryView {
-  measure: string;
+export interface FinancialHistory {
+  metric: string;
   points: [string, number][];
 }
 
-export function getAssetFinancials(slug: string): Promise<AssetFinancialsView | null> {
-  return fetchView<AssetFinancialsView>("asset_financials", { asset: slug });
+/** Everything the asset page shows, from one request. */
+export interface AssetPage extends AssetFinancials {
+  fields: AssetFields;
+  tokens: AssetToken[];
+  /** The series asked for up front, so the first chart needs no request of its own. */
+  history: FinancialHistory[];
 }
 
-export function getFinancialHistory(slug: string, measure: string, range: FinancialRange): Promise<FinancialHistoryView | null> {
-  return fetchView<FinancialHistoryView>("asset_financial_history", { asset: slug, measure, range });
+const API_PATH = "/tokenized_assets";
+
+/** Null on a 404. */
+async function fetchJson<T>(path: string): Promise<T | null> {
+  const response = await fetch(path);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  return (await response.json()) as T;
+}
+
+async function fetchData<T>(path: string): Promise<T | null> {
+  return (await fetchJson<{ data: T }>(path))?.data ?? null;
+}
+
+let listCache: Promise<AssetListItem[]> | null = null;
+
+/** All active assets, fetched once per page load and shared. A failed fetch is retried on the next call. */
+export function listAssets(): Promise<AssetListItem[]> {
+  listCache ??= fetchAllAssets().catch((error: unknown) => {
+    listCache = null;
+    throw error;
+  });
+  return listCache;
+}
+
+async function fetchAllAssets(): Promise<AssetListItem[]> {
+  const assets: AssetListItem[] = [];
+  for (;;) {
+    const params = new URLSearchParams({
+      metrics: [LIST_METRICS.yield, LIST_METRICS.yearReturn].join(","),
+      solanaMetrics: LIST_METRICS.solanaValue,
+      limit: String(PAGE_SIZE),
+      offset: String(assets.length),
+    });
+    const page = await fetchJson<AssetListResponse>(`${API_PATH}?${params}`);
+    if (!page) throw new Error("The asset list is missing");
+    assets.push(...page.data);
+    if (page.data.length === 0 || assets.length >= page.meta.total) return assets;
+  }
+}
+
+/** The whole asset page in one call, with the history of `historyMetrics` over `range`. */
+export function getAssetPage(slug: string, historyMetrics: readonly string[], range: FinancialRange): Promise<AssetPage | null> {
+  const params = new URLSearchParams({
+    include: "fields,tokens,financials,series,valueByNetwork,terms",
+    history: historyMetrics.join(","),
+    range,
+  });
+  return fetchData(`${API_PATH}/${slug}?${params}`);
 }

@@ -1,0 +1,282 @@
+{
+ "results": [
+  {
+   "measure": {
+    "id": 1,
+    "slug": "yield_to_maturity",
+    "name": "Yield to Maturity",
+    "unit": "percent"
+   },
+   "group": {
+    "id": 60,
+    "type": "asset",
+    "name": "Ondo U.S. Dollar Yield",
+    "color": "#AA92C2"
+   },
+   "points": [
+    [
+     "2026-01-23",
+     0.037002086716
+    ],
+    [
+     "2026-01-24",
+     0.037002086716
+    ],
+    [
+     "2026-01-25",
+     0.037002086716
+    ],
+    [
+     "2026-01-26",
+     0.037002086716
+    ],
+    [
+     "2026-01-27",
+     0.037002086716
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 3,
+    "slug": "net_asset_value_dollar",
+    "name": "Net Asset Value (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 60,
+    "type": "asset",
+    "name": "Ondo U.S. Dollar Yield",
+    "color": "#AA92C2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     1.15167847
+    ],
+    [
+     "2026-11-01",
+     1.15179464
+    ],
+    [
+     "2026-11-02",
+     1.151795104481
+    ],
+    [
+     "2026-11-03",
+     1.151911269916
+    ],
+    [
+     "2026-11-04",
+     1.152027479345
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 39,
+    "slug": "price_dollar",
+    "name": "Price (Dollar)",
+    "unit": "dollar"
+   },
+   "group": {
+    "id": 60,
+    "type": "asset",
+    "name": "Ondo U.S. Dollar Yield",
+    "color": "#AA92C2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     1.1493110566138873
+    ],
+    [
+     "2026-11-01",
+     1.150985451872941
+    ],
+    [
+     "2026-11-02",
+     1.1505738106800518
+    ],
+    [
+     "2026-11-03",
+     1.1498705881998574
+    ],
+    [
+     "2026-11-04",
+     1.1511887006154244
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 80,
+    "slug": "apy_7_day",
+    "name": "APY (7-Day)",
+    "unit": "percent"
+   },
+   "group": {
+    "id": 60,
+    "type": "asset",
+    "name": "Ondo U.S. Dollar Yield",
+    "color": "#AA92C2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     3.682911739278578
+    ],
+    [
+     "2026-11-01",
+     3.682902697982422
+    ],
+    [
+     "2026-11-02",
+     3.15872115143507
+    ],
+    [
+     "2026-11-03",
+     3.1586536529582467
+    ],
+    [
+     "2026-11-04",
+     3.1587400968912425
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 81,
+    "slug": "apy_30_day",
+    "name": "APY (30-Day)",
+    "unit": "percent"
+   },
+   "group": {
+    "id": 60,
+    "type": "asset",
+    "name": "Ondo U.S. Dollar Yield",
+    "color": "#AA92C2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     3.687154433937678
+    ],
+    [
+     "2026-11-01",
+     3.687153377699862
+    ],
+    [
+     "2026-11-02",
+     3.5645613102395517
+    ],
+    [
+     "2026-11-03",
+     3.5645465325457235
+    ],
+    [
+     "2026-11-04",
+     3.5645571102907962
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 90,
+    "slug": "daily_asset_performance_rate",
+    "name": "Daily Asset Performance Rate",
+    "unit": "percent"
+   },
+   "group": {
+    "id": 60,
+    "type": "asset",
+    "name": "Ondo U.S. Dollar Yield",
+    "color": "#AA92C2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     0.01008716584340874
+    ],
+    [
+     "2026-11-01",
+     0.0100870167348166
+    ],
+    [
+     "2026-11-02",
+     0.00004032672002995952
+    ],
+    [
+     "2026-11-03",
+     0.010085598953146757
+    ],
+    [
+     "2026-11-04",
+     0.010088401080454723
+    ]
+   ]
+  },
+  {
+   "measure": {
+    "id": 1027,
+    "slug": "hypothetical_10_000_performance",
+    "name": "Hypothetical $10,000 Performance",
+    "unit": "Dollars"
+   },
+   "group": {
+    "id": 60,
+    "type": "asset",
+    "name": "Ondo U.S. Dollar Yield",
+    "color": "#AA92C2"
+   },
+   "points": [
+    [
+     "2026-10-31",
+     11441.272302801499
+    ],
+    [
+     "2026-11-01",
+     11442.426385853358
+    ],
+    [
+     "2026-11-02",
+     11442.431000208611
+    ],
+    [
+     "2026-11-03",
+     11443.585037909783
+    ],
+    [
+     "2026-11-04",
+     11444.73951266639
+    ]
+   ]
+  }
+ ],
+ "filter": {
+  "operator": "and",
+  "filters": [
+   {
+    "operator": "equals",
+    "field": "asset_id",
+    "value": "60"
+   }
+  ]
+ },
+ "sort": {
+  "direction": "asc",
+  "field": "date"
+ },
+ "pagination": {
+  "page": 1,
+  "perPage": 100,
+  "resultCount": 7,
+  "pageCount": 1
+ },
+ "aggregate": {
+  "groupBy": "asset",
+  "aggregateFunction": "sum",
+  "interval": "day",
+  "mode": "stock"
+ }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "rwa-agent-backend",
+  "name": "rwa-data-service",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,29 +7,34 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "dev": "node --env-file-if-exists=.env --watch src/server.ts",
-    "start": "node --env-file-if-exists=.env src/server.ts",
-    "build": "tsc",
-    "db:setup": "node --env-file-if-exists=.env scripts/dbSetup.ts",
-    "documents:load": "node --env-file-if-exists=.env scripts/documentsLoad.ts",
-    "documents:index": "node --env-file-if-exists=.env scripts/documentsIndex.ts",
-    "coverage": "node --env-file-if-exists=.env scripts/coverageReport.ts",
-    "agent:check": "node --env-file-if-exists=.env scripts/agentCheck.ts",
-    "rwa:mapping": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzMappingDoc.ts",
-    "rwa:load": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzLoad.ts",
-    "rwa:financials": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/rwaXyzFinancialsLoad.ts",
-    "test": "node --env-file-if-exists=.env --test test/*.test.ts"
-  },
-  "devDependencies": {
-    "@types/node": "^22.20.5",
-    "@types/pg": "^8.23.1",
-    "typescript": "^7.0.2"
+    "api": "node --env-file-if-exists=../.env --env-file-if-exists=.env src/api/server.ts",
+    "update-universe": "node --env-file-if-exists=../.env --env-file-if-exists=.env src/jobs/updateUniverse.ts",
+    "update-data": "node --env-file-if-exists=../.env --env-file-if-exists=.env src/jobs/updateData.ts",
+    "migrate": "node --env-file-if-exists=../.env --env-file-if-exists=.env src/db/migrate.ts",
+    "setup-roles": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/setupRoles.ts",
+    "create-api-key": "node --env-file-if-exists=../.env --env-file-if-exists=.env scripts/createApiKey.ts",
+    "openapi": "node scripts/generateOpenApi.ts",
+    "openapi:check": "node scripts/generateOpenApi.ts --check",
+    "typecheck": "tsc",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "node --env-file-if-exists=.env --import ./test/helpers/blockNetwork.ts --test --test-concurrency=4 \"test/**/*.test.ts\""
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.317",
-    "@aws-sdk/client-s3": "^3.1161.0",
-    "@aws-sdk/s3-request-presigner": "^3.1161.0",
-    "pdfjs-dist": "^6.5.438",
-    "pg": "^8.23.1"
+    "@fastify/compress": "9.3.0",
+    "@fastify/etag": "6.2.1",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/rate-limit": "11.2.1",
+    "@fastify/swagger": "9.9.2",
+    "fastify": "5.12.7",
+    "pg": "8.23.1",
+    "pino": "10.4.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "json-schema-to-ts": "3.1.1",
+    "typescript": "7.0.2"
   }
 }

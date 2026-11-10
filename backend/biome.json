@@ -1,0 +1,108 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.4/schema.json",
+  "files": {
+    "includes": ["**", "!openapi.json", "!package-lock.json", "!test/fixtures"]
+  },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "suspicious": { "noConsole": "error", "noExplicitAny": "error" },
+      "style": { "noDefaultExport": "error", "useConst": "error", "useImportType": "error" },
+      "correctness": { "noUnusedImports": "error", "noUnusedVariables": "error" }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/api/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  { "group": ["**/jobs/**", "**/providers/**"], "message": "The API never imports jobs or providers." }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/jobs/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  { "group": ["**/api/**", "**/services/**"], "message": "Jobs never import the read path." }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/providers/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/db/**", "**/jobs/**", "**/services/**", "**/api/**"],
+                    "message": "Providers only fetch and convert."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/services/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  { "group": ["**/jobs/**", "**/providers/**"], "message": "Read logic never imports the write path." }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/db/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/jobs/**", "**/providers/**", "**/services/**", "**/api/**"],
+                    "message": "The database layer knows nothing above it."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
