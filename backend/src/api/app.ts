@@ -9,6 +9,7 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance, LogController } 
 import { settings, type UiLogin } from "../config.ts";
 import type { Queryable } from "../db/pool.ts";
 import { createAuthHook, getClientIp } from "./auth.ts";
+import { registerResponseCache } from "./cache.ts";
 import { registerErrorHandling } from "./errors.ts";
 import { API_GUIDE } from "./guide.ts";
 import { registerAssetRoutes } from "./routes/assets.ts";
@@ -28,6 +29,9 @@ interface AppOptions {
   login?: UiLogin | null;
   /** The built frontend. Without it, the service is the API alone. */
   uiDir?: string;
+  /** Bytes of responses kept in memory, and how often the data version is read. Settings by default. */
+  cacheMaxBytes?: number;
+  cacheVersionCheckMs?: number;
 }
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
@@ -74,6 +78,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerErrorHandling(app);
 
   await app.register(helmet);
+  // Before ETag and compression, whose hooks must see the kept body as they see a fresh one.
+  registerResponseCache(app, {
+    db,
+    maxBytes: options.cacheMaxBytes ?? settings.api.cacheMaxBytes,
+    versionCheckMs: options.cacheVersionCheckMs ?? settings.api.cacheVersionCheckMs,
+    now: options.now ?? Date.now,
+  });
   await app.register(swagger, {
     openapi: {
       openapi: "3.1.0",

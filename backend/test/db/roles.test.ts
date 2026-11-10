@@ -42,7 +42,7 @@ describe("database roles", () => {
 
   test("rwa_owner runs migrations and manages keys", async () => {
     const { rows } = await owner.query<{ n: number }>("SELECT count(*)::int AS n FROM schema_migration");
-    assert.equal(rows[0]?.n, 3);
+    assert.equal(rows[0]?.n, 4);
     await owner.query("UPDATE api_key SET revoked_at = NULL WHERE client_name = 't'");
   });
 
@@ -53,8 +53,11 @@ describe("database roles", () => {
     assert.equal(rows[0]?.tableowner, "rwa_owner");
   });
 
-  test("rwa_job reads and writes data tables", async () => {
+  test("rwa_job reads and writes data tables, which moves the data version", async () => {
+    const before = await job.query<{ version: string }>("SELECT version FROM data_version");
     await job.query(`INSERT INTO organization (slug, brand_name) VALUES ('job-org', 'Job Org')`);
+    const after = await job.query<{ version: string }>("SELECT version FROM data_version");
+    assert.ok(BigInt(after.rows[0]?.version ?? 0) > BigInt(before.rows[0]?.version ?? 0));
     await job.query(`UPDATE organization SET legal_name = 'L' WHERE slug = 'job-org'`);
     await job.query(`DELETE FROM organization WHERE slug = 'job-org'`);
     await job.query(`INSERT INTO ingestion_run (source_id, job) SELECT id, 'update' FROM source WHERE key = 'rwa_xyz'`);
@@ -85,6 +88,8 @@ describe("database roles", () => {
     await api.query("SELECT * FROM asset LIMIT 1");
     await api.query("SELECT * FROM field_value LIMIT 1");
     await api.query("SELECT * FROM asset_field_status LIMIT 1");
+    await api.query("SELECT version FROM data_version");
+    await denied(api.query("UPDATE data_version SET version = version + 1"));
     await denied(api.query(`INSERT INTO organization (slug, brand_name) VALUES ('x', 'x')`));
     await denied(api.query(`UPDATE asset SET name = 'x'`));
     await denied(api.query("DELETE FROM financial_timeseries"));

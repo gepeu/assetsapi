@@ -62,6 +62,12 @@ const assetListQuery = {
       description: "Searches ticker, name and issuer",
     },
     metrics: metricsParameter,
+    solanaMetrics: {
+      type: "string",
+      pattern: METRIC_LIST_PATTERN,
+      description:
+        "Comma-separated metric names to read from each asset's Solana token rather than the whole asset. They come back in `solanaMetrics`, which appears only when sent.",
+    },
     sort: {
       type: "string",
       pattern: METRIC_PATTERN,
@@ -101,6 +107,7 @@ const assetListResponse = {
           issuer: nullableString,
           asOf: dayOrNull,
           metrics: metricsSchema,
+          solanaMetrics: metricsSchema,
         },
       },
     },

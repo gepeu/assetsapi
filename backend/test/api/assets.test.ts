@@ -15,7 +15,8 @@ describe("GET /tokenized_assets and /tokenized_assets/{slug}", () => {
   before(async () => {
     db = await createTestDb();
     await runUniverseJob(universeDeps(db, createFakeProvider([makeAsset({ ref: "1" }), makeAsset({ ref: "2" })])));
-    app = await buildApp({ db: db.pool, logger: silentLogger });
+    // The data version is read on every request, so a change shows at once, as it would after the check interval.
+    app = await buildApp({ db: db.pool, logger: silentLogger, cacheVersionCheckMs: 0 });
     headers = { authorization: `Bearer ${await createTestKey(db.pool)}` };
   });
   after(async () => {
@@ -45,6 +46,17 @@ describe("GET /tokenized_assets and /tokenized_assets/{slug}", () => {
     assert.equal(body.data[0].metrics.apy_30_day, null);
   });
 
+  test("solanaMetrics reads each asset's Solana token, and appears only when sent", async () => {
+    const body = (
+      await get("/tokenized_assets?metrics=total_asset_value_dollar&solanaMetrics=total_asset_value_dollar")
+    ).json();
+    const first = body.data[0];
+    assert.deepEqual(Object.keys(first.solanaMetrics), ["total_asset_value_dollar"]);
+    assert.equal(first.solanaMetrics.total_asset_value_dollar, 2 * 600);
+    assert.notEqual(first.metrics.total_asset_value_dollar, first.solanaMetrics.total_asset_value_dollar);
+    assert.equal("solanaMetrics" in (await get("/tokenized_assets")).json().data[0], false);
+  });
+
   test("query numbers arrive as numbers", async () => {
     const body = (await get("/tokenized_assets?limit=1&offset=1")).json();
     assert.equal(body.meta.limit, 1);
@@ -65,6 +77,8 @@ describe("GET /tokenized_assets and /tokenized_assets/{slug}", () => {
     "/tokenized_assets?sort=name",
     "/tokenized_assets?sort=Bad-Name",
     "/tokenized_assets?metrics=made_up",
+    "/tokenized_assets?solanaMetrics=made_up",
+    "/tokenized_assets?solanaMetrics=raw_supply",
     "/tokenized_assets?metrics=price_dollar,",
     "/tokenized_assets?metrics=price_dollar,%20apy_30_day",
     "/tokenized_assets?metrics=raw_supply",
@@ -185,6 +199,7 @@ describe("GET /tokenized_assets and /tokenized_assets/{slug}", () => {
     const response = await get("/tokenized_assets");
     assert.ok(response.headers["strict-transport-security"]);
     assert.equal(response.headers["x-content-type-options"], "nosniff");
+    assert.match(String(response.headers["content-security-policy"]), /script-src 'self';/);
   });
 
   test("the database being down is a 503 with no internals", async () => {

@@ -166,6 +166,16 @@
           {
             "schema": {
               "type": "string",
+              "pattern": "^[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}){0,99}$"
+            },
+            "in": "query",
+            "name": "solanaMetrics",
+            "required": false,
+            "description": "Comma-separated metric names to read from each asset's Solana token rather than the whole asset. They come back in `solanaMetrics`, which appears only when sent."
+          },
+          {
+            "schema": {
+              "type": "string",
               "pattern": "^-?[a-z0-9_]{1,64}$",
               "default": "ticker"
             },
@@ -257,6 +267,16 @@
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                           },
                           "metrics": {
+                            "type": "object",
+                            "description": "Numbers by metric name. A metric with no value is `null`",
+                            "additionalProperties": {
+                              "type": [
+                                "null",
+                                "number"
+                              ]
+                            }
+                          },
+                          "solanaMetrics": {
                             "type": "object",
                             "description": "Numbers by metric name. A metric with no value is `null`",
                             "additionalProperties": {

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import "./index.css";
-import { AssetDetailPage } from "./pages/AssetDetailPage";
+import { AssetPage } from "./pages/AssetPage";
 import { AssetsPage } from "./pages/AssetsPage";
 
 createRoot(document.getElementById("root")!).render(
@@ -12,7 +12,7 @@ createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route element={<Layout />}>
           <Route path="/assets" element={<AssetsPage />} />
-          <Route path="/assets/:slug" element={<AssetDetailPage />} />
+          <Route path="/assets/:slug" element={<AssetPage />} />
           <Route path="*" element={<Navigate to="/assets" replace />} />
         </Route>
       </Routes>

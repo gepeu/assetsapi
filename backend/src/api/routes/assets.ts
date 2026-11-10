@@ -9,16 +9,18 @@ import { catalogRoute } from "../schemas/catalog.ts";
 import type { SlugParams } from "../schemas/shared.ts";
 
 export function registerAssetRoutes(app: FastifyInstance, db: Queryable): void {
-  app.get<{ Querystring: AssetListQuery }>("/tokenized_assets", { schema: assetListRoute }, (request) =>
-    listAssets(db, request.query),
+  app.get<{ Querystring: AssetListQuery }>(
+    "/tokenized_assets",
+    { schema: assetListRoute, config: { cache: true } },
+    (request) => listAssets(db, request.query),
   );
 
   // A fixed path wins over `:slug`, which is why no asset can be given the slug "catalog".
-  app.get("/tokenized_assets/catalog", { schema: catalogRoute }, () => getCatalog(db));
+  app.get("/tokenized_assets/catalog", { schema: catalogRoute, config: { cache: true } }, () => getCatalog(db));
 
   app.get<{ Params: SlugParams; Querystring: AssetDetailQuery }>(
     "/tokenized_assets/:slug",
-    { schema: assetDetailRoute },
+    { schema: assetDetailRoute, config: { cache: true } },
     async (request) => {
       const asset = await getAsset(db, request.params.slug, request.query);
       if (asset === null) throw new ApiError("not_found", "No active asset has this slug");

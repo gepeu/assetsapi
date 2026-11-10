@@ -18,7 +18,15 @@ export interface AssetListItem {
   issuer: string | null;
   asOf: string | null;
   metrics: Metrics;
+  solanaMetrics: Metrics;
 }
+
+/** The list's columns: asset-wide yield and one-year return, and value held on Solana. */
+export const LIST_METRICS = {
+  yield: "apy_30_day",
+  yearReturn: "trailing_1_year_return_percent",
+  solanaValue: "total_asset_value_dollar",
+} as const;
 
 interface AssetListResponse {
   data: AssetListItem[];
@@ -139,11 +147,27 @@ async function fetchData<T>(path: string): Promise<T | null> {
   return (await fetchJson<{ data: T }>(path))?.data ?? null;
 }
 
-/** All active assets. They're filtered in the browser, so one page of them is one call. */
-export async function listAssets(): Promise<AssetListItem[]> {
+let listCache: Promise<AssetListItem[]> | null = null;
+
+/** All active assets, fetched once per page load and shared. A failed fetch is retried on the next call. */
+export function listAssets(): Promise<AssetListItem[]> {
+  listCache ??= fetchAllAssets().catch((error: unknown) => {
+    listCache = null;
+    throw error;
+  });
+  return listCache;
+}
+
+async function fetchAllAssets(): Promise<AssetListItem[]> {
   const assets: AssetListItem[] = [];
   for (;;) {
-    const page = await fetchJson<AssetListResponse>(`${API_PATH}?limit=${PAGE_SIZE}&offset=${assets.length}`);
+    const params = new URLSearchParams({
+      metrics: [LIST_METRICS.yield, LIST_METRICS.yearReturn].join(","),
+      solanaMetrics: LIST_METRICS.solanaValue,
+      limit: String(PAGE_SIZE),
+      offset: String(assets.length),
+    });
+    const page = await fetchJson<AssetListResponse>(`${API_PATH}?${params}`);
     if (!page) throw new Error("The asset list is missing");
     assets.push(...page.data);
     if (page.data.length === 0 || assets.length >= page.meta.total) return assets;
@@ -158,9 +182,4 @@ export function getAssetPage(slug: string, historyMetrics: readonly string[], ra
     range,
   });
   return fetchData(`${API_PATH}/${slug}?${params}`);
-}
-
-export async function getFinancialHistory(slug: string, metric: string, range: FinancialRange): Promise<FinancialHistory | null> {
-  const asset = await fetchData<{ history: FinancialHistory[] }>(`${API_PATH}/${slug}?${new URLSearchParams({ history: metric, range })}`);
-  return asset?.history[0] ?? null;
 }

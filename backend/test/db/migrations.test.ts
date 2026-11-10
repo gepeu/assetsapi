@@ -25,7 +25,24 @@ describe("migrations on an empty database", () => {
     return rows[0]?.value;
   };
 
-  test("creates the final 15 tables and 2 views", async () => {
+  test("every served table moves the data version, so a new one can't leave the API cache stale", async () => {
+    const unserved = ["api_key", "data_version", "ingestion_run", "schema_migration"];
+    const { rows } = await db.pool.query<{ table_name: string; has_trigger: boolean }>(
+      `SELECT t.table_name,
+              EXISTS (SELECT 1 FROM information_schema.triggers g
+                      WHERE g.event_object_table = t.table_name AND g.trigger_name = 'bump_data_version') AS has_trigger
+       FROM information_schema.tables t
+       WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'`,
+    );
+    for (const row of rows) {
+      assert.equal(row.has_trigger, !unserved.includes(row.table_name), row.table_name);
+    }
+    const before = await scalar("SELECT version AS value FROM data_version");
+    await db.pool.query("UPDATE financial_measure SET label = label WHERE false");
+    assert.notEqual(await scalar("SELECT version AS value FROM data_version"), before);
+  });
+
+  test("creates the final 16 tables and 2 views", async () => {
     const { rows } = await db.pool.query<{ table_name: string; table_type: string }>(
       `SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1`,
     );
@@ -36,6 +53,7 @@ describe("migrations on an empty database", () => {
         "asset",
         "asset_alias",
         "asset_organization",
+        "data_version",
         "field",
         "field_value",
         "financial_current",
@@ -210,6 +228,7 @@ describe("findPendingMigrations", () => {
         "001_baseline.sql",
         "002_catalog_seed.sql",
         "003_stop_serving_duplicate_terms.sql",
+        "004_data_version.sql",
       ]);
     } finally {
       await client.end();

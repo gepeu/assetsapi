@@ -332,7 +332,8 @@ export interface ApiHarness {
 export async function createApiHarness(assets: readonly FakeAsset[]): Promise<ApiHarness> {
   const db = await createTestDb();
   await seedAssets(db, assets);
-  const app = await buildApp({ db: db.pool, logger: silentLogger });
+  // The data version is read on every request, so a test that changes data sees it at once.
+  const app = await buildApp({ db: db.pool, logger: silentLogger, cacheVersionCheckMs: 0 });
   const headers = { authorization: `Bearer ${await createTestKey(db.pool)}` };
   return {
     db,

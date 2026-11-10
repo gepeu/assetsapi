@@ -235,14 +235,14 @@ Each adapter implements only the interfaces it supplies, and works with the prov
 
 ## 4. Database schema
 
-There are 15 tables, down from 27, and 2 views, down from 9.
+There are 16 tables, down from 27, and 2 views, down from 9.
 
 | Group | Tables |
 |---|---|
 | **Universe** | `asset`, `token`, `network`, `asset_alias`, `organization`, `asset_organization` |
 | **Reference data** | `field`, `field_value`, `source` |
 | **Financials** | `financial_current`, `financial_timeseries`, `financial_measure` |
-| **Operations** | `ingestion_run`, `api_key`, `schema_migration` |
+| **Operations** | `ingestion_run`, `api_key`, `schema_migration`, `data_version` |
 
 **Removed tables:** `claim`, `claim_citation`, `fact_override`, `source_priority`, `subjective_term`, `document`, `asset_document`, `stored_file`, `document_text`, `document_chunk`, `contract`, `token_contract`, `raw_response`, `agent_response` and `financial_snapshot`.
 
@@ -390,6 +390,8 @@ Rules carried over from `main`: holder shares are read from the Solana token, an
 
 **`schema_migration`:** unchanged.
 
+**`data_version`** (new, from `004`): one row whose `version` moves on every write to a served table, through statement triggers, with `changed_at`. The API cache reads it. A test fails if a new table has neither the trigger nor a place on the unserved list.
+
 ### Views
 
 - **`asset_subject`:** every subject that counts towards an asset, without contracts.
@@ -402,7 +404,8 @@ The schema starts fresh from where we are now, and the old migrations stay on `m
 - **`001_baseline.sql`:** the final 15 tables, 2 views, indexes and triggers.
 - **`002_catalog_seed.sql`:** the 135 fields, 3 sources and the measure list.
 - **`003_stop_serving_duplicate_terms.sql`:** stops serving the 7 terms that repeat catalog fields. The values stay stored.
-- **Later changes:** start at `003`.
+- **`004_data_version.sql`:** the `data_version` table and its triggers, for the API cache.
+- **Later changes:** start at `005`.
 
 **Starting data:** the new database is filled from main's `rwa` database, not rebuilt by the jobs. A one-off conversion runs once, outside the migration system:
 
@@ -657,7 +660,8 @@ The frontend team receives `backend/openapi.json` and an API key.
 
 - **`ETag`:** a hash of the response body, with `Cache-Control: private, no-cache`. A client gets a `304` when nothing has changed.
 - **Compression:** enabled for long history responses.
-- **In-memory cache, CDN and Redis:** left out until the load check shows a need.
+- **In-memory cache:** each replica keeps the three data routes' `200` responses in memory, by URL, in `backend/src/api/cache.ts`. A route opts in with `config: { cache: true }`. Statement triggers move the one-row `data_version` table on any write to a data table, whether from a job, a hand correction or a migration. A replica reads it at most every `CACHE_VERSION_CHECK_MS` (10 seconds) and drops what it kept when it moves, so a response is at most that much out of date, whatever the update schedule. `CACHE_MAX_BYTES` (64 MB) bounds the memory, least recently used out first, and `0` turns it off. A hit still passes the key check, the rate limit and validation, and carries `x-cache: hit`. Measured locally on 2026-11-09: a full set of asset pages is 430 URLs and 7 MB, and one replica went from 573 to 5,264 requests a second, with the median from 78 to 10 ms.
+- **CDN and Redis:** left out. Replicas share nothing and each warms its own cache within seconds.
 
 ### Where the contract lives
 

@@ -124,6 +124,10 @@ export function loadSettings() {
       /** How long a replica trusts a key it has checked, so also how long a revoked key keeps working. */
       keyCacheMs: readWholeNumber("API_KEY_CACHE_MS", 60_000),
       requestTimeoutMs: readWholeNumber("REQUEST_TIMEOUT_MS", 30_000),
+      /** Bytes of data responses each replica keeps in memory. 0 turns the cache off. */
+      cacheMaxBytes: readWholeNumber("CACHE_MAX_BYTES", 67_108_864, { min: 0 }),
+      /** How often a replica asks whether the data changed, so the longest a kept response is out of date. */
+      cacheVersionCheckMs: readWholeNumber("CACHE_VERSION_CHECK_MS", 10_000, { min: 0 }),
       /** How long in-flight requests get to finish after a stop signal. */
       shutdownTimeoutMs: readWholeNumber("SHUTDOWN_TIMEOUT_MS", 20_000),
       /** The asset list's page size when a request gives none, and the largest it may ask for. */

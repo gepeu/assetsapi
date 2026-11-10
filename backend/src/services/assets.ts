@@ -56,7 +56,12 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
   const descending = sortParameter.startsWith("-");
   const sortName = descending ? sortParameter.slice(1) : sortParameter;
 
-  const sentNames = [...(sentMetrics ?? []), ...(sortName === SORT_BY_TICKER ? [] : [sortName])];
+  const solanaMetrics = parseList(query.solanaMetrics);
+  const sentNames = [
+    ...(sentMetrics ?? []),
+    ...(solanaMetrics ?? []),
+    ...(sortName === SORT_BY_TICKER ? [] : [sortName]),
+  ];
   if (sentNames.length > 0) requireKnownMetrics(await listServedMetrics(db), sentNames);
 
   const sort: AssetSort =
@@ -79,13 +84,14 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
 
   const assetIds = rows.map((row) => row.id);
   const holderShares = metrics.filter(isHolderShare);
-  const [assetValues, solanaValues] = await Promise.all([
+  const [assetValues, solanaValues, solanaTokenValues] = await Promise.all([
     listAssetMetricValues(
       db,
       assetIds,
       metrics.filter((metric) => !isHolderShare(metric)),
     ),
     holderShares.length > 0 ? listSolanaMetricValues(db, assetIds, holderShares) : [],
+    solanaMetrics ? listSolanaMetricValues(db, assetIds, solanaMetrics) : [],
   ]);
   const valueByCell = new Map<string, number | null>([
     ...assetValues.map((row): [string, number | null] => [`${row.asset_id}|${row.metric}`, row.value]),
@@ -94,6 +100,12 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
       toServableShare(row.value),
     ]),
   ]);
+  const solanaValueByCell = new Map(
+    solanaTokenValues.map((row): [string, number | null] => [
+      `${row.asset_id}|${row.metric}`,
+      isHolderShare(row.metric) ? toServableShare(row.value) : row.value,
+    ]),
+  );
 
   return {
     data: rows.map((row) => ({
@@ -105,6 +117,11 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
       issuer: row.issuer,
       asOf: row.as_of,
       metrics: Object.fromEntries(metrics.map((metric) => [metric, valueByCell.get(`${row.id}|${metric}`) ?? null])),
+      ...(solanaMetrics && {
+        solanaMetrics: Object.fromEntries(
+          solanaMetrics.map((metric) => [metric, solanaValueByCell.get(`${row.id}|${metric}`) ?? null]),
+        ),
+      }),
     })),
     meta: { total, limit, offset },
   };

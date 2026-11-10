@@ -32,6 +32,8 @@ The ones most likely to change:
 | `DB_POOL_SIZE` | API | `5` | More replicas or a lower connection limit. Replicas times this, plus 4, has to stay under the Postgres limit |
 | `PROVIDER_REQUEST_INTERVAL_MS` | Jobs | `250` | RWA.xyz starts answering `429` |
 | `JOB_MAX_FAILED_SHARE` | Update job | `0.1` | Runs stop too early or too late when assets fail |
+| `CACHE_VERSION_CHECK_MS` | API | `10000` | How stale a response may be after the data changes. Lower it for fresher responses, at one tiny query per replica per interval |
+| `CACHE_MAX_BYTES` | API | `67108864` | 64 MB. A full set of asset pages is about 7 MB. `0` turns the response cache off, for example to rule it out while debugging |
 
 - **Each replica counts separately:** the rate limit is kept in memory, so two replicas allow about twice the number.
 - **Two that go together:** `API_STATEMENT_TIMEOUT_MS` is applied to the `rwa_api` role by `npm run setup-roles`, so set it in the shell that runs that script. `DB_QUERY_TIMEOUT_MS` on the API must stay above it, and the API won't start otherwise.
@@ -147,6 +149,8 @@ WHERE f.id = v.field_id AND f.key = 'identity.name' AND v.asset_id = <asset id>;
 ```
 
 Organization values hold `{"organization_id": <id>}`, not a name. To hand a value back to the job, clear `locked_reason`.
+
+The API serves the corrected value within `CACHE_VERSION_CHECK_MS`, 10 seconds by default. Any write to a data table moves `data_version`, which empties every replica's response cache, so there's nothing else to do.
 
 ## Approve a new measure
 
