@@ -482,7 +482,7 @@ With no parameters, `/tokenized_assets/{slug}` returns the core: identity, issue
 
 Daily points have their own parameter, because they're asked for by metric: `history` names the metrics and `range` sets how far back they go.
 
-One operational path sits beside them. `/readyz` reports whether the database is reachable and the schema is new enough, and Railway's deploy check and the uptime monitor call it. It isn't rate limited.
+Two operational paths sit beside them. `/readyz` reports whether the database is reachable and the schema is new enough, and Railway's deploy check and the uptime monitor call it. It isn't rate limited. `/docs` is the Swagger page, with the contract at `/docs/json`. It holds no data, is rate limited like the data routes, and stays out of the contract itself.
 
 ### Input
 
@@ -636,7 +636,7 @@ Coverage { withData, applicable: integer }
 
 ### For the frontend team
 
-The frontend team receives `backend/openapi.json` and the API's URL. No key is needed.
+The frontend team receives the docs page at `/docs`, `backend/openapi.json` and the API's URL. No key is needed, and the page's **Try it out** calls the live API.
 
 - **Call the API from the frontend's server for now.** Without CORS, the browser can't call it from the frontend's domain.
 - **Mind the rate limit** if the frontend's server makes every call: they all count against its one IP address.
@@ -653,6 +653,7 @@ The frontend team receives `backend/openapi.json` and the API's URL. No key is n
 
 - **Source of truth:** `backend/src/api/schemas/`, as JSON Schema in `.ts` files. Fastify validates against them, and TypeScript types are derived from them.
 - **`backend/openapi.json`:** generated and committed, so contract changes show up as a diff. `npm run openapi:check` fails if it's out of date.
+- **`/docs`:** the same contract as a Swagger page, served by the API through `@fastify/swagger-ui`, with an introduction from `backend/src/api/guide.ts`.
 - **Frontend types:** the team generates them with `openapi-typescript`.
 
 ## 7. Production operations
@@ -689,7 +690,7 @@ Several npm supply-chain compromises were reported in 2026, some running code at
 | **No secrets during install** | A malicious package has nothing to steal in that CI step |
 | **Production image holds production packages only** | Built with `--omit=dev`, on a Node 22 base image pinned by digest |
 
-**Production packages:** `fastify`, `@fastify/swagger`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/compress`, `@fastify/etag`, `pg` and `pino`. With their own dependencies, that's 78 packages, none with install scripts. A hosted docs page would have added 20 more, so the API has none.
+**Production packages:** `fastify`, `@fastify/swagger`, `@fastify/swagger-ui`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/compress`, `@fastify/etag`, `pg` and `pino`. With their own dependencies, that's 98 packages, none with install scripts. `@fastify/swagger-ui` brings 20 of them, accepted on 2026-11-11 for a hosted docs page. Its `@fastify/static` pulls in `glob` and `minimatch` versions with moderate advisories, so `overrides` in `package.json` pins fixed ones. Drop the overrides once `@fastify/static` depends on fixed versions itself.
 
 **Dev packages:** `typescript`, `prettier`, `squawk-cli`, `@types/node`, `@types/pg` and `json-schema-to-ts`.
 

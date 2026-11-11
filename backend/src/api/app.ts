@@ -5,6 +5,7 @@ import etag from '@fastify/etag';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, type FastifyRequest, LogController } from 'fastify';
 import { settings } from '../config.ts';
 import type { Queryable } from '../db/pool.ts';
@@ -101,6 +102,17 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     timeWindow: settings.api.rateLimitWindowMs,
     // Per client IP. Each replica counts separately.
     keyGenerator: getClientIp,
+  });
+  // After the rate limit, so it covers these pages too. Its routes stay out of the contract.
+  await app.register(swaggerUi, {
+    routePrefix: '/docs',
+    uiConfig: {
+      deepLinking: true,
+      docExpansion: 'list',
+      // Without the stock top bar, which is only a logo and a box for loading some other contract.
+      layout: 'BaseLayout',
+      validatorUrl: null,
+    },
   });
 
   registerHealthRoutes(app, db);

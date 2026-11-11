@@ -37,7 +37,7 @@ npm run api
 curl http://127.0.0.1:3000/tokenized_assets
 ```
 
-The API contract is committed as [backend/openapi.json](backend/openapi.json). Open it in any OpenAPI viewer to read every parameter.
+The API documents itself at `/docs` (for example http://127.0.0.1:3000/docs), a Swagger page where you can read every parameter and try calls. The same contract is committed as [backend/openapi.json](backend/openapi.json).
 
 ## Settings
 
