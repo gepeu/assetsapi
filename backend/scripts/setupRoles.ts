@@ -1,7 +1,7 @@
 /**
  * Creates the three database roles and their grants, with passwords from environment variables.
  * Safe to re-run, and it must run again after restoring a dump, because a restore recreates the
- * tables and default privileges would let rwa_job change the catalog.
+ * tables and default privileges would let rwa_job change the catalog and read the old key table.
  */
 import pg from 'pg';
 import { loadAdminDatabaseUrl, loadRolePasswords, type RolePasswords, settings } from '../src/config.ts';
@@ -61,6 +61,14 @@ export async function setupRoles(connectionString: string, passwords: RolePasswo
     );
     if (migrations[0]?.exists) {
       await client.query('REVOKE INSERT, UPDATE, DELETE ON schema_migration FROM rwa_job');
+    }
+    // A dump taken before 005 still has the old key hashes, which the jobs never needed. rwa_api
+    // keeps its read, so an older image still works until 005 drops the table.
+    const { rows: keys } = await client.query<{ exists: boolean }>(
+      "SELECT to_regclass('api_key') IS NOT NULL AS exists"
+    );
+    if (keys[0]?.exists) {
+      await client.query('REVOKE ALL ON api_key FROM rwa_job');
     }
   } finally {
     await client.end();

@@ -108,4 +108,16 @@ describe('database roles', () => {
     await job.query('SELECT * FROM schema_migration LIMIT 1');
     await denied(job.query(`INSERT INTO schema_migration (filename) VALUES ('y')`));
   });
+
+  test("after restoring a dump that still has the key table, rwa_job can't touch it", async () => {
+    await owner.query('CREATE TABLE api_key (id int, key_hash text)');
+    try {
+      await setupRoles(empty.url, PASSWORDS);
+      await denied(job.query('SELECT * FROM api_key'));
+      await denied(job.query(`INSERT INTO api_key VALUES (1, 'x')`));
+      await api.query('SELECT * FROM api_key');
+    } finally {
+      await owner.query('DROP TABLE api_key');
+    }
+  });
 });

@@ -4,7 +4,7 @@
  * on any write to a data table, and a replica reads it at most once per check interval, so a kept
  * response is at most that much out of date, whatever the update schedule.
  *
- * A hit still passes the key check, the rate limit and validation, which all run before the lookup.
+ * A hit still passes the rate limit and validation, which both run before the lookup.
  * `ETag` and compression run on the kept body as they do on a fresh one.
  */
 import type { FastifyInstance } from 'fastify';
