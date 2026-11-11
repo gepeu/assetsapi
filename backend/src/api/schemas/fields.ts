@@ -1,4 +1,4 @@
-/** The `fields` section of `GET /tokenized_assets/{slug}`. */
+/** The `fields` section of `GET /assets/{slug}`. */
 import type { FromSchema } from 'json-schema-to-ts';
 import { coverageSchema, fieldValueSchema } from './shared.ts';
 
@@ -14,9 +14,10 @@ export const fieldsSection = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'coverage', 'fields', 'records'],
+        required: ['key', 'name', 'coverage', 'fields', 'records'],
         properties: {
-          name: { type: 'string' },
+          key: { type: 'string', description: 'The name `categories` accepts' },
+          name: { type: 'string', description: 'The label to show' },
           coverage: coverageSchema,
           fields: { type: 'array', items: fieldValueSchema },
           records: {

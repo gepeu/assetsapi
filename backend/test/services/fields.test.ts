@@ -28,6 +28,7 @@ describe('field service', () => {
   test('groups values by category with labels and types', async () => {
     const data = await load();
     const identity = data.categories.find((category) => category.name === 'Identity');
+    assert.equal(identity?.key, 'identity');
     assert.deepEqual(
       identity?.fields.find((field) => field.key === 'identity.name'),
       { key: 'identity.name', label: 'Name', valueType: 'text', value: 'Asset 1', asOf: TODAY }

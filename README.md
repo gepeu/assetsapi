@@ -34,7 +34,7 @@ Then start the API and try it. It's public, so no key is needed:
 ```sh
 npm run api
 
-curl http://127.0.0.1:3000/tokenized_assets
+curl http://127.0.0.1:3000/assets
 ```
 
 The API documents itself at `/docs` (for example http://127.0.0.1:3000/docs), a Swagger page where you can read every parameter and try calls. The same contract is committed as [backend/openapi.json](backend/openapi.json).

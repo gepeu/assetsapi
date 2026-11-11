@@ -19,7 +19,7 @@ describe('open access', () => {
   });
 
   test('every data route answers without credentials', async () => {
-    for (const url of ['/tokenized_assets', '/tokenized_assets/catalog']) {
+    for (const url of ['/assets', '/assets/catalog']) {
       assert.equal((await app.inject({ method: 'GET', url })).statusCode, 200, url);
     }
   });
@@ -27,7 +27,7 @@ describe('open access', () => {
   test('an Authorization header is ignored', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/tokenized_assets',
+      url: '/assets',
       headers: { authorization: 'Bearer anything' },
     });
     assert.equal(response.statusCode, 200);
@@ -54,8 +54,7 @@ describe('per-IP rate limit', () => {
     await db.close();
   });
 
-  const from = (ip: string, url = '/tokenized_assets') =>
-    app.inject({ method: 'GET', url, headers: { 'x-real-ip': ip } });
+  const from = (ip: string, url = '/assets') => app.inject({ method: 'GET', url, headers: { 'x-real-ip': ip } });
 
   test("an IP over its limit gets a 429 in the standard shape, and others don't", async () => {
     for (let attempt = 0; attempt < 3; attempt++) assert.equal((await from('203.0.113.1')).statusCode, 200);
@@ -66,7 +65,7 @@ describe('per-IP rate limit', () => {
   });
 
   test('a cached response still counts toward the limit', async () => {
-    const url = '/tokenized_assets/catalog';
+    const url = '/assets/catalog';
     for (let attempt = 0; attempt < 3; attempt++) assert.equal((await from('203.0.113.3', url)).statusCode, 200);
     assert.equal((await from('203.0.113.3', url)).statusCode, 429);
   });
@@ -90,13 +89,13 @@ describe('request logs', () => {
     const lines: string[] = [];
     const logger = pino({}, { write: (line: string) => void lines.push(line) });
     const app = await buildApp({ db: db.pool, logger });
-    await app.inject({ method: 'GET', url: '/tokenized_assets' });
+    await app.inject({ method: 'GET', url: '/assets' });
     await app.close();
 
     const requestLines = lines.map((line) => JSON.parse(line)).filter((line) => line.msg === 'request');
     assert.equal(requestLines.length, 1);
     const [line] = requestLines;
-    assert.equal(line.route, '/tokenized_assets');
+    assert.equal(line.route, '/assets');
     assert.equal(line.status, 200);
     assert.equal(typeof line.requestId, 'string');
     assert.equal(typeof line.durationMs, 'number');

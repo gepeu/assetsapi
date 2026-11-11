@@ -6,13 +6,13 @@ Public, read-only API over tokenized asset data, updated daily. No key is needed
 
 | Endpoint | Returns |
 |---|---|
-| \`/tokenized_assets\` | All active assets, one row each |
-| \`/tokenized_assets/catalog\` | Everything you can request: metrics, groups, categories, fields and filter values |
-| \`/tokenized_assets/{slug}\` | One asset, plus any sections you ask for |
+| \`/assets\` | All active assets, one row each |
+| \`/assets/catalog\` | Everything you can request: metrics, groups, categories, fields and filter values |
+| \`/assets/{slug}\` | One asset, plus any sections you ask for |
 
 ## Ask only for what you need
 
-With no parameters, \`/tokenized_assets/{slug}\` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with \`include\`, and only those are queried.
+With no parameters, \`/assets/{slug}\` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with \`include\`, and only those are queried.
 
 | Section | Contents | Narrow with |
 |---|---|---|
@@ -29,16 +29,16 @@ Daily points are requested by name: \`history\` takes metric names, and \`range\
 
 | You want | Call |
 |---|---|
-| Stablecoins by size | \`/tokenized_assets?assetType=stablecoin&sort=-total_asset_value_dollar\` |
-| Every asset compared on one metric | \`/tokenized_assets?metrics=market_value_dollar&sort=-market_value_dollar&limit=200\` |
-| The basics for one asset | \`/tokenized_assets/usdt\` |
-| Everything on an asset page | \`/tokenized_assets/usdt?include=fields,tokens\` |
-| Only issuer and legal facts that have a value | \`/tokenized_assets/usdt?include=fields&categories=issuer,legal&empty=false\` |
-| The financials tab | \`/tokenized_assets/usdt?include=financials,series,valueByNetwork,terms\` |
-| Value and yield numbers only | \`/tokenized_assets/usdt?include=financials&groups=value,yield\` |
-| One metric with its past values | \`/tokenized_assets/usdt?include=financials&financialMetrics=price_dollar\` |
-| Price history only | \`/tokenized_assets/usdt?history=price_dollar&range=1y\` |
-| Two series on one chart | \`/tokenized_assets/usdt?history=price_dollar,net_asset_value_dollar\` |
+| Stablecoins by size | \`/assets?assetType=stablecoin&sort=-total_asset_value_dollar\` |
+| Every asset compared on one metric | \`/assets?metrics=market_value_dollar&sort=-market_value_dollar&limit=200\` |
+| The basics for one asset | \`/assets/usdt\` |
+| Everything on an asset page | \`/assets/usdt?include=fields,tokens\` |
+| Only issuer and legal facts that have a value | \`/assets/usdt?include=fields&categories=issuer,legal&empty=false\` |
+| The financials tab | \`/assets/usdt?include=financials,series,valueByNetwork,terms\` |
+| Value and yield numbers only | \`/assets/usdt?include=financials&groups=value,yield\` |
+| One metric with its past values | \`/assets/usdt?include=financials&financialMetrics=price_dollar\` |
+| Price history only | \`/assets/usdt?history=price_dollar&range=1y\` |
+| Two series on one chart | \`/assets/usdt?history=price_dollar,net_asset_value_dollar\` |
 
 ## Rules
 

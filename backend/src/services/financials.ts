@@ -9,14 +9,11 @@ import type {
   ValueByNetworkSection,
 } from '../api/schemas/financials.ts';
 import type { FieldValue } from '../api/schemas/shared.ts';
-import { settings } from '../config.ts';
 import type { Queryable } from '../db/pool.ts';
 import { listValueByNetwork, type ServedValueRow } from '../db/queries/financials.ts';
 import { listAvailableSeries } from '../db/queries/history.ts';
 import { chooseSeriesScope, HOLDER_SHARE_METRICS, toServableShare } from './history.ts';
-import { toShortName } from './names.ts';
-
-const groupLabelOf = (group: string | null): string => group ?? settings.api.otherGroupLabel;
+import { toGroupKey } from './names.ts';
 
 type Financial = FinancialsSection[number];
 
@@ -27,7 +24,7 @@ function toFinancial(row: ServedValueRow, scope: Financial['scope']): Financial 
   return {
     metric: row.metric,
     label: row.label,
-    group: groupLabelOf(row.measure_group),
+    group: toGroupKey(row.measure_group),
     unit: row.unit,
     scope,
     value,
@@ -51,7 +48,7 @@ export function toFinancials(
   { groups, metrics }: FinancialFilters
 ): FinancialsSection {
   const isWanted = (row: ServedValueRow) =>
-    (groups === undefined || groups.includes(toShortName(groupLabelOf(row.measure_group)))) &&
+    (groups === undefined || groups.includes(toGroupKey(row.measure_group))) &&
     (metrics === undefined || metrics.includes(row.metric));
 
   const financials: Financial[] = [];
@@ -107,7 +104,7 @@ export async function loadSeries(db: Queryable, assetId: number): Promise<Series
       {
         metric: row.slug,
         label: row.label,
-        group: groupLabelOf(row.group),
+        group: toGroupKey(row.group),
         unit: row.unit,
         scope: chooseSeriesScope(row.slug, row),
       },

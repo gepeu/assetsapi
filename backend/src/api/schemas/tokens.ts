@@ -1,4 +1,4 @@
-/** The `tokens` section of `GET /tokenized_assets/{slug}`. */
+/** The `tokens` section of `GET /assets/{slug}`. */
 import type { FromSchema } from 'json-schema-to-ts';
 import { dayOrNull, fieldValueSchema, metricsSchema, networkRefSchema } from './shared.ts';
 

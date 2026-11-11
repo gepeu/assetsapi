@@ -116,7 +116,13 @@ function toCategory(name: string, statuses: readonly FieldStatusRow[], sources: 
     .filter((row) => row.recordGroup === null && row.level !== 'network')
     .map((row) => toFieldValue(row, sources.valuesByField.get(row.id)?.[0], sources.organizations));
 
-  return { name, coverage: countCoverage(inCategory), fields, records: toRecords(applicable, sources) };
+  return {
+    key: toShortName(name),
+    name,
+    coverage: countCoverage(inCategory),
+    fields,
+    records: toRecords(applicable, sources),
+  };
 }
 
 const hasValue = (field: FieldValue): boolean => field.value !== null;
@@ -158,7 +164,7 @@ export async function loadFields(
   const known = new Set(names.map(toShortName));
   const unknown = options.categories?.find((category) => !known.has(category));
   if (unknown !== undefined) {
-    throw new ApiError('bad_request', `Unknown category: ${unknown}. /tokenized_assets/catalog lists them`);
+    throw new ApiError('bad_request', `Unknown category: ${unknown}. /assets/catalog lists them`);
   }
 
   const valuesByField = new Map<number, StoredValue[]>();

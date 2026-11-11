@@ -1,6 +1,6 @@
-/** `GET /tokenized_assets/catalog`. */
+/** `GET /assets/catalog`. */
 import type { FromSchema } from 'json-schema-to-ts';
-import { API_TAG, errorResponses, nullableString } from './shared.ts';
+import { API_TAG, errorResponses, groupKeySchema, nullableString } from './shared.ts';
 
 const namedOption = {
   type: 'object',
@@ -32,7 +32,7 @@ const catalogResponse = {
             properties: {
               metric: { type: 'string' },
               label: { type: 'string' },
-              group: { type: 'string' },
+              group: groupKeySchema,
               unit: nullableString,
               hasCurrentValue: { type: 'boolean', description: 'Whether any asset has a current value' },
               hasHistory: { type: 'boolean', description: 'Whether any asset has a history series' },
@@ -51,7 +51,7 @@ const catalogResponse = {
             properties: {
               key: { type: 'string' },
               label: { type: 'string' },
-              category: { type: 'string' },
+              category: { type: 'string', description: 'The category key, as `categories` accepts' },
               valueType: { type: 'string' },
               level: { type: 'string' },
             },

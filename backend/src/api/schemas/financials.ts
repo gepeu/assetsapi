@@ -1,6 +1,6 @@
-/** The `financials`, `series`, `valueByNetwork` and `terms` sections of `GET /tokenized_assets/{slug}`. */
+/** The `financials`, `series`, `valueByNetwork` and `terms` sections of `GET /assets/{slug}`. */
 import type { FromSchema } from 'json-schema-to-ts';
-import { dayOrNull, fieldValueSchema, nullableNumber, nullableString, scopeSchema } from './shared.ts';
+import { dayOrNull, fieldValueSchema, groupKeySchema, nullableNumber, nullableString, scopeSchema } from './shared.ts';
 
 export const financialsSection = {
   type: 'array',
@@ -12,7 +12,7 @@ export const financialsSection = {
     properties: {
       metric: { type: 'string' },
       label: { type: 'string' },
-      group: { type: 'string' },
+      group: groupKeySchema,
       unit: nullableString,
       scope: scopeSchema,
       value: { type: 'number' },
@@ -35,7 +35,7 @@ export const seriesSection = {
     properties: {
       metric: { type: 'string' },
       label: { type: 'string' },
-      group: { type: 'string' },
+      group: groupKeySchema,
       unit: nullableString,
       scope: scopeSchema,
     },

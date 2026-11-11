@@ -1,4 +1,4 @@
-/** `GET /tokenized_assets` and `GET /tokenized_assets/{slug}`. */
+/** `GET /assets` and `GET /assets/{slug}`. */
 import type { FromSchema } from 'json-schema-to-ts';
 import { settings } from '../../config.ts';
 import { fieldsSection } from './fields.ts';

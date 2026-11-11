@@ -465,11 +465,11 @@ All are `GET`, and none needs a key.
 
 | Endpoint | Returns |
 |---|---|
-| `/tokenized_assets` | All active assets, one row each, with the metrics you choose |
-| `/tokenized_assets/catalog` | Everything you can request: metrics, groups, categories, fields and filter values |
-| `/tokenized_assets/{slug}` | One asset, plus any sections you ask for |
+| `/assets` | All active assets, one row each, with the metrics you choose |
+| `/assets/catalog` | Everything you can request: metrics, groups, categories, fields and filter values |
+| `/assets/{slug}` | One asset, plus any sections you ask for |
 
-With no parameters, `/tokenized_assets/{slug}` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with `include`, and only those are queried:
+With no parameters, `/assets/{slug}` returns the core: identity, issuer, organizations, networks and five key metrics. Add sections with `include`, and only those are queried:
 
 | Section | Contents | Narrow with |
 |---|---|---|
@@ -490,7 +490,7 @@ Every input schema uses `additionalProperties: false`, in the style of Kamino's 
 
 | Endpoint | Parameter | Rule |
 |---|---|---|
-| `/tokenized_assets` | `assetClass` | String, 1 to 64 characters |
+| `/assets` | `assetClass` | String, 1 to 64 characters |
 | | `assetType` | Enum of our asset types |
 | | `network` | `^[a-z0-9-]{1,64}$` |
 | | `q` | String, 1 to 64 characters. Searches ticker, name and issuer |
@@ -498,7 +498,7 @@ Every input schema uses `additionalProperties: false`, in the style of Kamino's 
 | | `sort` | Default `ticker`, or any metric name. A leading `-` sorts descending. Missing values sort last, and ties break by `slug`, so paging stays stable |
 | | `limit` | Integer, 1 to 200, default 50 |
 | | `offset` | Integer, at least 0, default 0 |
-| `/tokenized_assets/{slug}` | `slug` | `^[a-z0-9-]{1,64}$` |
+| `/assets/{slug}` | `slug` | `^[a-z0-9-]{1,64}$` |
 | | `include` | Any of `financials`, `series`, `valueByNetwork`, `terms`, `fields` and `tokens` |
 | | `metrics` | Up to 100 metric names for the core. Defaults to the five key metrics |
 | | `groups` | Narrows `financials`: `value`, `yield`, `supply` or `activity` |
@@ -526,7 +526,7 @@ FieldValue {
 }
 Coverage { withData, applicable: integer }
 
-// GET /tokenized_assets
+// GET /assets
 {
   data: [{
     slug, ticker, name, assetClass, assetType: string
@@ -537,7 +537,7 @@ Coverage { withData, applicable: integer }
   meta: { total, limit, offset: integer }
 }
 
-// GET /tokenized_assets/catalog
+// GET /assets/catalog
 {
   data: {
     metrics: [{
@@ -547,11 +547,13 @@ Coverage { withData, applicable: integer }
     }]
     groups, categories: [{ key, label: string }]   // key is what the parameter takes
     fields: [{ key, label, category, valueType, level: string }]
+    // A metric's group and a field's category are keys from these lists, never labels,
+    // so a client joins them here for the label. The database stores only the label.
     filters: { assetClasses, assetTypes, networks: string[] }
   }
 }
 
-// GET /tokenized_assets/{slug}
+// GET /assets/{slug}
 {
   data: {
     slug, ticker, name, assetClass, assetType: string
@@ -576,7 +578,7 @@ Coverage { withData, applicable: integer }
     fields?: {
       coverage: Coverage
       categories: [{
-        name: string
+        key, name: string          // key as `categories` takes it, name to show
         coverage: Coverage
         fields: FieldValue[]
         records: [{ group, key: string, fields: FieldValue[] }]

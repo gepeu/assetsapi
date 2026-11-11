@@ -1,4 +1,4 @@
-/** The `history` part of `GET /tokenized_assets/{slug}`. */
+/** The `history` part of `GET /assets/{slug}`. */
 import type { FromSchema } from 'json-schema-to-ts';
 import { nullableString, scopeSchema } from './shared.ts';
 

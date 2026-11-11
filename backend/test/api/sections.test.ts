@@ -1,10 +1,10 @@
-/** Tests for what `GET /tokenized_assets/{slug}` accepts and returns over HTTP. */
+/** Tests for what `GET /assets/{slug}` accepts and returns over HTTP. */
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { coversRoutes } from '../helpers/coversRoutes.ts';
 import { type ApiHarness, createApiHarness, makeAsset } from '../helpers/fakeProvider.ts';
 
-const BASE = '/tokenized_assets/asset-1';
+const BASE = '/assets/asset-1';
 const CORE = [
   'asOf',
   'assetClass',
@@ -19,9 +19,9 @@ const CORE = [
   'ticker',
 ];
 
-coversRoutes(['GET /tokenized_assets/{slug}']);
+coversRoutes(['GET /assets/{slug}']);
 
-describe('GET /tokenized_assets/{slug}', () => {
+describe('GET /assets/{slug}', () => {
   let harness: ApiHarness;
 
   before(async () => {
@@ -63,7 +63,7 @@ describe('GET /tokenized_assets/{slug}', () => {
     assert.equal(price.value, 2);
     assert.equal(price.scope, 'asset');
     assert.equal(price.unit, 'dollar');
-    assert.equal(price.group, 'Value');
+    assert.equal(price.group, 'value');
     assert.equal(price.value30d, 0);
   });
 
@@ -175,7 +175,7 @@ describe('GET /tokenized_assets/{slug}', () => {
     const spec = harness.app.swagger() as {
       paths: Record<string, { get: { parameters: { name: string; schema: { default?: unknown } }[] } }>;
     };
-    const sent = spec.paths['/tokenized_assets/{slug}']?.get.parameters
+    const sent = spec.paths['/assets/{slug}']?.get.parameters
       .filter((parameter) => parameter.schema.default !== undefined)
       .map((parameter) => `${parameter.name}=${String(parameter.schema.default)}`);
     assert.equal((await get(`${BASE}?${sent?.join('&')}`)).statusCode, 200);
@@ -188,7 +188,7 @@ describe('GET /tokenized_assets/{slug}', () => {
   });
 
   test('an unknown asset is a 404, even with sections', async () => {
-    assert.equal((await get('/tokenized_assets/nope?include=fields')).statusCode, 404);
-    assert.equal((await get('/tokenized_assets/nope?history=price_dollar')).statusCode, 404);
+    assert.equal((await get('/assets/nope?include=fields')).statusCode, 404);
+    assert.equal((await get('/assets/nope?history=price_dollar')).statusCode, 404);
   });
 });

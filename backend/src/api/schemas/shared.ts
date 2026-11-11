@@ -30,6 +30,12 @@ export const ASSET_TYPES = [
 
 export const nullableNumber = { type: ['number', 'null'] } as const;
 export const nullableString = { type: ['string', 'null'] } as const;
+
+/** Keys, not labels, so a metric joins to `catalog.groups` and the `groups` filter. */
+export const groupKeySchema = {
+  type: 'string',
+  description: 'The group key, as `groups` accepts. `/assets/catalog` has its label',
+} as const;
 export const dayOrNull = { type: ['string', 'null'], pattern: DAY_PATTERN } as const;
 
 export const scopeSchema = {

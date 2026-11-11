@@ -1,4 +1,4 @@
-/** Tests for GET /tokenized_assets/catalog. */
+/** Tests for GET /assets/catalog. */
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { coversRoutes } from '../helpers/coversRoutes.ts';
@@ -8,19 +8,19 @@ interface Catalog {
   metrics: { metric: string; group: string; hasCurrentValue: boolean; hasHistory: boolean }[];
   groups: { key: string; label: string }[];
   categories: { key: string; label: string }[];
-  fields: { key: string; level: string }[];
+  fields: { key: string; category: string; level: string }[];
   filters: { assetClasses: string[]; assetTypes: string[]; networks: string[] };
 }
 
-coversRoutes(['GET /tokenized_assets/catalog']);
+coversRoutes(['GET /assets/catalog']);
 
-describe('GET /tokenized_assets/catalog', () => {
+describe('GET /assets/catalog', () => {
   let harness: ApiHarness;
   let catalog: Catalog;
 
   before(async () => {
     harness = await createApiHarness([makeAsset({ ref: '1' })]);
-    const response = await harness.get('/tokenized_assets/catalog');
+    const response = await harness.get('/assets/catalog');
     assert.equal(response.statusCode, 200);
     catalog = response.json().data;
   });
@@ -28,12 +28,12 @@ describe('GET /tokenized_assets/catalog', () => {
 
   test('it wins over an asset slug, and takes no parameters', async () => {
     assert.ok(Array.isArray(catalog.metrics));
-    assert.equal((await harness.get('/tokenized_assets/catalog?unknown=1')).statusCode, 400);
+    assert.equal((await harness.get('/assets/catalog?unknown=1')).statusCode, 400);
   });
 
   test('metrics say whether they have values and history', () => {
     const price = catalog.metrics.find((row) => row.metric === 'price_dollar');
-    assert.equal(price?.group, 'Value');
+    assert.equal(price?.group, 'value');
     assert.equal(price?.hasCurrentValue, true);
     assert.equal(price?.hasHistory, true);
     const apy = catalog.metrics.find((row) => row.metric === 'apy_30_day');
@@ -57,6 +57,15 @@ describe('GET /tokenized_assets/catalog', () => {
     ]);
   });
 
+  test("a metric's group and a field's category are keys from the catalog's own lists", () => {
+    const groupKeys = new Set(catalog.groups.map((group) => group.key));
+    const categoryKeys = new Set(catalog.categories.map((category) => category.key));
+    for (const metric of catalog.metrics) assert.ok(groupKeys.has(metric.group), metric.metric);
+    for (const field of catalog.fields.filter((row) => row.level !== 'token')) {
+      assert.ok(categoryKeys.has(field.category), field.key);
+    }
+  });
+
   test('every short name is different, so none can hide another', () => {
     for (const options of [catalog.groups, catalog.categories]) {
       const keys = options.map((option) => option.key);
@@ -66,7 +75,7 @@ describe('GET /tokenized_assets/catalog', () => {
   });
 
   test('every category and group it lists is accepted', async () => {
-    const asset = '/tokenized_assets/asset-1';
+    const asset = '/assets/asset-1';
     for (const { key } of catalog.categories) {
       assert.equal((await harness.get(`${asset}?include=fields&categories=${key}`)).statusCode, 200, key);
     }
@@ -77,8 +86,8 @@ describe('GET /tokenized_assets/catalog', () => {
 
   test('every metric it lists is accepted everywhere', async () => {
     for (const { metric } of catalog.metrics) {
-      assert.equal((await harness.get(`/tokenized_assets?metrics=${metric}&sort=-${metric}`)).statusCode, 200, metric);
-      const asset = `/tokenized_assets/asset-1?metrics=${metric}&history=${metric}`;
+      assert.equal((await harness.get(`/assets?metrics=${metric}&sort=-${metric}`)).statusCode, 200, metric);
+      const asset = `/assets/asset-1?metrics=${metric}&history=${metric}`;
       assert.equal((await harness.get(asset)).statusCode, 200, metric);
     }
   });

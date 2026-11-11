@@ -1,4 +1,4 @@
-/** Turns rows into `/tokenized_assets` and `/tokenized_assets/{slug}`. */
+/** Turns rows into `/assets` and `/assets/{slug}`. */
 import { ApiError } from '../api/errors.ts';
 import type {
   AssetDetailQuery,
@@ -25,7 +25,7 @@ import { listAssetNetworks } from '../db/queries/tokens.ts';
 import { loadFields } from './fields.ts';
 import { findLatestAsOf, loadSeries, loadValueByNetwork, toFinancials, toTerms } from './financials.ts';
 import { HOLDER_SHARE_METRICS, loadHistory, toServableShare } from './history.ts';
-import { parseList, toShortName } from './names.ts';
+import { parseList, toGroupKey } from './names.ts';
 import { loadTokens } from './tokens.ts';
 
 /** The numbers an asset carries unless a request names others. */
@@ -45,7 +45,7 @@ const isHolderShare = (metric: string): boolean => HOLDER_SHARE_METRICS.includes
 function requireKnownMetrics(known: readonly MetricInfo[], names: readonly string[]): void {
   const unknown = names.find((name) => !known.some((metric) => metric.slug === name));
   if (unknown !== undefined) {
-    throw new ApiError('bad_request', `Unknown metric: ${unknown}. /tokenized_assets/catalog lists them`);
+    throw new ApiError('bad_request', `Unknown metric: ${unknown}. /assets/catalog lists them`);
   }
 }
 
@@ -147,10 +147,10 @@ function requireSections(query: Partial<AssetDetailQuery>, sections: readonly st
 }
 
 function requireKnownGroups(known: readonly MetricInfo[], groups: readonly string[]): void {
-  const names = new Set(known.map((metric) => toShortName(metric.group ?? settings.api.otherGroupLabel)));
+  const names = new Set(known.map((metric) => toGroupKey(metric.group)));
   const unknown = groups.find((group) => !names.has(group));
   if (unknown !== undefined) {
-    throw new ApiError('bad_request', `Unknown group: ${unknown}. /tokenized_assets/catalog lists them`);
+    throw new ApiError('bad_request', `Unknown group: ${unknown}. /assets/catalog lists them`);
   }
 }
 

@@ -76,7 +76,7 @@ describe('response cache in the API', () => {
     target.inject({ method: 'GET', url, headers: extra });
 
   test('the first call is a miss, the next a hit with the same body and ETag', async () => {
-    const url = '/tokenized_assets?limit=5';
+    const url = '/assets?limit=5';
     const first = await get(url);
     const second = await get(url);
     assert.equal(first.headers['x-cache'], 'miss');
@@ -89,15 +89,15 @@ describe('response cache in the API', () => {
   });
 
   test('each route and each query is kept apart', async () => {
-    await get('/tokenized_assets/catalog');
-    assert.equal((await get('/tokenized_assets/catalog')).headers['x-cache'], 'hit');
-    await get('/tokenized_assets/asset-1');
-    assert.equal((await get('/tokenized_assets/asset-1')).headers['x-cache'], 'hit');
-    assert.equal((await get('/tokenized_assets/asset-1?include=tokens')).headers['x-cache'], 'miss');
+    await get('/assets/catalog');
+    assert.equal((await get('/assets/catalog')).headers['x-cache'], 'hit');
+    await get('/assets/asset-1');
+    assert.equal((await get('/assets/asset-1')).headers['x-cache'], 'hit');
+    assert.equal((await get('/assets/asset-1?include=tokens')).headers['x-cache'], 'miss');
   });
 
   test('a hit answers If-None-Match with a 304, and compresses like a fresh response', async () => {
-    const url = '/tokenized_assets/asset-1?include=fields';
+    const url = '/assets/asset-1?include=fields';
     const first = await get(url);
     const again = await get(url, { 'if-none-match': String(first.headers.etag) });
     assert.equal(again.headers['x-cache'], 'hit');
@@ -109,11 +109,11 @@ describe('response cache in the API', () => {
 
   test('errors are never kept', async () => {
     for (const _ of [1, 2]) {
-      const missing = await get('/tokenized_assets/nope');
+      const missing = await get('/assets/nope');
       assert.equal(missing.statusCode, 404);
       assert.equal(missing.headers['x-cache'], 'miss');
     }
-    const bad = await get('/tokenized_assets?unknown=1');
+    const bad = await get('/assets?unknown=1');
     assert.equal(bad.statusCode, 400);
     assert.equal(bad.headers['x-cache'], undefined);
   });
@@ -123,7 +123,7 @@ describe('response cache in the API', () => {
   });
 
   test('a data change shows once the check interval has passed', async () => {
-    const url = '/tokenized_assets/asset-1';
+    const url = '/assets/asset-1';
     await get(url);
     await db.pool.query(`UPDATE asset SET name = 'Renamed' WHERE slug = 'asset-1'`);
     try {
@@ -142,7 +142,7 @@ describe('response cache in the API', () => {
   });
 
   test('a budget of 0 turns the cache off', async () => {
-    const url = '/tokenized_assets/asset-1';
+    const url = '/assets/asset-1';
     await get(url, {}, off);
     const response = await get(url, {}, off);
     assert.equal(response.statusCode, 200);

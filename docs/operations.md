@@ -52,7 +52,7 @@ These depend on Railway's behaviour, which the tests can't reach.
 
 ```sh
 for i in $(seq 1 25); do
-  curl -s -o /dev/null -w '%{http_code}\n' -H "X-Real-IP: 198.51.100.$i" "$API_URL/tokenized_assets"
+  curl -s -o /dev/null -w '%{http_code}\n' -H "X-Real-IP: 198.51.100.$i" "$API_URL/assets"
 done
 ```
 

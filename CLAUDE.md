@@ -31,7 +31,7 @@ There's no CI. Run typecheck, `format:check`, `lint:migrations`, tests and `open
 - Declare the route in its test file with `coversRoutes(["GET /path/{param}"])`. `test/api/routeCoverage.test.ts` fails for any route in the contract without one.
 - Run `npm run openapi` and commit `openapi.json`.
 
-Pagination on `/tokenized_assets` is `limit`/`offset`, bounded by `MAX_PAGE_SIZE` and `MAX_PAGE_OFFSET`.
+Pagination on `/assets` is `limit`/`offset`, bounded by `MAX_PAGE_SIZE` and `MAX_PAGE_OFFSET`.
 
 ## Migrations
 

@@ -28,7 +28,7 @@ describe('OpenAPI contract', () => {
 
   test('the guide opens the contract, with the current paths', () => {
     const { info } = app.swagger() as { info: { description: string } };
-    assert.match(info.description, /\/tokenized_assets\/catalog/);
+    assert.match(info.description, /\/assets\/catalog/);
     assert.ok(!/\bfigures\b/.test(info.description));
   });
 

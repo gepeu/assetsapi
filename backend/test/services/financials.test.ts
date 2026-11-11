@@ -33,7 +33,7 @@ describe('financials service', () => {
       {
         metric: 'price_dollar',
         label: 'Price',
-        group: 'Value',
+        group: 'value',
         unit: 'dollar',
         scope: 'asset',
         value: 2,
@@ -112,8 +112,8 @@ describe('financials service', () => {
   test('groups and financialMetrics narrow financials, and both must match', async () => {
     const metricsOf = (rows: { metric: string }[]) => rows.map((row) => row.metric);
     const groupsOf = (rows: { group: string }[]) => [...new Set(rows.map((row) => row.group))];
-    assert.deepEqual(groupsOf((await load({ groups: 'value' })).financials), ['Value']);
-    assert.deepEqual(groupsOf((await load({ groups: 'supply' })).financials), ['Supply and holders']);
+    assert.deepEqual(groupsOf((await load({ groups: 'value' })).financials), ['value']);
+    assert.deepEqual(groupsOf((await load({ groups: 'supply' })).financials), ['supply']);
     assert.deepEqual(metricsOf((await load({ financialMetrics: 'price_dollar' })).financials), ['price_dollar']);
     assert.deepEqual(metricsOf((await load({ financialMetrics: 'top_holder_concentration' })).financials), [
       'top_holder_concentration',
@@ -145,18 +145,18 @@ describe('financials service', () => {
   test("series lists what's available, with the right scope", async () => {
     const { series } = await load();
     assert.deepEqual(series, [
-      { metric: 'price_dollar', label: 'Price', group: 'Value', unit: 'dollar', scope: 'asset' },
+      { metric: 'price_dollar', label: 'Price', group: 'value', unit: 'dollar', scope: 'asset' },
       {
         metric: 'holding_addresses_count',
         label: 'Holders',
-        group: 'Supply and holders',
+        group: 'supply',
         unit: 'address',
         scope: 'solana',
       },
       {
         metric: 'top_holder_concentration',
         label: 'Top holder share',
-        group: 'Supply and holders',
+        group: 'supply',
         unit: 'percent',
         scope: 'solana',
       },
