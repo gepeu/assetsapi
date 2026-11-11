@@ -13,7 +13,7 @@ The service is a public, read-only API over a Postgres database that scheduled j
 | **Providers** | RWA.xyz for data and Kamino for the verified token list |
 | **Scale** | Two API replicas. Add more if traffic requires it |
 
-**Out of scope for now:** the chat agent, document storage and search, document links, AI-sourced values, CORS, the frontend itself, market-wide totals and bulk export. `main` and the local `rwa` database still hold the old system and data.
+**Out of scope for now:** the chat agent, document storage and search, document links, AI-sourced values, the frontend itself, market-wide totals and bulk export. `main` and the local `rwa` database still hold the old system and data.
 
 ## 1. Architecture
 
@@ -132,6 +132,7 @@ The frontend and backend are two apps, deployed separately. The API and both job
     │       ├── server.ts               # entry point: listens and shuts down cleanly
     │       ├── app.ts                  # builds the Fastify app
     │       ├── cache.ts                # the in-memory response cache
+    │       ├── cors.ts                 # lets pages on any website call the API
     │       ├── errors.ts               # the standard error response
     │       ├── guide.ts                # the introduction in the OpenAPI contract
     │       ├── routes/
@@ -633,15 +634,15 @@ Coverage { withData, applicable: integer }
 
 - **Exposure:** the API is public on a normal Railway URL, with no key or login. Postgres stays private.
 - **Rate limit:** 600 requests per minute per IP address on each replica, set by `RATE_LIMIT_MAX`. The IP comes from Railway's `X-Real-IP` header, so the limit only holds if a client can't set that header itself. `operations.md` has the staging check.
-- **CORS:** not enabled, so a browser page on another domain can't call the API directly. `@fastify/cors` can be added when a client needs it.
+- **CORS:** every origin is allowed (`Access-Control-Allow-Origin: *`), so a page on any website can call the API from the browser. That's safe because the API is public and read-only, and takes no cookies or keys. `backend/src/api/cors.ts` sets the headers and answers preflight requests, with no extra package. Added on 2026-11-11, and open to every origin for now: to narrow it later, that file is the one place to change.
 - **History:** the first version required API keys, with an optional shared login for a built-in frontend. Both were removed on 2026-11-10.
 
 ### For the frontend team
 
 The frontend team receives the docs page at `/docs`, `backend/openapi.json` and the API's URL. No key is needed, and the page's **Try it out** calls the live API.
 
-- **Call the API from the frontend's server for now.** Without CORS, the browser can't call it from the frontend's domain.
-- **Mind the rate limit** if the frontend's server makes every call: they all count against its one IP address.
+- **Call the API from the browser or from the frontend's server.** Any origin is allowed, and a script can read the `ETag`, `Retry-After`, request ID and rate-limit headers.
+- **Mind the rate limit** if the frontend's server makes every call: they all count against its one IP address. Calls from the browser count against each visitor's own address.
 - **Keep the banner:** "Data obtained from RWA.xyz".
 
 ### Caching
@@ -905,7 +906,6 @@ The new service replaces the old one in the same Railway project, using a new Po
 - That Railway's Postgres version can restore a Postgres 18 dump.
 - That the chosen job monitor includes the run summary in its failure emails.
 - That Railway's proxy overwrites an `X-Real-IP` header sent by a client, because the per-IP rate limit depends on it.
-- Whether a browser client needs CORS.
 
 **Needed from you at setup:**
 - The alert email address.

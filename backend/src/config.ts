@@ -112,6 +112,8 @@ export function loadSettings() {
       cacheMaxBytes: readWholeNumber('CACHE_MAX_BYTES', 67_108_864, { min: 0 }),
       /** How often a replica asks whether the data changed, so the longest a kept response is out of date. */
       cacheVersionCheckMs: readWholeNumber('CACHE_VERSION_CHECK_MS', 10_000, { min: 0 }),
+      /** How long a browser may remember that a cross-origin request is allowed, before asking again. */
+      corsMaxAgeSeconds: readWholeNumber('CORS_MAX_AGE_SECONDS', 86_400, { min: 0 }),
       /** How long in-flight requests get to finish after a stop signal. */
       shutdownTimeoutMs: readWholeNumber('SHUTDOWN_TIMEOUT_MS', 20_000),
       /** The asset list's page size when a request gives none, and the largest it may ask for. */

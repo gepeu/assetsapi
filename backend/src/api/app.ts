@@ -10,6 +10,7 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance, type FastifyRequ
 import { settings } from '../config.ts';
 import type { Queryable } from '../db/pool.ts';
 import { registerResponseCache } from './cache.ts';
+import { registerCors } from './cors.ts';
 import { registerErrorHandling } from './errors.ts';
 import { API_GUIDE } from './guide.ts';
 import { registerAssetRoutes } from './routes/assets.ts';
@@ -72,7 +73,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   registerErrorHandling(app);
 
-  await app.register(helmet);
+  // Helmet's default lets only this site load a response, which would undo the CORS headers below.
+  await app.register(helmet, { crossOriginResourcePolicy: { policy: 'cross-origin' } });
   // Before ETag and compression, whose hooks must see the kept body as they see a fresh one.
   registerResponseCache(app, {
     db,
@@ -103,6 +105,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     // Per client IP. Each replica counts separately.
     keyGenerator: getClientIp,
   });
+  // After the rate limit, so preflight requests count toward it, and before every route.
+  registerCors(app);
   // After the rate limit, so it covers these pages too. Its routes stay out of the contract.
   await app.register(swaggerUi, {
     routePrefix: '/docs',

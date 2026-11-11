@@ -34,6 +34,49 @@ describe('open access', () => {
     assert.equal(response.headers['www-authenticate'], undefined);
   });
 
+  test('a page on any website may read every answer, errors included', async () => {
+    const origin = { origin: 'https://app.example' };
+    for (const [url, status] of [
+      ['/assets', 200],
+      ['/assets?unknown=1', 400],
+      ['/assets/no-such-asset', 404],
+      ['/no-such-path', 404],
+      ['/readyz', 200],
+      ['/docs/json', 200],
+    ] as const) {
+      const response = await app.inject({ method: 'GET', url, headers: origin });
+      assert.equal(response.statusCode, status, url);
+      assert.equal(response.headers['access-control-allow-origin'], '*', url);
+      assert.equal(response.headers['cross-origin-resource-policy'], 'cross-origin', url);
+    }
+  });
+
+  test("a page's script can read the ETag and the rate-limit headers", async () => {
+    const response = await app.inject({ method: 'GET', url: '/assets' });
+    const exposed = String(response.headers['access-control-expose-headers']).split(', ');
+    for (const name of ['etag', 'retry-after', 'x-request-id', 'x-ratelimit-remaining']) {
+      assert.ok(exposed.includes(name), name);
+    }
+  });
+
+  test("a browser's preflight is answered, and allows only reading", async () => {
+    const response = await app.inject({
+      method: 'OPTIONS',
+      url: '/assets/asset-1',
+      headers: {
+        origin: 'https://app.example',
+        'access-control-request-method': 'GET',
+        'access-control-request-headers': 'if-none-match',
+      },
+    });
+    assert.equal(response.statusCode, 204);
+    assert.equal(response.headers['access-control-allow-origin'], '*');
+    assert.equal(response.headers['access-control-allow-methods'], 'GET, HEAD');
+    assert.equal(response.headers['access-control-allow-headers'], 'if-none-match');
+    assert.equal(response.headers['access-control-max-age'], '86400');
+    assert.equal(response.headers['access-control-allow-credentials'], undefined);
+  });
+
   test('the old frontend paths are gone', async () => {
     for (const url of ['/', '/ui', '/ui/assets']) {
       assert.equal((await app.inject({ method: 'GET', url })).statusCode, 404, url);
@@ -61,6 +104,7 @@ describe('per-IP rate limit', () => {
     const limited = await from('203.0.113.1');
     assert.equal(limited.statusCode, 429);
     assert.equal(limited.json().error.code, 'rate_limited');
+    assert.equal(limited.headers['access-control-allow-origin'], '*');
     assert.equal((await from('203.0.113.2')).statusCode, 200);
   });
 
@@ -68,6 +112,12 @@ describe('per-IP rate limit', () => {
     const url = '/assets/catalog';
     for (let attempt = 0; attempt < 3; attempt++) assert.equal((await from('203.0.113.3', url)).statusCode, 200);
     assert.equal((await from('203.0.113.3', url)).statusCode, 429);
+  });
+
+  test('preflight requests count toward the limit', async () => {
+    const preflight = () => app.inject({ method: 'OPTIONS', url: '/assets', headers: { 'x-real-ip': '203.0.113.5' } });
+    for (let attempt = 0; attempt < 3; attempt++) assert.equal((await preflight()).statusCode, 204);
+    assert.equal((await preflight()).statusCode, 429);
   });
 
   test('/readyz is never rate limited', async () => {
