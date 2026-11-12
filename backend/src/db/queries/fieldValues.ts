@@ -135,27 +135,6 @@ export async function listAssetFieldStatuses(db: Queryable, assetId: number): Pr
   return rows;
 }
 
-export interface TokenFieldStatusRow extends FieldStatusRow {
-  asset_id: number;
-}
-
-/** Token-level fields that apply to each of these assets. */
-export async function listTokenFieldStatuses(
-  db: Queryable,
-  assetIds: readonly number[]
-): Promise<TokenFieldStatusRow[]> {
-  const { rows } = await db.query<TokenFieldStatusRow>(
-    `SELECT s.asset_id, f.id, f.key, f.category, f.label, f.value_type AS "valueType", f.level,
-            f.record_group AS "recordGroup", s.status
-     FROM asset_field_status s
-     JOIN field f ON f.id = s.field_id
-     WHERE s.asset_id = ANY($1::int[]) AND f.level = 'token' AND s.status <> 'not_applicable'
-     ORDER BY f.sort_order`,
-    [assetIds]
-  );
-  return rows;
-}
-
 export interface StoredValue {
   field_id: number;
   subject_ref: string;

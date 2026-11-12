@@ -55,13 +55,20 @@ describe('GET /assets and /assets/{slug}', () => {
     assert.equal('solanaMetrics' in (await get('/assets')).json().data[0], false);
   });
 
-  test("include=tokens adds each asset's tokens, matching the detail page", async () => {
+  test("include=tokens adds only each asset's Solana mint", async () => {
     const body = (await get('/assets?include=tokens')).json();
     assert.equal(body.data.length, 2);
     for (const row of body.data) {
-      const detail = (await get(`/assets/${row.slug}?include=tokens`)).json().data;
-      assert.ok(row.tokens.length > 0, row.slug);
-      assert.deepEqual(row.tokens, detail.tokens, row.slug);
+      const detail = (await get(`/assets/${row.slug}?include=tokens&network=solana`)).json().data;
+      assert.deepEqual(
+        row.tokens,
+        detail.tokens.map((token: { network: unknown; address: string }) => ({
+          network: token.network,
+          address: token.address,
+        })),
+        row.slug
+      );
+      assert.equal(row.tokens.length, 1, row.slug);
     }
     assert.equal('tokens' in (await get('/assets')).json().data[0], false);
   });

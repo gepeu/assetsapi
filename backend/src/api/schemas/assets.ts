@@ -20,7 +20,7 @@ import {
   slugParams,
   toListPattern,
 } from './shared.ts';
-import { tokensSection } from './tokens.ts';
+import { listTokensSection, tokensSection } from './tokens.ts';
 
 // Postgres rejects a NUL byte in text, which would otherwise read as a 500.
 const NO_NUL_PATTERN = '^[^\\u0000]*$';
@@ -67,8 +67,7 @@ const assetListQuery = {
     include: {
       type: 'string',
       enum: LIST_SECTIONS,
-      description:
-        "`tokens` adds each asset's active tokens, in the same shape as on `/assets/{slug}`. `network` still filters assets, not tokens.",
+      description: "`tokens` adds each asset's Solana mint. `network` still filters assets, not tokens.",
     },
     metrics: metricsParameter,
     solanaMetrics: {
@@ -117,7 +116,7 @@ const assetListResponse = {
           asOf: dayOrNull,
           metrics: metricsSchema,
           solanaMetrics: metricsSchema,
-          tokens: tokensSection,
+          tokens: listTokensSection,
         },
       },
     },

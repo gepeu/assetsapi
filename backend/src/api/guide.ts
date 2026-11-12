@@ -31,7 +31,7 @@ Daily points are requested by name: \`history\` takes metric names, and \`range\
 |---|---|
 | Stablecoins by size | \`/assets?assetType=stablecoin&sort=-total_asset_value_dollar\` |
 | Every asset compared on one metric | \`/assets?metrics=market_value_dollar&sort=-market_value_dollar&limit=200\` |
-| Every asset with its tokens | \`/assets?include=tokens\` |
+| Every asset with its Solana mint | \`/assets?include=tokens\` |
 | The basics for one asset | \`/assets/usdt\` |
 | Everything on an asset page | \`/assets/usdt?include=fields,tokens\` |
 | Only issuer and legal facts that have a value | \`/assets/usdt?include=fields&categories=issuer,legal&empty=false\` |

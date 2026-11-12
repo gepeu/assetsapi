@@ -1,4 +1,4 @@
-/** The `tokens` section of `GET /assets/{slug}` and `GET /assets`. */
+/** The `tokens` section of `GET /assets/{slug}`, and its short form on `GET /assets`. */
 import type { FromSchema } from 'json-schema-to-ts';
 import { dayOrNull, fieldValueSchema, metricsSchema, networkRefSchema } from './shared.ts';
 
@@ -24,3 +24,19 @@ export const tokensSection = {
   },
 } as const;
 export type TokensSection = FromSchema<typeof tokensSection>;
+
+/** On the list, only what a table needs to show a token: the Solana mint. */
+export const listTokensSection = {
+  type: 'array',
+  description:
+    "The asset's active Solana tokens. `/assets/{slug}?include=tokens` has every network and the full detail",
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['network', 'address'],
+    properties: {
+      network: networkRefSchema,
+      address: { type: 'string', description: 'The mint address' },
+    },
+  },
+} as const;
