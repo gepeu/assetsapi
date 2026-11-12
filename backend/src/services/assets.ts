@@ -26,7 +26,7 @@ import { loadFields } from './fields.ts';
 import { findLatestAsOf, loadSeries, loadValueByNetwork, toFinancials, toTerms } from './financials.ts';
 import { HOLDER_SHARE_METRICS, loadHistory, toServableShare } from './history.ts';
 import { parseList, toGroupKey } from './names.ts';
-import { loadTokens } from './tokens.ts';
+import { loadTokens, loadTokensByAsset } from './tokens.ts';
 
 /** The numbers an asset carries unless a request names others. */
 const KEY_METRICS = [
@@ -84,7 +84,7 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
 
   const assetIds = rows.map((row) => row.id);
   const holderShares = metrics.filter(isHolderShare);
-  const [assetValues, solanaValues, solanaTokenValues] = await Promise.all([
+  const [assetValues, solanaValues, solanaTokenValues, tokensByAsset] = await Promise.all([
     listAssetMetricValues(
       db,
       assetIds,
@@ -92,6 +92,7 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
     ),
     holderShares.length > 0 ? listSolanaMetricValues(db, assetIds, holderShares) : [],
     solanaMetrics ? listSolanaMetricValues(db, assetIds, solanaMetrics) : [],
+    query.include === 'tokens' ? loadTokensByAsset(db, assetIds, null) : undefined,
   ]);
   const valueByCell = new Map<string, number | null>([
     ...assetValues.map((row): [string, number | null] => [`${row.asset_id}|${row.metric}`, row.value]),
@@ -122,6 +123,7 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
           solanaMetrics.map((metric) => [metric, solanaValueByCell.get(`${row.id}|${metric}`) ?? null])
         ),
       }),
+      ...(tokensByAsset && { tokens: tokensByAsset.get(row.id) ?? [] }),
     })),
     meta: { total, limit, offset },
   };

@@ -32,6 +32,9 @@ export type Section = (typeof SECTIONS)[number];
 
 const SECTION_LIST_PATTERN = toListPattern(`(${SECTIONS.join('|')})`, SECTIONS.length);
 
+/** What `include` can ask for on the list. The other sections are too heavy to fetch per row. */
+export const LIST_SECTIONS = ['tokens'] as const;
+
 const KEY_METRICS_NOTE =
   'Defaults to the five key metrics: `price_dollar`, `net_asset_value_dollar`, `total_asset_value_dollar`, `apy_30_day` and `holding_addresses_count`.';
 
@@ -60,6 +63,12 @@ const assetListQuery = {
       maxLength: maxFilterLength,
       pattern: NO_NUL_PATTERN,
       description: 'Searches ticker, name and issuer',
+    },
+    include: {
+      type: 'string',
+      enum: LIST_SECTIONS,
+      description:
+        "`tokens` adds each asset's active tokens, in the same shape as on `/assets/{slug}`. `network` still filters assets, not tokens.",
     },
     metrics: metricsParameter,
     solanaMetrics: {
@@ -108,6 +117,7 @@ const assetListResponse = {
           asOf: dayOrNull,
           metrics: metricsSchema,
           solanaMetrics: metricsSchema,
+          tokens: tokensSection,
         },
       },
     },

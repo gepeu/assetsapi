@@ -55,6 +55,22 @@ describe('GET /assets and /assets/{slug}', () => {
     assert.equal('solanaMetrics' in (await get('/assets')).json().data[0], false);
   });
 
+  test("include=tokens adds each asset's tokens, matching the detail page", async () => {
+    const body = (await get('/assets?include=tokens')).json();
+    assert.equal(body.data.length, 2);
+    for (const row of body.data) {
+      const detail = (await get(`/assets/${row.slug}?include=tokens`)).json().data;
+      assert.ok(row.tokens.length > 0, row.slug);
+      assert.deepEqual(row.tokens, detail.tokens, row.slug);
+    }
+    assert.equal('tokens' in (await get('/assets')).json().data[0], false);
+  });
+
+  test('include=tokens keeps working when paging past the last asset', async () => {
+    const body = (await get('/assets?include=tokens&offset=10')).json();
+    assert.deepEqual(body.data, []);
+  });
+
   test('query numbers arrive as numbers', async () => {
     const body = (await get('/assets?limit=1&offset=1')).json();
     assert.equal(body.meta.limit, 1);
@@ -78,6 +94,9 @@ describe('GET /assets and /assets/{slug}', () => {
     '/assets?solanaMetrics=made_up',
     '/assets?solanaMetrics=raw_supply',
     '/assets?metrics=price_dollar,',
+    '/assets?include=fields',
+    '/assets?include=tokens,tokens',
+    '/assets?include=tokens&include=tokens',
     '/assets?metrics=price_dollar,%20apy_30_day',
     '/assets?metrics=raw_supply',
     '/assets?metrics=sp_rating',

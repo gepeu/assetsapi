@@ -94,6 +94,7 @@ export async function listAllTokenIds(db: Queryable, assetId: number): Promise<n
 
 interface AssetTokenRow {
   id: number;
+  asset_id: number;
   address: string;
   issuance_type: 'native' | 'bridged' | 'wrapper' | 'unknown';
   network_key: string;
@@ -102,16 +103,16 @@ interface AssetTokenRow {
 
 export async function listActiveTokens(
   db: Queryable,
-  assetId: number,
+  assetIds: readonly number[],
   networkKey: string | null
 ): Promise<AssetTokenRow[]> {
   const { rows } = await db.query<AssetTokenRow>(
-    `SELECT t.id, t.address, t.issuance_type, n.key AS network_key, n.name AS network_name
+    `SELECT t.id, t.asset_id, t.address, t.issuance_type, n.key AS network_key, n.name AS network_name
      FROM token t
      JOIN network n ON n.id = t.network_id
-     WHERE t.asset_id = $1 AND t.deactivated_at IS NULL AND ($2::text IS NULL OR n.key = $2)
+     WHERE t.asset_id = ANY($1::int[]) AND t.deactivated_at IS NULL AND ($2::text IS NULL OR n.key = $2)
      ORDER BY n.name, t.address`,
-    [assetId, networkKey]
+    [assetIds, networkKey]
   );
   return rows;
 }
