@@ -1,6 +1,7 @@
 /** Tests for asset services. */
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
+import { ApiError } from '../../src/api/errors.ts';
 import { getAsset, listAssets } from '../../src/services/assets.ts';
 import { makeAsset, seedAssets } from '../helpers/fakeProvider.ts';
 import { createTestDb, type TestDb } from '../helpers/testDb.ts';
@@ -54,6 +55,10 @@ describe('asset services', () => {
       name: 'Asset 1',
       assetClass: 'US Treasury Debt',
       assetType: 'tokenized_fund',
+      classification: {
+        group: { key: 'fixed_income', label: 'Fixed income' },
+        subclass: { key: 'treasuries', label: 'Treasuries' },
+      },
       issuer: 'Shared Issuer',
       asOf: '2026-11-05',
       metrics: {
@@ -71,6 +76,33 @@ describe('asset services', () => {
     assert.deepEqual(slugs(await listAssets(db.pool, { assetType: 'tokenized_fund' })), ['fund']);
     assert.deepEqual(slugs(await listAssets(db.pool, { network: 'ethereum' })), ['stock', 'twin', 'fund']);
     assert.deepEqual(slugs(await listAssets(db.pool, { network: 'nowhere' })), []);
+  });
+
+  test('filters by classification group and subclass', async () => {
+    assert.deepEqual(slugs(await listAssets(db.pool, { group: 'crypto' })), ['twin', 'coin']);
+    assert.deepEqual(slugs(await listAssets(db.pool, { group: 'fixed_income' })), ['fund']);
+    assert.deepEqual(slugs(await listAssets(db.pool, { subclass: 'stocks' })), ['stock']);
+    assert.deepEqual(slugs(await listAssets(db.pool, { group: 'equities', subclass: 'stocks' })), ['stock']);
+    assert.deepEqual(slugs(await listAssets(db.pool, { group: 'alternatives' })), []);
+    assert.equal((await listAssets(db.pool, { group: 'crypto' })).meta.total, 2);
+  });
+
+  test('a subclass outside the sent group is a 400', async () => {
+    await assert.rejects(listAssets(db.pool, { group: 'crypto', subclass: 'stocks' }), ApiError);
+  });
+
+  test('a classification filter still sorts by metric', async () => {
+    const response = await listAssets(db.pool, { group: 'crypto', sort: '-price_dollar', limit: 1, offset: 1 });
+    assert.equal(response.meta.total, 2);
+    assert.equal(response.data.length, 1);
+  });
+
+  test('detail carries the classification too', async () => {
+    const response = await getAsset(db.pool, 'stock');
+    assert.deepEqual(response?.data.classification, {
+      group: { key: 'equities', label: 'Equities' },
+      subclass: { key: 'stocks', label: 'Stocks' },
+    });
   });
 
   test('searches ticker, name and issuer, and treats wildcards as text', async () => {

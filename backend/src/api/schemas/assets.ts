@@ -1,6 +1,7 @@
 /** `GET /assets` and `GET /assets/{slug}`. */
 import type { FromSchema } from 'json-schema-to-ts';
 import { settings } from '../../config.ts';
+import { classificationSchema, GROUP_KEYS, SUBCLASS_KEYS } from './classification.ts';
 import { fieldsSection } from './fields.ts';
 import { financialsSection, seriesSection, termsSection, valueByNetworkSection } from './financials.ts';
 import { DEFAULT_HISTORY_RANGE, HISTORY_RANGES, historySection } from './history.ts';
@@ -56,6 +57,12 @@ const assetListQuery = {
       description: 'Only this asset class',
     },
     assetType: { type: 'string', enum: ASSET_TYPES, description: 'Only this asset type' },
+    group: { type: 'string', enum: GROUP_KEYS, description: 'Only assets in this classification group' },
+    subclass: {
+      type: 'string',
+      enum: SUBCLASS_KEYS,
+      description: 'Only assets in this classification subclass. With `group`, it must be in that group',
+    },
     network: { type: 'string', pattern: SLUG_PATTERN, description: 'Only assets with an active token on this network' },
     q: {
       type: 'string',
@@ -105,13 +112,14 @@ const assetListResponse = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['slug', 'ticker', 'name', 'assetClass', 'assetType', 'issuer', 'asOf', 'metrics'],
+        required: ['slug', 'ticker', 'name', 'assetClass', 'assetType', 'classification', 'issuer', 'asOf', 'metrics'],
         properties: {
           slug: { type: 'string' },
           ticker: { type: 'string' },
           name: { type: 'string' },
           assetClass: { type: 'string' },
           assetType: { type: 'string' },
+          classification: classificationSchema,
           issuer: nullableString,
           asOf: dayOrNull,
           metrics: metricsSchema,
@@ -202,6 +210,7 @@ const assetDetailResponse = {
         'name',
         'assetClass',
         'assetType',
+        'classification',
         'description',
         'issuer',
         'organizations',
@@ -215,6 +224,7 @@ const assetDetailResponse = {
         name: { type: 'string' },
         assetClass: { type: 'string' },
         assetType: { type: 'string' },
+        classification: classificationSchema,
         description: nullableString,
         issuer: nullableString,
         organizations: {

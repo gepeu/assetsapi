@@ -126,6 +126,42 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "fixed_income",
+                "equities",
+                "commodities",
+                "crypto",
+                "alternatives"
+              ]
+            },
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "description": "Only assets in this classification group"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "treasuries",
+                "corporate_credit",
+                "private_credit",
+                "stocks",
+                "commodities",
+                "stablecoins",
+                "defi_yield",
+                "specialty_finance",
+                "active_strategies"
+              ]
+            },
+            "in": "query",
+            "name": "subclass",
+            "required": false,
+            "description": "Only assets in this classification subclass. With `group`, it must be in that group"
+          },
+          {
+            "schema": {
+              "type": "string",
               "pattern": "^[a-z0-9-]{1,64}$"
             },
             "in": "query",
@@ -237,6 +273,7 @@
                           "name",
                           "assetClass",
                           "assetType",
+                          "classification",
                           "issuer",
                           "asOf",
                           "metrics"
@@ -256,6 +293,52 @@
                           },
                           "assetType": {
                             "type": "string"
+                          },
+                          "classification": {
+                            "type": [
+                              "null",
+                              "object"
+                            ],
+                            "additionalProperties": false,
+                            "required": [
+                              "group",
+                              "subclass"
+                            ],
+                            "description": "The asset's group and subclass, from its RWA.xyz class. `null` for a class that isn't mapped yet. `/assets/catalog` lists them all",
+                            "properties": {
+                              "group": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "key",
+                                  "label"
+                                ],
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "subclass": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "key",
+                                  "label"
+                                ],
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
                           },
                           "issuer": {
                             "type": [
@@ -732,7 +815,8 @@
                           "required": [
                             "assetClasses",
                             "assetTypes",
-                            "networks"
+                            "networks",
+                            "classifications"
                           ],
                           "description": "The values in use across active assets, for filtering the list",
                           "properties": {
@@ -752,6 +836,46 @@
                               "type": "array",
                               "items": {
                                 "type": "string"
+                              }
+                            },
+                            "classifications": {
+                              "type": "array",
+                              "description": "Every group and subclass, including ones with no assets yet. Keys are what `group` and `subclass` take",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "key",
+                                  "label",
+                                  "subclasses"
+                                ],
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "subclasses": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "key",
+                                        "label"
+                                      ],
+                                      "properties": {
+                                        "key": {
+                                          "type": "string"
+                                        },
+                                        "label": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
                               }
                             }
                           }
@@ -1124,6 +1248,7 @@
                         "name",
                         "assetClass",
                         "assetType",
+                        "classification",
                         "description",
                         "issuer",
                         "organizations",
@@ -1146,6 +1271,52 @@
                         },
                         "assetType": {
                           "type": "string"
+                        },
+                        "classification": {
+                          "type": [
+                            "null",
+                            "object"
+                          ],
+                          "additionalProperties": false,
+                          "required": [
+                            "group",
+                            "subclass"
+                          ],
+                          "description": "The asset's group and subclass, from its RWA.xyz class. `null` for a class that isn't mapped yet. `/assets/catalog` lists them all",
+                          "properties": {
+                            "group": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "key",
+                                "label"
+                              ],
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "subclass": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "key",
+                                "label"
+                              ],
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
                         },
                         "description": {
                           "type": [

@@ -235,7 +235,7 @@ export const PLATFORM_FIELD = 'provider.platform';
 
 // "Active Strategies" covers both funds and DeFi yield today. New ones start as funds, and existing
 // assets keep the type they have.
-const ASSET_TYPE_BY_CLASS: Readonly<Record<string, AssetType>> = {
+export const ASSET_TYPE_BY_CLASS: Readonly<Record<string, AssetType>> = {
   'Active Strategies': 'tokenized_fund',
   'Asset-Backed Credit': 'tokenized_fund',
   Commodities: 'tokenized_commodity',

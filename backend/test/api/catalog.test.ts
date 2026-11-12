@@ -9,7 +9,12 @@ interface Catalog {
   groups: { key: string; label: string }[];
   categories: { key: string; label: string }[];
   fields: { key: string; category: string; level: string }[];
-  filters: { assetClasses: string[]; assetTypes: string[]; networks: string[] };
+  filters: {
+    assetClasses: string[];
+    assetTypes: string[];
+    networks: string[];
+    classifications: { key: string; label: string; subclasses: { key: string; label: string }[] }[];
+  };
 }
 
 coversRoutes(['GET /assets/catalog']);
@@ -104,5 +109,20 @@ describe('GET /assets/catalog', () => {
   test("filters list what's in use", () => {
     assert.deepEqual(catalog.filters.networks, ['ethereum', 'solana']);
     assert.deepEqual(catalog.filters.assetTypes, ['stablecoin']);
+  });
+
+  test('lists every classification group, in menu order, and each key is accepted', async () => {
+    const groups = catalog.filters.classifications;
+    assert.deepEqual(
+      groups.map((group) => group.label),
+      ['Fixed income', 'Equities', 'Commodities', 'Crypto', 'Alternatives']
+    );
+    for (const group of groups) {
+      assert.equal((await harness.get(`/assets?group=${group.key}`)).statusCode, 200);
+      for (const subclass of group.subclasses) {
+        const url = `/assets?group=${group.key}&subclass=${subclass.key}`;
+        assert.equal((await harness.get(url)).statusCode, 200, url);
+      }
+    }
   });
 });

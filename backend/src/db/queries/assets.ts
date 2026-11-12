@@ -121,6 +121,8 @@ export async function findActiveAssetBySlug(db: Queryable, slug: string): Promis
 
 interface AssetListFilters {
   assetClass: string | null;
+  /** Parallel arrays of the (class, type) pairs to keep, or null for all. */
+  classPairs: { classes: string[]; types: string[] } | null;
   assetType: string | null;
   network: string | null;
   q: string | null;
@@ -151,12 +153,12 @@ export interface AssetListRow {
 const toSortExpression = (sort: AssetSort): string =>
   sort.by === 'ticker' ? `lower(a.ticker) COLLATE "C"` : 's.value';
 
-/** The sort metric's value for each asset, in $7. A holder share above 100% can't be true, so it sorts as missing. */
+/** The sort metric's value for each asset, in $9. A holder share above 100% can't be true, so it sorts as missing. */
 function toSortJoin(sort: AssetSort): string {
   if (sort.by === 'ticker') return '';
   const scope =
     sort.scope === 'asset' ? 's.token_id IS NULL' : `s.token_id = ${servedSolanaToken('a.id')} AND s.value <= 100`;
-  return `LEFT JOIN financial_current s ON s.asset_id = a.id AND s.metric = $7 AND ${scope}`;
+  return `LEFT JOIN financial_current s ON s.asset_id = a.id AND s.metric = $9 AND ${scope}`;
 }
 
 const ISSUER_JOIN = `
@@ -177,7 +179,8 @@ const FILTERS = `
     SELECT 1 FROM token t JOIN network n ON n.id = t.network_id
     WHERE t.asset_id = a.id AND t.deactivated_at IS NULL AND n.key = $3
   ))
-  AND ($4::text IS NULL OR a.ticker ILIKE $4 OR a.name ILIKE $4 OR i.brand_name ILIKE $4)`;
+  AND ($4::text IS NULL OR a.ticker ILIKE $4 OR a.name ILIKE $4 OR i.brand_name ILIKE $4)
+  AND ($5::text[] IS NULL OR (a.asset_class, a.asset_type) IN (SELECT * FROM unnest($5::text[], $6::text[])))`;
 
 function toSearchPattern(q: string | null): string | null {
   return q === null ? null : `%${q.replace(/[\\%_]/g, '\\$&')}%`;
@@ -200,12 +203,14 @@ export async function listAssetRows(db: Queryable, options: AssetListOptions): P
      ) d ON d.asset_id = a.id
      WHERE ${FILTERS}
      ORDER BY ${toSortExpression(sort)} ${direction} NULLS LAST, a.slug COLLATE "C"
-     LIMIT $5 OFFSET $6`,
+     LIMIT $7 OFFSET $8`,
     [
       options.assetClass,
       options.assetType,
       options.network,
       toSearchPattern(options.q),
+      options.classPairs?.classes ?? null,
+      options.classPairs?.types ?? null,
       options.limit,
       options.offset,
       ...(sort.by === 'metric' ? [sort.metric] : []),
@@ -217,7 +222,14 @@ export async function listAssetRows(db: Queryable, options: AssetListOptions): P
 export async function countAssets(db: Queryable, filters: AssetListFilters): Promise<number> {
   const { rows } = await db.query<{ total: number }>(
     `SELECT count(*)::int AS total FROM asset a ${ISSUER_JOIN} WHERE ${FILTERS}`,
-    [filters.assetClass, filters.assetType, filters.network, toSearchPattern(filters.q)]
+    [
+      filters.assetClass,
+      filters.assetType,
+      filters.network,
+      toSearchPattern(filters.q),
+      filters.classPairs?.classes ?? null,
+      filters.classPairs?.types ?? null,
+    ]
   );
   return rows[0]?.total ?? 0;
 }

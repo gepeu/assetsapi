@@ -1,5 +1,6 @@
 /** `GET /assets/catalog`. */
 import type { FromSchema } from 'json-schema-to-ts';
+import { classificationTreeSchema } from './classification.ts';
 import { API_TAG, errorResponses, groupKeySchema, nullableString } from './shared.ts';
 
 const namedOption = {
@@ -60,12 +61,13 @@ const catalogResponse = {
         filters: {
           type: 'object',
           additionalProperties: false,
-          required: ['assetClasses', 'assetTypes', 'networks'],
+          required: ['assetClasses', 'assetTypes', 'networks', 'classifications'],
           description: 'The values in use across active assets, for filtering the list',
           properties: {
             assetClasses: { type: 'array', items: { type: 'string' } },
             assetTypes: { type: 'array', items: { type: 'string' } },
             networks: { type: 'array', items: { type: 'string' } },
+            classifications: classificationTreeSchema,
           },
         },
       },

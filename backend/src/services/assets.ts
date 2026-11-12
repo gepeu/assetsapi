@@ -22,6 +22,7 @@ import {
 } from '../db/queries/financials.ts';
 import { listAssetOrganizations } from '../db/queries/organizations.ts';
 import { listActiveTokens, listAssetNetworks } from '../db/queries/tokens.ts';
+import { classify, toClassPairs } from './classification.ts';
 import { loadFields } from './fields.ts';
 import { findLatestAsOf, loadSeries, loadValueByNetwork, toFinancials, toTerms } from './financials.ts';
 import { HOLDER_SHARE_METRICS, loadHistory, toServableShare } from './history.ts';
@@ -73,6 +74,7 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
     assetType: query.assetType ?? null,
     network: query.network ?? null,
     q: query.q ?? null,
+    classPairs: toClassPairs(query.group, query.subclass),
   };
   const limit = query.limit ?? settings.api.defaultPageSize;
   const offset = query.offset ?? 0;
@@ -115,6 +117,7 @@ export async function listAssets(db: Queryable, query: Partial<AssetListQuery>):
       name: row.name,
       assetClass: row.asset_class,
       assetType: row.asset_type,
+      classification: classify(row.asset_class, row.asset_type),
       issuer: row.issuer,
       asOf: row.as_of,
       metrics: Object.fromEntries(metrics.map((metric) => [metric, valueByCell.get(`${row.id}|${metric}`) ?? null])),
@@ -226,6 +229,7 @@ export async function getAsset(
       name: asset.name,
       assetClass: asset.asset_class,
       assetType: asset.asset_type,
+      classification: classify(asset.asset_class, asset.asset_type),
       description: typeof description === 'string' ? description : null,
       issuer: organizations.find((organization) => organization.role === 'issuer')?.name ?? null,
       organizations: organizations.map((organization) => ({

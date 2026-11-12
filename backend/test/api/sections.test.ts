@@ -9,6 +9,7 @@ const CORE = [
   'asOf',
   'assetClass',
   'assetType',
+  'classification',
   'description',
   'issuer',
   'metrics',

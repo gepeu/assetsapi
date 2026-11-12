@@ -493,6 +493,8 @@ Every input schema uses `additionalProperties: false`, in the style of Kamino's 
 |---|---|---|
 | `/assets` | `assetClass` | String, 1 to 64 characters |
 | | `assetType` | Enum of our asset types |
+| | `group` | Enum of classification groups, such as `fixed_income` |
+| | `subclass` | Enum of classification subclasses, such as `private_credit`. With `group`, it must be in that group, or it's a `400` |
 | | `network` | `^[a-z0-9-]{1,64}$` |
 | | `q` | String, 1 to 64 characters. Searches ticker, name and issuer |
 | | `metrics` | Up to 100 metric names. Defaults to the five key metrics |
@@ -526,11 +528,16 @@ FieldValue {
   asOf: date | null
 }
 Coverage { withData, applicable: integer }
+// Our taxonomy over RWA.xyz's classes, such as Fixed income / Private credit. A fixed map in
+// src/services/classification.ts sets it from assetClass, with assetType where RWA.xyz's class is
+// too broad. An unmapped class is null rather than a guess. Tokens take their asset's classification.
+Classification { group, subclass: { key, label: string } } | null
 
 // GET /assets
 {
   data: [{
     slug, ticker, name, assetClass, assetType: string
+    classification: Classification
     issuer: string | null
     asOf: date | null
     metrics: Metrics
@@ -550,7 +557,11 @@ Coverage { withData, applicable: integer }
     fields: [{ key, label, category, valueType, level: string }]
     // A metric's group and a field's category are keys from these lists, never labels,
     // so a client joins them here for the label. The database stores only the label.
-    filters: { assetClasses, assetTypes, networks: string[] }
+    filters: {
+      assetClasses, assetTypes, networks: string[]
+      // Every group and subclass, in menu order, including ones with no assets yet
+      classifications: [{ key, label: string, subclasses: [{ key, label: string }] }]
+    }
   }
 }
 
@@ -558,6 +569,7 @@ Coverage { withData, applicable: integer }
 {
   data: {
     slug, ticker, name, assetClass, assetType: string
+    classification: Classification
     description, issuer: string | null
     organizations: [{ slug, name, role: string, legalName: string | null }]
     networks: [{ key, name: string }]

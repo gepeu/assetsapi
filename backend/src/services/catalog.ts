@@ -1,5 +1,6 @@
 /** Turns rows into `/assets/catalog`: every name the other endpoints accept. */
 import type { CatalogResponse } from '../api/schemas/catalog.ts';
+import { CLASSIFICATIONS } from '../api/schemas/classification.ts';
 import type { Queryable } from '../db/pool.ts';
 import { listFilterOptions } from '../db/queries/assets.ts';
 import { listCatalog } from '../db/queries/fieldValues.ts';
@@ -38,7 +39,14 @@ export async function getCatalog(db: Queryable): Promise<CatalogResponse> {
         valueType: field.valueType,
         level: field.level,
       })),
-      filters,
+      filters: {
+        ...filters,
+        classifications: CLASSIFICATIONS.map((group) => ({
+          key: group.key,
+          label: group.label,
+          subclasses: group.subclasses.map((subclass) => ({ key: subclass.key, label: subclass.label })),
+        })),
+      },
     },
   };
 }
